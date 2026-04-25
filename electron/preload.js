@@ -29,6 +29,12 @@ contextBridge.exposeInMainWorld("mystorieslena", {
   quitAndInstall: () => ipcRenderer.invoke("updater:install"),
 
   /**
+   * Exporta o roteiro completo como PDF. Retorna { ok, path } ou
+   * { ok: false, canceled: true } se o usuário cancelar o dialog.
+   */
+  exportRoteiroPdf: (payload) => ipcRenderer.invoke("pdf:save-roteiro", payload),
+
+  /**
    * Assina eventos do auto-updater. Retorna função pra remover assinatura.
    *   onUpdateEvent(({ type, payload }) => {})
    * type pode ser: "checking-for-update", "update-available",

@@ -494,6 +494,71 @@ ipcMain.handle("updater:install", () => {
   return { ok: true };
 });
 
+/**
+ * Gera PDF do roteiro a partir de HTML usando printToPDF nativo do Chromium.
+ * Mostra dialog pro usuário escolher onde salvar e grava o arquivo.
+ */
+ipcMain.handle("pdf:save-roteiro", async (_event, payload) => {
+  const html = String(payload?.html ?? "");
+  const suggestedName = String(payload?.filename ?? "roteiro.pdf");
+  const title = String(payload?.title ?? "Roteiro");
+
+  if (!html.trim()) {
+    return { ok: false, reason: "HTML vazio." };
+  }
+
+  // Janela invisível dedicada à renderização do PDF.
+  const pdfWindow = new BrowserWindow({
+    show: false,
+    width: 800,
+    height: 1000,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      offscreen: false,
+    },
+  });
+
+  try {
+    const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+    await pdfWindow.loadURL(dataUrl);
+    // Pequena espera pra fontes/CSS aplicarem antes do print.
+    await new Promise((r) => setTimeout(r, 300));
+
+    const pdfBuffer = await pdfWindow.webContents.printToPDF({
+      printBackground: true,
+      pageSize: "A4",
+      margins: {
+        marginType: "custom",
+        top: 0.6,
+        bottom: 0.6,
+        left: 0.7,
+        right: 0.7,
+      },
+      preferCSSPageSize: false,
+    });
+
+    pdfWindow.destroy();
+
+    const result = await dialog.showSaveDialog({
+      title: "Salvar roteiro em PDF",
+      defaultPath: suggestedName,
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { ok: false, canceled: true };
+    }
+
+    fs.writeFileSync(result.filePath, pdfBuffer);
+    return { ok: true, path: result.filePath, title };
+  } catch (e) {
+    if (!pdfWindow.isDestroyed()) pdfWindow.destroy();
+    return { ok: false, reason: String(e?.message || e) };
+  }
+});
+
 app.whenReady().then(boot);
 
 app.on("window-all-closed", () => {

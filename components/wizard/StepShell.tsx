@@ -45,6 +45,7 @@ import {
 import { HistoryPanel } from "@/components/wizard/HistoryPanel";
 import { GoogleDocsButton } from "@/components/wizard/GoogleDocsButton";
 import { DownloadEscritaButton } from "@/components/wizard/DownloadEscritaButton";
+import { CopyEscritaButton } from "@/components/wizard/CopyEscritaButton";
 import { cn } from "@/lib/utils";
 
 const PART_BANNER = (part: string) =>
@@ -622,7 +623,10 @@ export function StepShell({ step }: Props) {
 
         <div className="flex items-center gap-2 flex-wrap">
           {step === "escrita" && hasContent && (
-            <DownloadEscritaButton roteiro={roteiro} />
+            <>
+              <CopyEscritaButton roteiro={roteiro} />
+              <DownloadEscritaButton roteiro={roteiro} />
+            </>
           )}
           {step === "revisor" && (
             <>

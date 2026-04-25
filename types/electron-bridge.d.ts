@@ -32,12 +32,27 @@ export type UpdateEvent =
   | { type: "update-downloaded"; payload: { version?: string } }
   | { type: "error"; payload: { message: string } };
 
+export interface ExportPdfPayload {
+  html: string;
+  filename: string;
+  title: string;
+}
+
+export interface ExportPdfResult {
+  ok: boolean;
+  path?: string;
+  title?: string;
+  canceled?: boolean;
+  reason?: string;
+}
+
 export interface MyStoriesLenaBridge {
   getRuntimeInfo: () => Promise<RuntimeInfo>;
   checkForUpdates: () => Promise<UpdaterCheckResult>;
   downloadUpdate: () => Promise<{ ok: boolean; reason?: string }>;
   quitAndInstall: () => Promise<{ ok: boolean }>;
   onUpdateEvent: (cb: (event: UpdateEvent) => void) => () => void;
+  exportRoteiroPdf: (payload: ExportPdfPayload) => Promise<ExportPdfResult>;
 }
 
 declare global {
