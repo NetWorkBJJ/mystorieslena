@@ -12,7 +12,7 @@
  *     colegas que recebem o instalador).
  */
 
-const { app, BrowserWindow, shell, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
@@ -307,6 +307,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      preload: path.join(__dirname, "preload.js"),
     },
   });
 
@@ -387,16 +388,111 @@ async function boot() {
       } else {
         autoUpdater.autoDownload = true;
         autoUpdater.autoInstallOnAppQuit = true;
-        autoUpdater.on("error", (err) => {
-          console.log("[updater] error:", err?.message || err);
-        });
+        wireUpdaterEvents();
         autoUpdater.checkForUpdatesAndNotify().catch(() => {});
       }
     } catch (e) {
       console.log("[updater] skipped:", e?.message || e);
     }
+  } else if (autoUpdater) {
+    // Mesmo em dev/live, preparamos os listeners pra que checagem manual via UI funcione no app empacotado.
+    wireUpdaterEvents();
   }
 }
+
+/**
+ * Registra forwarding de eventos do auto-updater pro renderer process.
+ * Chamado uma vez por janela após o webContents estar pronto.
+ */
+function wireUpdaterEvents() {
+  if (!autoUpdater) return;
+
+  const send = (channel, payload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(`updater:${channel}`, payload);
+    }
+  };
+
+  autoUpdater.removeAllListeners("checking-for-update");
+  autoUpdater.removeAllListeners("update-available");
+  autoUpdater.removeAllListeners("update-not-available");
+  autoUpdater.removeAllListeners("download-progress");
+  autoUpdater.removeAllListeners("update-downloaded");
+  autoUpdater.removeAllListeners("error");
+
+  autoUpdater.on("checking-for-update", () => send("checking-for-update"));
+  autoUpdater.on("update-available", (info) =>
+    send("update-available", { version: info?.version }),
+  );
+  autoUpdater.on("update-not-available", (info) =>
+    send("update-not-available", { version: info?.version }),
+  );
+  autoUpdater.on("download-progress", (p) =>
+    send("download-progress", {
+      percent: p?.percent ?? 0,
+      bytesPerSecond: p?.bytesPerSecond ?? 0,
+      transferred: p?.transferred ?? 0,
+      total: p?.total ?? 0,
+    }),
+  );
+  autoUpdater.on("update-downloaded", (info) =>
+    send("update-downloaded", { version: info?.version }),
+  );
+  autoUpdater.on("error", (err) => send("error", { message: String(err?.message || err) }));
+}
+
+// IPC handlers — endpoints que o renderer chama via preload.js (window.mystorieslena).
+ipcMain.handle("runtime:info", () => ({
+  mode: runtimeMode, // "live" | "packaged" | "external-dev"
+  version: app.getVersion(),
+  isPackaged: app.isPackaged,
+  updaterAvailable: !!autoUpdater && app.isPackaged && runtimeMode === "packaged",
+}));
+
+ipcMain.handle("updater:check", async () => {
+  if (!autoUpdater) {
+    return { ok: false, reason: "autoUpdater não disponível neste build." };
+  }
+  if (!app.isPackaged) {
+    return {
+      ok: false,
+      reason: "Atualizações só funcionam no app instalado (não em modo dev/LIVE).",
+    };
+  }
+  if (runtimeMode === "live") {
+    return {
+      ok: false,
+      reason:
+        "Modo LIVE ativo — você está lendo direto da pasta de código. Atualizações só funcionam no .exe instalado sem MYSTORIESLENA_SOURCE_DIR.",
+    };
+  }
+  try {
+    autoUpdater.autoDownload = false;
+    const result = await autoUpdater.checkForUpdates();
+    return { ok: true, info: result?.updateInfo ?? null };
+  } catch (e) {
+    return { ok: false, reason: String(e?.message || e) };
+  }
+});
+
+ipcMain.handle("updater:download", async () => {
+  if (!autoUpdater || !app.isPackaged) {
+    return { ok: false, reason: "Updater indisponível." };
+  }
+  try {
+    await autoUpdater.downloadUpdate();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: String(e?.message || e) };
+  }
+});
+
+ipcMain.handle("updater:install", () => {
+  if (!autoUpdater || !app.isPackaged) return { ok: false };
+  // isSilent=false (mostra wizard NSIS), isForceRunAfter=true (reabre depois).
+  autoUpdater.quitAndInstall(false, true);
+  return { ok: true };
+});
 
 app.whenReady().then(boot);
 

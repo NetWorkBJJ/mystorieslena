@@ -7,6 +7,7 @@ import { useWizard } from "@/store/wizard";
 import { getRoteiro } from "@/lib/storage";
 import { StepIndicator } from "./StepIndicator";
 import { StepShell } from "./StepShell";
+import { UpdateButton } from "./UpdateButton";
 import { STEP_ORDER } from "@/types/roteiro";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,6 +112,8 @@ export function Wizard({ id }: Props) {
             </button>
           )}
         </div>
+
+        <UpdateButton />
       </header>
 
       <StepIndicator

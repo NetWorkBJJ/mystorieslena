@@ -1,4 +1,5 @@
 import { RoteiroList } from "@/components/home/RoteiroList";
+import { UpdateButton } from "@/components/wizard/UpdateButton";
 import { BookOpen, Sparkles } from "lucide-react";
 
 export default function Home() {
@@ -6,9 +7,12 @@ export default function Home() {
     <div className="min-h-dvh bg-background">
       <section className="border-b bg-gradient-to-b from-primary/5 via-background to-background">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-16 pb-14 sm:pt-20 sm:pb-16 flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Sparkles className="size-4 text-primary" />
-            <span>Gerador de roteiros · Romance de milionário</span>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Sparkles className="size-4 text-primary" />
+              <span>Gerador de roteiros · Romance de milionário</span>
+            </div>
+            <UpdateButton />
           </div>
           <h1 className="font-serif text-4xl sm:text-5xl tracking-tight leading-[1.05]">
             MyStoriesLena
