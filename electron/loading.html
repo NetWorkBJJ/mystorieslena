@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>MyStoriesLena</title>
+    <style>
+      :root {
+        --bg: #0c0a0a;
+        --bg-2: #1a1414;
+        --gold: #c9a14a;
+        --gold-soft: #e7c87b;
+        --text: #efe6d4;
+        --muted: #8a7e6a;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        height: 100%;
+        background: radial-gradient(ellipse at top, var(--bg-2) 0%, var(--bg) 70%);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        overflow: hidden;
+      }
+      .wrap {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+      }
+      .brand {
+        font-family: "Cormorant Garamond", "Georgia", serif;
+        font-size: 42px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        color: var(--gold-soft);
+        text-shadow: 0 0 24px rgba(201, 161, 74, 0.25);
+      }
+      .brand .accent {
+        color: var(--gold);
+        font-style: italic;
+      }
+      .ornament {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        opacity: 0.7;
+      }
+      .ornament .line {
+        height: 1px;
+        width: 80px;
+        background: linear-gradient(to right, transparent, var(--gold), transparent);
+      }
+      .ornament .diamond {
+        width: 8px;
+        height: 8px;
+        background: var(--gold);
+        transform: rotate(45deg);
+      }
+      .spinner {
+        width: 18px;
+        height: 18px;
+        border: 2px solid rgba(201, 161, 74, 0.18);
+        border-top-color: var(--gold);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .mode {
+        margin-top: 4px;
+        font-size: 11px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .mode.live {
+        color: var(--gold);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="brand">My<span class="accent">Stories</span>Lena</div>
+      <div class="ornament">
+        <div class="line"></div>
+        <div class="diamond"></div>
+        <div class="line"></div>
+      </div>
+      <div class="spinner"></div>
+      <div class="mode" id="mode-label"></div>
+    </div>
+    <script>
+      // Modo enviado pelo main.js via query param.
+      const params = new URLSearchParams(location.search);
+      const mode = params.get("mode") || "packaged";
+      const label = document.getElementById("mode-label");
+      if (mode === "live") {
+        label.textContent = "Modo LIVE · lendo da pasta de código";
+        label.classList.add("live");
+      } else if (mode === "external-dev") {
+        label.textContent = "Modo DEV · servidor externo";
+        label.classList.add("live");
+      }
+    </script>
+  </body>
+</html>

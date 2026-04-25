@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MyStoriesLena — Gerador de Roteiros
 
-## Getting Started
+Aplicativo desktop (Electron + Next.js) que automatiza a produção de roteiros de romance dark / máfia / milionário em 5 etapas guiadas, cada uma com um agente Claude especializado.
 
-First, run the development server:
+## Etapas do fluxo
+
+1. **Premissa** — conceito central (Parte 1 + Parte 2)
+2. **Estrutura — Parte 1** — mapa, capítulos, hook (11.500 palavras / 6 capítulos)
+3. **Estrutura — Parte 2** — cena íntima, alternância FMC/MMC, epílogo (13.000–13.500 palavras / 5–6 capítulos)
+4. **Escrita** — roteiro completo em fluxo contínuo + auto-revisão + memória viva + validação
+5. **Revisor** — editor literário rigoroso com 4 graus de classificação de erro e nota final
+
+## Pré-requisitos
+
+- Windows 10/11 x64
+- Conta Claude Pro ou Max (a app usa sua assinatura, não consome API)
+- O `claude` CLI logado pelo menos uma vez (instalado automaticamente junto do app)
+
+## Instalação para usuários finais
+
+1. Baixe o instalador `MyStoriesLena-Setup-X.Y.Z.exe` da [última release](../../releases/latest).
+2. Execute o instalador e siga o wizard.
+3. Na primeira abertura, o app pede pra você logar no Claude. Faça uma vez (abre o navegador) e a credencial fica salva.
+4. Comece a usar — a partir daí o app verifica atualizações sozinho a cada inicialização.
+
+## Desenvolvimento
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# instalar deps
+npm install
+
+# rodar em modo dev (Next.js + Electron com hot-reload)
+npm run electron:dev
+
+# gerar instalador local
+npm run icon:build       # gera o ícone .ico a partir do SVG
+npm run package          # gera dist-electron/MyStoriesLena-Setup-X.Y.Z.exe
+
+# publicar uma release no GitHub (atualiza app dos colegas automaticamente)
+npm run release
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Modo LIVE (autor)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Se você é quem mantém o código e quer que o `MyStoriesLena.exe` instalado leia diretamente do código-fonte sem precisar reinstalar a cada mudança, configure uma variável de ambiente apontando pra pasta do projeto:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```powershell
+setx MYSTORIESLENA_SOURCE_DIR "C:\Users\<seu-user>\caminho-pro-projeto"
+```
 
-## Learn More
+Depois fecha e reabre todos os terminais e o app. A partir daí, qualquer alteração no código aparece ao fechar/abrir o `MyStoriesLena.exe`.
 
-To learn more about Next.js, take a look at the following resources:
+## Como a autenticação Claude funciona
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+O app usa o `@anthropic-ai/claude-agent-sdk`, que por baixo chama o binário `claude` (Claude Code CLI) bundleado dentro do instalador. Esse binário lê o token OAuth de `~/.claude/credentials.json`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Cada usuário precisa ter conta Claude própria** (Pro ou Max) e fazer login uma vez no PC dele — não dá pra compartilhar uma única conta entre vários colegas.
 
-## Deploy on Vercel
+`.env.local` é opcional, só se quiser forçar uso de API key. Veja `.env.local.example`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Editar os prompts dos agentes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Cada etapa tem o prompt em `lib/agents/`:
+
+- `premissa.ts` + (prompt inline)
+- `estrutura1.ts` / `estrutura1-prompt.ts`
+- `estrutura2.ts` / `estrutura2-prompt.ts`
+- `escrita.ts` / `escrita-prompt.ts`
+- `revisor.ts` / `revisor-prompt.ts`
+
+O agente recebe `systemPrompt` (regras gerais) e `buildUserMessage` (contexto do step). Para mexer em qualidade sem alterar regras, ajuste `model`, `thinking`, `effort` no agente.
+
+## Stack
+
+- **Frontend**: Next.js 16 (App Router) + TypeScript + Tailwind CSS 4 + shadcn/ui
+- **Estado**: Zustand (wizard) + LocalStorage (rascunhos no navegador)
+- **Backend**: Next.js API Routes (`app/api/agent/[step]`) com streaming SSE token-a-token
+- **IA**: Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) — autentica pela sua assinatura
+- **Desktop**: Electron 33 + electron-builder (NSIS installer) + electron-updater (auto-update)
+
+## Distribuição e auto-update
+
+Cada `npm run release`:
+1. Builda o Next.js standalone
+2. Empacota o `.exe` via electron-builder
+3. Publica no GitHub Releases
+
+Os apps já instalados nos PCs dos colegas verificam o GitHub Releases na inicialização. Se houver versão nova, baixam silenciosamente e aplicam ao reabrir o app.
+
+Pré-requisito pro `npm run release`: ter `GH_TOKEN` (token GitHub com permissão `repo`) setado como variável de ambiente.
