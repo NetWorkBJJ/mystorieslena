@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Copy,
-  Download,
   FileText,
   Loader2,
   Pencil,
@@ -284,26 +283,6 @@ export function StepShell({ step }: Props) {
   const copyText = useCallback(async (text: string) => {
     await navigator.clipboard.writeText(text);
   }, []);
-
-  const downloadAll = useCallback(() => {
-    if (!roteiro) return;
-    const body = STEP_ORDER.map((s) => {
-      const c = roteiro.outputs[s]?.content;
-      if (!c) return null;
-      return `# ${STEP_LABELS[s]}\n\n${c}\n`;
-    })
-      .filter(Boolean)
-      .join("\n---\n\n");
-    const blob = new Blob([`# ${roteiro.title}\n\n${body}`], {
-      type: "text/markdown",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${roteiro.title.replace(/[^\w\s-]/g, "").trim() || "roteiro"}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [roteiro]);
 
   if (!roteiro) return null;
 
@@ -630,10 +609,8 @@ export function StepShell({ step }: Props) {
           )}
           {step === "revisor" && (
             <>
-              <Button variant="outline" onClick={downloadAll} className="gap-2">
-                <Download className="size-4" />
-                Baixar .md
-              </Button>
+              <CopyEscritaButton roteiro={roteiro} />
+              <DownloadEscritaButton roteiro={roteiro} />
               <GoogleDocsButton roteiro={roteiro} />
             </>
           )}
