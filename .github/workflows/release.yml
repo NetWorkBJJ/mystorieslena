@@ -18,12 +18,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      # CRITICO: max-parallel=1 evita race condition na criacao da release no
+      # GitHub. Os dois jobs antes rodavam em paralelo e ambos tentavam fazer
+      # POST /releases com a mesma tag -> 422 already_exists. Agora rodam
+      # serializados: o primeiro cria a release, o segundo so anexa assets.
+      max-parallel: 1
       matrix:
         include:
-          - os: windows-latest
-            artifact: MyStoriesLena-Setup-*.exe
           - os: macos-latest
             artifact: MyStoriesLena-*.dmg
+          - os: windows-latest
+            artifact: MyStoriesLena-Setup-*.exe
 
     steps:
       - name: Checkout código
