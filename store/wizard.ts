@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type {
   Roteiro,
+  RoteiroReferenceImage,
   StepGenerationSnapshot,
   StepId,
   StepOutput,
@@ -18,6 +19,7 @@ interface WizardState {
   setOutput: (step: StepId, output: StepOutput) => void;
   updateOutputContent: (step: StepId, content: string) => void;
   setUserInput: (input: string) => void;
+  setReferenceImage: (image: RoteiroReferenceImage | null) => void;
   setTitle: (title: string) => void;
   setIsGenerating: (v: boolean) => void;
   setAutoAdvance: (v: boolean) => void;
@@ -105,6 +107,18 @@ export const useWizard = create<WizardState>((set) => ({
     set((s) => {
       if (!s.roteiro) return s;
       return { roteiro: persist({ ...s.roteiro, userInput: input }) };
+    }),
+
+  setReferenceImage: (image) =>
+    set((s) => {
+      if (!s.roteiro) return s;
+      const next: Roteiro = { ...s.roteiro };
+      if (image) {
+        next.referenceImage = image;
+      } else {
+        delete next.referenceImage;
+      }
+      return { roteiro: persist(next) };
     }),
 
   setTitle: (title) =>

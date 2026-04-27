@@ -85,6 +85,21 @@ export interface StepGenerationSnapshot {
   label?: string;
 }
 
+/**
+ * Imagem de referência visual anexada à premissa. O agente Estrutura 1
+ * recebe essa imagem como input multimodal pra ajudar a montar a
+ * estrutura conforme o estilo/mood/personagens da imagem.
+ */
+export interface RoteiroReferenceImage {
+  /** Data URL completa: "data:image/jpeg;base64,..." */
+  dataUrl: string;
+  mimeType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  filename: string;
+  /** Tamanho em bytes do arquivo original (pre-base64). */
+  size: number;
+  uploadedAt: string;
+}
+
 export interface Roteiro {
   id: string;
   title: string;
@@ -93,6 +108,8 @@ export interface Roteiro {
   currentStep: StepId;
   outputs: Partial<Record<StepId, StepOutput>>;
   userInput?: string;
+  /** Imagem opcional de referência visual pra Estrutura 1. */
+  referenceImage?: RoteiroReferenceImage;
   /** Histórico de gerações por step. Cada step tem sua própria pilha de snapshots. */
   history?: Partial<Record<StepId, StepGenerationSnapshot[]>>;
 }

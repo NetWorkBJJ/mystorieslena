@@ -45,6 +45,7 @@ import { HistoryPanel } from "@/components/wizard/HistoryPanel";
 import { GoogleDocsButton } from "@/components/wizard/GoogleDocsButton";
 import { DownloadEscritaButton } from "@/components/wizard/DownloadEscritaButton";
 import { CopyEscritaButton } from "@/components/wizard/CopyEscritaButton";
+import { ReferenceImageUpload } from "@/components/wizard/ReferenceImageUpload";
 import { cn } from "@/lib/utils";
 
 const PART_BANNER = (part: string) =>
@@ -161,6 +162,7 @@ export function StepShell({ step }: Props) {
           previousOutputs: roteiro.outputs,
           userInput: roteiro.userInput,
           fastMode,
+          referenceImage: roteiro.referenceImage,
         }),
         signal: ctrl.signal,
       });
@@ -696,6 +698,8 @@ function PremissaEditor({ value, onChange }: PremissaEditorProps) {
         rows={20}
         className="font-sans text-[14px] leading-relaxed resize-y min-h-[400px]"
       />
+
+      <ReferenceImageUpload />
 
       {!hasContent && (
         <div className="rounded-md border border-dashed bg-muted/20 px-4 py-3 flex items-start gap-2">

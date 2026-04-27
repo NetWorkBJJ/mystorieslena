@@ -1,8 +1,10 @@
-import type { StepId, StepOutput } from "@/types/roteiro";
+import type { RoteiroReferenceImage, StepId, StepOutput } from "@/types/roteiro";
 
 export interface AgentContext {
   previousOutputs: Partial<Record<StepId, StepOutput>>;
   userInput?: string;
+  /** Imagem de referência opcional anexada na Premissa. */
+  referenceImage?: RoteiroReferenceImage;
 }
 
 export interface Agent {
@@ -25,4 +27,10 @@ export interface Agent {
   effort?: "low" | "medium" | "high";
   /** if true, shows a warning that the prompt is still a placeholder */
   placeholder?: boolean;
+  /**
+   * Quando true, o agente recebe a imagem de referência (Premissa) como
+   * input multimodal junto com o userMessage. Modelo precisa ser
+   * vision-capable (Opus, Sonnet recentes).
+   */
+  acceptsReferenceImage?: boolean;
 }

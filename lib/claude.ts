@@ -1,5 +1,17 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
+export type ClaudeImageMime =
+  | "image/jpeg"
+  | "image/png"
+  | "image/gif"
+  | "image/webp";
+
+export interface ClaudeImageInput {
+  /** Apenas o base64 puro, SEM o prefixo "data:image/...;base64,". */
+  base64Data: string;
+  mimeType: ClaudeImageMime;
+}
+
 export interface StreamClaudeParams {
   systemPrompt: string;
   userMessage: string;
@@ -13,6 +25,12 @@ export interface StreamClaudeParams {
    * Default: "low" (maior velocidade).
    */
   effort?: "low" | "medium" | "high";
+  /**
+   * Imagem opcional anexada como input multimodal. Quando presente, o
+   * prompt é enviado como AsyncIterable<SDKUserMessage> com [imageBlock,
+   * textBlock] em vez de string simples.
+   */
+  image?: ClaudeImageInput;
   signal?: AbortSignal;
 }
 
@@ -60,9 +78,37 @@ export async function* streamClaudeText(
   // claude.exe via MYSTORIESLENA_CLAUDE_EXEC pra resolver isso.
   const pathToClaudeCodeExecutable = process.env.MYSTORIESLENA_CLAUDE_EXEC;
 
+  // Quando ha imagem anexada, monta o prompt como AsyncIterable<SDKUserMessage>
+  // com content array (imagem + texto). Sem imagem, prompt eh string simples.
+  const promptInput = params.image
+    ? (async function* () {
+        yield {
+          type: "user" as const,
+          parent_tool_use_id: null,
+          message: {
+            role: "user" as const,
+            content: [
+              {
+                type: "image" as const,
+                source: {
+                  type: "base64" as const,
+                  media_type: params.image!.mimeType,
+                  data: params.image!.base64Data,
+                },
+              },
+              {
+                type: "text" as const,
+                text: params.userMessage,
+              },
+            ],
+          },
+        };
+      })()
+    : params.userMessage;
+
   try {
     const iter = query({
-      prompt: params.userMessage,
+      prompt: promptInput,
       options: {
         model: params.model,
         fallbackModel: params.fallbackModel,
