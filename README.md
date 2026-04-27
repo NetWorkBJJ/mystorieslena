@@ -32,12 +32,23 @@ Escolha o `.dmg` de acordo com o seu Mac:
 - **Apple Silicon (M1/M2/M3/M4):** `MyStoriesLena-X.Y.Z-arm64.dmg`
 - **Intel (Macs até 2020):** `MyStoriesLena-X.Y.Z-x64.dmg`
 
-1. Abra o `.dmg`, arraste o ícone do MyStoriesLena pra **Applications**.
-2. Na primeira execução, o macOS vai dizer **"MyStoriesLena.app não pode ser aberto porque é de desenvolvedor não identificado"**. Pra abrir mesmo assim:
-   - Clique com **botão direito** (ou Ctrl+clique) no ícone do app em **Aplicativos**.
-   - Escolha **Abrir** no menu.
-   - Na caixa que aparece, clique em **Abrir**.
-   - Só precisa fazer isso uma vez. Nas próximas, abre direto.
+**Passo a passo:**
+
+1. Baixe o `.dmg` clicando direto no link da release (ignore qualquer popup do Chrome falando em "Instalar app GitHub" — esse é só atalho do site).
+2. **Duplo-clique no `.dmg`** baixado (na pasta Downloads).
+3. **Arraste o ícone do MyStoriesLena pra cima da pasta Aplicativos** que aparece ao lado.
+4. Aguarde a cópia terminar e feche a janelinha do `.dmg`.
+5. **⚠️ Antes de abrir o app, execute UMA VEZ o comando abaixo** (Cmd+Espaço → digite "Terminal" → cole e aperte Enter):
+
+   ```bash
+   xattr -cr /Applications/MyStoriesLena.app
+   ```
+
+6. Abra o **MyStoriesLena** pelo Launchpad ou pasta Aplicativos. Pronto.
+
+**Por que esse comando é necessário?** O macOS marca todo arquivo baixado pelo navegador com uma "flag de quarentena". Sem certificado pago da Apple Developer ($99/ano), o sistema mostra o erro **"MyStoriesLena está danificado e não pode ser aberto"** mesmo o app estando perfeito. O comando `xattr -cr` apenas remove essa flag — não altera o app. Só precisa fazer na primeira instalação; as **atualizações automáticas dali em diante não passam pela quarentena** porque vêm pelo próprio app, não pelo navegador.
+
+**Se aparecer "desenvolvedor não identificado"** (em vez de "danificado"), basta clicar com **botão direito** no app em Aplicativos → **Abrir** → **Abrir** de novo na caixa de aviso. Só na primeira vez.
 
 ### Pós-instalação (qualquer sistema)
 
