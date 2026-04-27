@@ -35,6 +35,18 @@ contextBridge.exposeInMainWorld("mystorieslena", {
   exportRoteiroPdf: (payload) => ipcRenderer.invoke("pdf:save-roteiro", payload),
 
   /**
+   * Verifica se o usuário já fez login na conta Claude.
+   * Retorna { loggedIn, hasBinary, binaryPath }.
+   */
+  getClaudeStatus: () => ipcRenderer.invoke("claude:status"),
+
+  /**
+   * Abre janela de terminal externa rodando o claude CLI bundleado, pra
+   * usuário fazer login (digita /login dentro do REPL → OAuth no navegador).
+   */
+  setupClaude: () => ipcRenderer.invoke("claude:setup"),
+
+  /**
    * Assina eventos do auto-updater. Retorna função pra remover assinatura.
    *   onUpdateEvent(({ type, payload }) => {})
    * type pode ser: "checking-for-update", "update-available",

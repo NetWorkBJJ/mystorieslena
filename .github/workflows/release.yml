@@ -59,12 +59,8 @@ jobs:
       - name: Build Next.js standalone
         run: npm run build
 
-      - name: Empacotar e publicar (Windows)
-        if: matrix.os == 'windows-latest'
-        run: npx electron-builder --win nsis --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      # macOS roda PRIMEIRO (max-parallel=1 + ordem na matrix) e cria a
+      # release no GitHub via electron-builder.
       - name: Empacotar e publicar (macOS)
         if: matrix.os == 'macos-latest'
         run: npx electron-builder --mac dmg zip --publish always
@@ -74,6 +70,27 @@ jobs:
           # Adicione APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID e
           # CSC_LINK/CSC_KEY_PASSWORD se for assinar e notarizar.
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      # Windows roda DEPOIS. Antes era 'electron-builder --publish always'
+      # mas isso bate em 422 already_exists tentando criar release que já
+      # existe (criada pelo job do macOS). Agora builda só localmente
+      # (--publish never) e usa gh CLI pra anexar os assets na release.
+      - name: Empacotar (Windows)
+        if: matrix.os == 'windows-latest'
+        run: npx electron-builder --win nsis --publish never
+
+      - name: Anexar assets do Windows na release (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            dist-electron/MyStoriesLena-Setup-*.exe \
+            dist-electron/MyStoriesLena-Setup-*.exe.blockmap \
+            dist-electron/latest.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload do artefato (debug)
         if: always()

@@ -46,6 +46,17 @@ export interface ExportPdfResult {
   reason?: string;
 }
 
+export interface ClaudeStatus {
+  loggedIn: boolean;
+  hasBinary: boolean;
+  binaryPath: string | null;
+}
+
+export interface ClaudeSetupResult {
+  ok: boolean;
+  reason?: string;
+}
+
 export interface MyStoriesLenaBridge {
   getRuntimeInfo: () => Promise<RuntimeInfo>;
   checkForUpdates: () => Promise<UpdaterCheckResult>;
@@ -53,6 +64,8 @@ export interface MyStoriesLenaBridge {
   quitAndInstall: () => Promise<{ ok: boolean }>;
   onUpdateEvent: (cb: (event: UpdateEvent) => void) => () => void;
   exportRoteiroPdf: (payload: ExportPdfPayload) => Promise<ExportPdfResult>;
+  getClaudeStatus: () => Promise<ClaudeStatus>;
+  setupClaude: () => Promise<ClaudeSetupResult>;
 }
 
 declare global {

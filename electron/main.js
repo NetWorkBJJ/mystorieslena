@@ -16,6 +16,7 @@ const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const net = require("net");
 const http = require("http");
 
@@ -528,6 +529,131 @@ ipcMain.handle("pdf:save-roteiro", async (_event, payload) => {
     return { ok: true, path: result.filePath, title };
   } catch (e) {
     if (!pdfWindow.isDestroyed()) pdfWindow.destroy();
+    return { ok: false, reason: String(e?.message || e) };
+  }
+});
+
+/**
+ * Verifica se o usuário já fez login na conta Claude (Pro/Max).
+ * O Claude Code CLI guarda o token OAuth em ~/.claude/.credentials.json.
+ * Versões antigas usavam ~/.claude/credentials.json (sem ponto). Checamos os
+ * dois pra ser tolerante.
+ */
+function getClaudeAuthStatus() {
+  const home = os.homedir();
+  const candidates = [
+    path.join(home, ".claude", ".credentials.json"),
+    path.join(home, ".claude", "credentials.json"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      try {
+        const stat = fs.statSync(p);
+        if (stat.size > 0) {
+          return { loggedIn: true, credentialsPath: p };
+        }
+      } catch {
+        // ignore — vai tentar o próximo
+      }
+    }
+  }
+  return { loggedIn: false, credentialsPath: null };
+}
+
+ipcMain.handle("claude:status", () => {
+  const auth = getClaudeAuthStatus();
+  const sourceDir = detectSourceDir();
+  const claudeExe = getClaudeExecutablePath(sourceDir);
+  return {
+    loggedIn: auth.loggedIn,
+    hasBinary: !!claudeExe,
+    binaryPath: claudeExe,
+  };
+});
+
+/**
+ * Abre uma janela de terminal externa rodando o `claude` CLI bundleado.
+ * O usuário digita /login dentro do REPL → o Claude abre o navegador pra
+ * fazer OAuth → token vai pra ~/.claude/.credentials.json. Quando ela
+ * fechar o terminal e voltar pro app, o status é atualizado.
+ */
+ipcMain.handle("claude:setup", () => {
+  const sourceDir = detectSourceDir();
+  const claudeExe = getClaudeExecutablePath(sourceDir);
+  if (!claudeExe) {
+    return {
+      ok: false,
+      reason:
+        "Não encontrei o binário claude bundleado. Reinstale o app e tente de novo.",
+    };
+  }
+
+  try {
+    if (process.platform === "win32") {
+      // Escreve um .bat temporário pra evitar problemas de quoting do cmd
+      // com paths que tem espaço (Program Files, AppData\...).
+      const batPath = path.join(os.tmpdir(), "mystorieslena-claude-setup.bat");
+      const batContent = [
+        "@echo off",
+        "title MyStoriesLena - Configurar conta Claude",
+        "echo.",
+        "echo ===== Conectar conta Claude =====",
+        "echo.",
+        "echo  1. Quando o Claude abrir, digite /login e aperte Enter",
+        "echo  2. Faca login no navegador que abrir",
+        "echo  3. Volte pro MyStoriesLena e clique em 'Ja loguei'",
+        "echo.",
+        "echo ==================================",
+        "echo.",
+        `"${claudeExe}"`,
+        "echo.",
+        "echo Login concluido. Pode fechar esta janela.",
+        "pause",
+        "",
+      ].join("\r\n");
+      fs.writeFileSync(batPath, batContent, "utf-8");
+      spawn("cmd.exe", ["/c", "start", "", batPath], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: false,
+      }).unref();
+    } else if (process.platform === "darwin") {
+      // Mesma estratégia no Mac: shell script temporário.
+      const shPath = path.join(os.tmpdir(), "mystorieslena-claude-setup.sh");
+      const shContent = [
+        "#!/bin/bash",
+        "echo",
+        "echo '===== Conectar conta Claude ====='",
+        "echo",
+        "echo '  1. Quando o Claude abrir, digite /login e aperte Enter'",
+        "echo '  2. Faca login no navegador que abrir'",
+        "echo '  3. Volte pro MyStoriesLena e clique em Ja loguei'",
+        "echo",
+        "echo '=================================='",
+        "echo",
+        `"${claudeExe}"`,
+        "echo",
+        "echo 'Login concluido. Pode fechar esta janela.'",
+        "",
+      ].join("\n");
+      fs.writeFileSync(shPath, shContent, { mode: 0o755 });
+      const script = `tell application "Terminal"
+  activate
+  do script "bash ${shPath}"
+end tell`;
+      spawn("osascript", ["-e", script], {
+        detached: true,
+        stdio: "ignore",
+      }).unref();
+    } else {
+      // Linux best-effort.
+      spawn("x-terminal-emulator", ["-e", claudeExe], {
+        detached: true,
+        stdio: "ignore",
+      }).unref();
+    }
+    return { ok: true };
+  } catch (e) {
     return { ok: false, reason: String(e?.message || e) };
   }
 });

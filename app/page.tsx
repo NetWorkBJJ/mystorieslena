@@ -1,3 +1,4 @@
+import { ClaudeSetupCard } from "@/components/home/ClaudeSetupCard";
 import { RoteiroList } from "@/components/home/RoteiroList";
 import { UpdateButton } from "@/components/wizard/UpdateButton";
 import { BookOpen, Sparkles } from "lucide-react";
@@ -30,7 +31,8 @@ export default function Home() {
         </div>
       </section>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 flex flex-col gap-6">
+        <ClaudeSetupCard />
         <RoteiroList />
       </main>
 
