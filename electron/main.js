@@ -560,14 +560,49 @@ function getClaudeAuthStatus() {
   return { loggedIn: false, credentialsPath: null };
 }
 
+/**
+ * No Windows, o Claude Code CLI exige bash.exe do Git for Windows.
+ * Procuramos nos locais conhecidos de instalação. Retorna null se não achar
+ * (vai precisar instalar Git for Windows).
+ */
+function findGitBashPath() {
+  if (process.platform !== "win32") return null;
+  const home = os.homedir();
+  const candidates = [
+    "C:\\Program Files\\Git\\bin\\bash.exe",
+    "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+    path.join(home, "AppData", "Local", "Programs", "Git", "bin", "bash.exe"),
+    path.join(home, "scoop", "apps", "git", "current", "bin", "bash.exe"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  // Tenta encontrar via where bash no PATH.
+  try {
+    const out = require("child_process")
+      .execSync("where bash", { encoding: "utf-8", windowsHide: true })
+      .toString();
+    const lines = out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    for (const l of lines) {
+      if (l.toLowerCase().endsWith("bash.exe") && fs.existsSync(l)) return l;
+    }
+  } catch {
+    // not in PATH
+  }
+  return null;
+}
+
 ipcMain.handle("claude:status", () => {
   const auth = getClaudeAuthStatus();
   const sourceDir = detectSourceDir();
   const claudeExe = getClaudeExecutablePath(sourceDir);
+  const gitBashPath = findGitBashPath();
   return {
     loggedIn: auth.loggedIn,
     hasBinary: !!claudeExe,
     binaryPath: claudeExe,
+    gitBashPath,
+    needsGitBash: process.platform === "win32" && !gitBashPath,
   };
 });
 
@@ -590,27 +625,81 @@ ipcMain.handle("claude:setup", () => {
 
   try {
     if (process.platform === "win32") {
-      // Escreve um .bat temporário pra evitar problemas de quoting do cmd
-      // com paths que tem espaço (Program Files, AppData\...).
+      // Escreve um .bat temporário que faz tudo num clique:
+      //  1. Procura git-bash em paths conhecidos
+      //  2. Se nao achar, instala via winget (Windows 10+/11 tem built-in)
+      //  3. Re-verifica e roda claude com CLAUDE_CODE_GIT_BASH_PATH setado
+      // Tudo no mesmo .bat pra usuaria so apertar 1 botao.
       const batPath = path.join(os.tmpdir(), "mystorieslena-claude-setup.bat");
-      const batContent = [
-        "@echo off",
-        "title MyStoriesLena - Configurar conta Claude",
-        "echo.",
-        "echo ===== Conectar conta Claude =====",
-        "echo.",
-        "echo  1. Quando o Claude abrir, digite /login e aperte Enter",
-        "echo  2. Faca login no navegador que abrir",
-        "echo  3. Volte pro MyStoriesLena e clique em 'Ja loguei'",
-        "echo.",
-        "echo ==================================",
-        "echo.",
-        `"${claudeExe}"`,
-        "echo.",
-        "echo Login concluido. Pode fechar esta janela.",
-        "pause",
-        "",
-      ].join("\r\n");
+      const batContent = `@echo off
+title MyStoriesLena - Configurar conta Claude
+echo.
+echo ===== Conectar conta Claude =====
+echo.
+
+REM Procura git-bash nos paths conhecidos.
+set "GITBASH="
+if exist "C:\\Program Files\\Git\\bin\\bash.exe" set "GITBASH=C:\\Program Files\\Git\\bin\\bash.exe"
+if not defined GITBASH if exist "C:\\Program Files (x86)\\Git\\bin\\bash.exe" set "GITBASH=C:\\Program Files (x86)\\Git\\bin\\bash.exe"
+if not defined GITBASH if exist "%LOCALAPPDATA%\\Programs\\Git\\bin\\bash.exe" set "GITBASH=%LOCALAPPDATA%\\Programs\\Git\\bin\\bash.exe"
+
+if not defined GITBASH (
+    echo [1/3] Git for Windows nao encontrado. Vou instalar agora via winget.
+    echo       Pode pedir confirmacao do Windows - aceite pra continuar.
+    echo.
+    where winget >nul 2>nul
+    if errorlevel 1 (
+        echo Winget nao disponivel neste Windows. Abrindo pagina de download manual...
+        start https://git-scm.com/download/win
+        echo.
+        echo Apos instalar Git for Windows, FECHE esta janela e clique
+        echo novamente em 'Conectar conta Claude'.
+        pause
+        exit /b 1
+    )
+    winget install --id Git.Git -e --accept-source-agreements --accept-package-agreements
+    if errorlevel 1 (
+        echo.
+        echo Falha no winget. Abrindo pagina de download manual...
+        start https://git-scm.com/download/win
+        pause
+        exit /b 1
+    )
+    echo.
+    echo [1/3] OK - Git for Windows instalado.
+    echo.
+    REM Re-verifica.
+    if exist "C:\\Program Files\\Git\\bin\\bash.exe" set "GITBASH=C:\\Program Files\\Git\\bin\\bash.exe"
+    if not defined GITBASH if exist "%LOCALAPPDATA%\\Programs\\Git\\bin\\bash.exe" set "GITBASH=%LOCALAPPDATA%\\Programs\\Git\\bin\\bash.exe"
+    if not defined GITBASH (
+        echo Git instalado mas bash.exe nao foi encontrado nos lugares esperados.
+        echo Reinicie o MyStoriesLena e tente de novo.
+        pause
+        exit /b 1
+    )
+)
+
+set "CLAUDE_CODE_GIT_BASH_PATH=%GITBASH%"
+
+echo [2/3] Pronto pra logar.
+echo.
+echo ----------------------------------
+echo  AGORA:
+echo    1. Digite /login e aperte Enter
+echo    2. Faca login no navegador que vai abrir
+echo    3. Quando o Claude confirmar o login, digite /quit
+echo    4. Volte pro MyStoriesLena e clique em 'Ja loguei'
+echo ----------------------------------
+echo.
+
+"${claudeExe}"
+
+echo.
+echo [3/3] Sessao do Claude encerrada.
+echo Volte ao MyStoriesLena e clique em 'Ja loguei - verificar'.
+echo Pode fechar esta janela.
+pause
+`;
       fs.writeFileSync(batPath, batContent, "utf-8");
       spawn("cmd.exe", ["/c", "start", "", batPath], {
         detached: true,
@@ -625,15 +714,18 @@ ipcMain.handle("claude:setup", () => {
         "echo",
         "echo '===== Conectar conta Claude ====='",
         "echo",
-        "echo '  1. Quando o Claude abrir, digite /login e aperte Enter'",
-        "echo '  2. Faca login no navegador que abrir'",
-        "echo '  3. Volte pro MyStoriesLena e clique em Ja loguei'",
+        "echo 'AGORA:'",
+        "echo '  1. Digite /login e aperte Enter'",
+        "echo '  2. Faca login no navegador que vai abrir'",
+        "echo '  3. Quando o Claude confirmar o login, digite /quit'",
+        "echo '  4. Volte pro MyStoriesLena e clique em Ja loguei'",
         "echo",
         "echo '=================================='",
         "echo",
         `"${claudeExe}"`,
         "echo",
-        "echo 'Login concluido. Pode fechar esta janela.'",
+        "echo 'Sessao do Claude encerrada. Volte ao MyStoriesLena e clique em Ja loguei.'",
+        "echo 'Pode fechar esta janela.'",
         "",
       ].join("\n");
       fs.writeFileSync(shPath, shContent, { mode: 0o755 });

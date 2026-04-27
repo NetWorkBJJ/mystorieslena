@@ -50,6 +50,10 @@ export interface ClaudeStatus {
   loggedIn: boolean;
   hasBinary: boolean;
   binaryPath: string | null;
+  /** Caminho do bash.exe do Git for Windows (apenas Windows). null se não achou. */
+  gitBashPath: string | null;
+  /** true quando estamos no Windows e git-bash não foi encontrado. */
+  needsGitBash: boolean;
 }
 
 export interface ClaudeSetupResult {

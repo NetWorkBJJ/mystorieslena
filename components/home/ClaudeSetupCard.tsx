@@ -151,18 +151,24 @@ export function ClaudeSetupCard() {
 
       {state.kind === "waiting-login" && (
         <div className="rounded-md bg-white/70 border border-amber-300 px-3 py-2.5 text-xs text-amber-900 leading-relaxed">
-          <p className="font-medium mb-1">Próximo passo:</p>
+          <p className="font-medium mb-1">Próximo passo na janela do CMD/Terminal que abriu:</p>
           <ol className="list-decimal list-inside space-y-0.5">
             <li>
-              Vá pra janela do <strong>Terminal</strong> (ou CMD) que acabou de
-              abrir.
+              <strong>Se aparecer instalação do Git for Windows:</strong> aceite
+              o pedido do Windows e espere terminar (~1 min). Tudo automático.
             </li>
             <li>
-              Digite <code className="px-1 py-0.5 rounded bg-amber-100 font-mono">/login</code>{" "}
+              Quando o Claude abrir, digite{" "}
+              <code className="px-1 py-0.5 rounded bg-amber-100 font-mono">/login</code>{" "}
               e aperte Enter.
             </li>
-            <li>O navegador abre — faça login na sua conta Claude.</li>
-            <li>Volte aqui e clique no botão abaixo pra verificar.</li>
+            <li>Faça login no navegador que vai abrir.</li>
+            <li>
+              Quando o Claude confirmar o login, digite{" "}
+              <code className="px-1 py-0.5 rounded bg-amber-100 font-mono">/quit</code>{" "}
+              e Enter.
+            </li>
+            <li>Volte aqui e clique em <strong>"Já loguei — verificar"</strong>.</li>
           </ol>
         </div>
       )}
