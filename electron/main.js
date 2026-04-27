@@ -113,9 +113,13 @@ function getClaudeExecutablePath(sourceDir) {
   const roots = [];
   if (sourceDir) roots.push(sourceDir);
   if (app.isPackaged) {
+    // Onde electron-builder pode auto-unpack binarios nativos (raro com nosso
+    // files config, mas inofensivo).
     roots.push(path.join(process.resourcesPath, "app.asar.unpacked"));
-    // No Mac, recursos podem estar em Contents/Resources/app.asar.unpacked.
-    roots.push(path.join(process.resourcesPath, "app", "node_modules"));
+    // Onde extraResources copia .next/standalone + node_modules tracado.
+    // Os subPaths comecam com "node_modules/", entao a raiz NAO inclui isso
+    // (bug fixed: antes tinha "app/node_modules", duplicando o segmento).
+    roots.push(path.join(process.resourcesPath, "app"));
   } else {
     roots.push(path.join(__dirname, ".."));
   }
@@ -711,9 +715,16 @@ pause
       const shPath = path.join(os.tmpdir(), "mystorieslena-claude-setup.sh");
       const shContent = [
         "#!/bin/bash",
+        "set -u",
+        `CLAUDE_BIN="${claudeExe}"`,
         "echo",
         "echo '===== Conectar conta Claude ====='",
         "echo",
+        // Defensivo: garante que o binario tem flag de execucao e nao esta
+        // em quarentena (pode ter herdado do .dmg mesmo apos xattr -cr na
+        // .app, ou se o usuario nao rodou xattr antes de abrir).
+        'chmod +x "$CLAUDE_BIN" 2>/dev/null || true',
+        'xattr -d com.apple.quarantine "$CLAUDE_BIN" 2>/dev/null || true',
         "echo 'AGORA:'",
         "echo '  1. Digite /login e aperte Enter'",
         "echo '  2. Faca login no navegador que vai abrir'",
@@ -722,7 +733,7 @@ pause
         "echo",
         "echo '=================================='",
         "echo",
-        `"${claudeExe}"`,
+        '"$CLAUDE_BIN"',
         "echo",
         "echo 'Sessao do Claude encerrada. Volte ao MyStoriesLena e clique em Ja loguei.'",
         "echo 'Pode fechar esta janela.'",
