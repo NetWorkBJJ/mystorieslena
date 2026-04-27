@@ -24,6 +24,7 @@ export const revisorAgent: Agent = {
   thinking: "disabled",
   effort: "low",
   systemPrompt: REVISOR_SYSTEM_PROMPT,
+  acceptsReferenceImage: true,
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
     const estrutura1 = ctx.previousOutputs.estrutura1?.content?.trim() ?? "";
@@ -34,6 +35,12 @@ export const revisorAgent: Agent = {
     sections.push(
       "Você vai revisar o roteiro abaixo com rigor TOTAL, aplicando todos os critérios do seu system prompt na risca. Use os materiais de referência (Premissa + Estruturas) para verificação de coerência. Entregue no FORMATO OBRIGATÓRIO definido no system prompt.",
     );
+
+    if (ctx.referenceImage) {
+      sections.push(
+        "━━━ IMAGEM DE REFERÊNCIA ANEXADA ━━━\n\nA roteirista anexou uma imagem visual de referência (chega como input multimodal antes desta mensagem) que foi usada nos steps anteriores. NA SUA REVISÃO, verifique se:\n• Descrições físicas dos personagens no roteiro batem com a aparência da imagem\n• Mood/atmosfera/paleta da imagem está refletida na narrativa\n• Não há contradições visuais entre o que a imagem mostra e o que o roteiro descreve\n\nSe encontrar inconsistências entre imagem e roteiro, classifique-as conforme os 4 graus do seu system prompt (de 🟢 a 🔴) na seção apropriada.",
+      );
+    }
 
     if (escrita) {
       sections.push(

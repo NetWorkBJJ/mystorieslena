@@ -20,6 +20,7 @@ export const escritaAgent: Agent = {
   thinking: "disabled",
   effort: "low",
   systemPrompt: ESCRITA_SYSTEM_PROMPT,
+  acceptsReferenceImage: true,
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
     const estrutura1 = ctx.previousOutputs.estrutura1?.content?.trim() ?? "";
@@ -31,6 +32,12 @@ export const escritaAgent: Agent = {
     sections.push(
       "Você vai escrever o ROTEIRO COMPLETO agora — Parte 1 + Parte 2, todos os capítulos, em fluxo contínuo, sem interrupções, no estilo Helô Stories™. As estruturas abaixo são FONTE DE VERDADE — eventos, ordem, cenas, gancho de cada capítulo precisam bater com elas. Identifique automaticamente quantos capítulos cada Parte tem, a contagem alvo de cada um, onde há cena íntima e onde há trocas de POV (Parte 2). Comece DIRETO pelo Capítulo 1 da Parte 1.",
     );
+
+    if (ctx.referenceImage) {
+      sections.push(
+        "━━━ IMAGEM DE REFERÊNCIA ANEXADA ━━━\n\nA roteirista anexou uma imagem visual (chega como input multimodal antes desta mensagem). USE pra calibrar:\n• Descrições físicas dos personagens (rosto, corpo, cabelo, traços) sempre que aparecerem na narrativa\n• Cenário/ambientação descrita nas cenas\n• Mood/atmosfera (paleta de cores, peso emocional, iluminação)\n• Estilo de pequenos detalhes sensoriais (cheiro, textura, som)\n\nIntegre os elementos visuais ao texto narrativo de forma natural, sem ficar descrevendo a imagem. As ESTRUTURAS aprovadas e a PREMISSA TEXTUAL prevalecem sobre a imagem em qualquer conflito.",
+      );
+    }
 
     if (premissa) {
       sections.push(`━━━ PREMISSA APROVADA (Step 1) ━━━\n\n${premissa}`);

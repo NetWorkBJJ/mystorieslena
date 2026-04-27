@@ -26,6 +26,7 @@ export const estrutura2Agent: Agent = {
   thinking: "adaptive",
   effort: "high",
   systemPrompt: ESTRUTURA_MASTER_PROMPT + ESTRUTURA2_PROMPT,
+  acceptsReferenceImage: true,
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
     const estrutura1 = ctx.previousOutputs.estrutura1?.content?.trim() ?? "";
@@ -34,6 +35,12 @@ export const estrutura2Agent: Agent = {
     sections.push(
       "Você vai montar a ESTRUTURA da PARTE 2 da história. Toda a regra está no seu system prompt — siga na risca, sem alucinar e sem desvios. A Estrutura da Parte 1 (do Step 2) é fonte de verdade e a premissa do Step 1 é o conteúdo base. Use o que estiver no campo de instruções adicionais como ajuste opcional.",
     );
+
+    if (ctx.referenceImage) {
+      sections.push(
+        "━━━ IMAGEM DE REFERÊNCIA ANEXADA ━━━\n\nA roteirista anexou uma imagem visual de referência (vai chegar como input multimodal antes desta mensagem). Mantenha COERÊNCIA com a Parte 1 que já usou essa imagem — mesmo mood, mesma paleta, mesma aparência dos personagens. Use a imagem pra sustentar a continuidade visual da Parte 2 (especialmente na cena íntima do penúltimo capítulo e no epílogo). Em conflito entre imagem e texto, o TEXTO prevalece.",
+      );
+    }
 
     if (premissa) {
       sections.push(
