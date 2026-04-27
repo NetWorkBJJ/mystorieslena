@@ -1,7 +1,7 @@
 {
   "name": "mystorieslena",
   "productName": "MyStoriesLena",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "description": "MyStoriesLena — Gerador de Roteiros de Romance",
   "private": true,
   "main": "electron/main.js",
@@ -80,7 +80,6 @@
       {
         "from": "node_modules/@anthropic-ai",
         "to": "app/node_modules/@anthropic-ai",
-        "//": "Apenas pacotes nativos optional-deps que o Next.js standalone NAO traca. Nao copiar claude-code/ ou claude-agent-sdk/ (sem sufixo) porque eles ja vem do .next/standalone -> EEXIST.",
         "filter": [
           "claude-code-*/**/*",
           "claude-agent-sdk-*/**/*"
