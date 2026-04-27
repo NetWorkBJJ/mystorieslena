@@ -8,6 +8,10 @@ on:
       - "v*.*.*"
   workflow_dispatch: # permite disparo manual pela aba Actions do GitHub
 
+# Necessário pro electron-updater conseguir criar/editar releases via GITHUB_TOKEN.
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build ${{ matrix.os }}
