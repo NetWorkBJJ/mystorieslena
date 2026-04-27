@@ -1,7 +1,7 @@
 {
   "name": "mystorieslena",
   "productName": "MyStoriesLena",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "MyStoriesLena — Gerador de Roteiros de Romance",
   "private": true,
   "main": "electron/main.js",
@@ -52,7 +52,7 @@
   "build": {
     "appId": "com.mystorieslena.app",
     "productName": "MyStoriesLena",
-    "afterSign": "scripts/mac-adhoc-sign.js",
+    "afterPack": "scripts/mac-adhoc-sign.js",
     "directories": {
       "output": "dist-electron"
     },
