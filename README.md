@@ -12,16 +12,37 @@ Aplicativo desktop (Electron + Next.js) que automatiza a produção de roteiros 
 
 ## Pré-requisitos
 
-- Windows 10/11 x64
+- **Windows** 10/11 x64 **OU macOS** 11+ (Apple Silicon ou Intel)
 - Conta Claude Pro ou Max (a app usa sua assinatura, não consome API)
 - O `claude` CLI logado pelo menos uma vez (instalado automaticamente junto do app)
 
 ## Instalação para usuários finais
 
-1. Baixe o instalador `MyStoriesLena-Setup-X.Y.Z.exe` da [última release](../../releases/latest).
-2. Execute o instalador e siga o wizard.
+Baixe o instalador da [última release](../../releases/latest) conforme o seu sistema:
+
+### Windows
+
+1. Baixe `MyStoriesLena-Setup-X.Y.Z.exe`.
+2. Execute. O Windows pode mostrar **"Windows protegeu seu PC"** — clique em **Mais informações** → **Executar mesmo assim** (acontece porque o app não está code-signed).
+3. Siga o wizard NSIS.
+
+### macOS
+
+Escolha o `.dmg` de acordo com o seu Mac:
+- **Apple Silicon (M1/M2/M3/M4):** `MyStoriesLena-X.Y.Z-arm64.dmg`
+- **Intel (Macs até 2020):** `MyStoriesLena-X.Y.Z-x64.dmg`
+
+1. Abra o `.dmg`, arraste o ícone do MyStoriesLena pra **Applications**.
+2. Na primeira execução, o macOS vai dizer **"MyStoriesLena.app não pode ser aberto porque é de desenvolvedor não identificado"**. Pra abrir mesmo assim:
+   - Clique com **botão direito** (ou Ctrl+clique) no ícone do app em **Aplicativos**.
+   - Escolha **Abrir** no menu.
+   - Na caixa que aparece, clique em **Abrir**.
+   - Só precisa fazer isso uma vez. Nas próximas, abre direto.
+
+### Pós-instalação (qualquer sistema)
+
 3. Na primeira abertura, o app pede pra você logar no Claude. Faça uma vez (abre o navegador) e a credencial fica salva.
-4. Comece a usar — a partir daí o app verifica atualizações sozinho a cada inicialização.
+4. Comece a usar — a partir daí o app verifica atualizações sozinho a cada inicialização (botão **Verificar atualizações** no header).
 
 ## Desenvolvimento
 

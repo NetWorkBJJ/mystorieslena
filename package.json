@@ -1,7 +1,7 @@
 {
   "name": "mystorieslena",
   "productName": "MyStoriesLena",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "MyStoriesLena — Gerador de Roteiros de Romance",
   "private": true,
   "main": "electron/main.js",
@@ -11,6 +11,7 @@
     "start": "next start",
     "electron:dev": "concurrently -k \"npm:dev\" \"wait-on http://localhost:3000 && cross-env NEXT_DEV_URL=http://localhost:3000 electron .\"",
     "electron:start": "electron .",
+    "prepackage": "node scripts/build-icon.js",
     "package": "next build && electron-builder --win nsis",
     "package:dir": "next build && electron-builder --dir",
     "release": "next build && electron-builder --win nsis --publish always",
@@ -100,6 +101,27 @@
       "shortcutName": "MyStoriesLena",
       "installerIcon": "electron/icons/icon.ico",
       "uninstallerIcon": "electron/icons/icon.ico"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
+      ],
+      "icon": "electron/icons/icon.png",
+      "category": "public.app-category.productivity",
+      "artifactName": "MyStoriesLena-${version}-${arch}.${ext}",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null
+    },
+    "dmg": {
+      "title": "MyStoriesLena ${version}",
+      "icon": "electron/icons/icon.png",
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ],
+      "window": { "width": 540, "height": 380 }
     }
   }
 }

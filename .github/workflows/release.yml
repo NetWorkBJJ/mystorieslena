@@ -1,0 +1,76 @@
+name: Release
+
+# Dispara quando uma tag v*.*.* é pushed.
+# Exemplo: git tag v1.0.9 && git push --tags
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch: # permite disparo manual pela aba Actions do GitHub
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: MyStoriesLena-Setup-*.exe
+          - os: macos-latest
+            artifact: MyStoriesLena-*.dmg
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+        env:
+          npm_config_optional: "true"
+
+      - name: Gerar ícone (Windows)
+        if: matrix.os == 'windows-latest'
+        run: npm run icon:build
+
+      - name: Gerar ícone (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          npm run icon:build
+          # electron-builder no Mac aceita .png direto, mas se quisermos .icns
+          # nativo, dá pra converter aqui via iconutil. Por enquanto o PNG basta.
+
+      - name: Build Next.js standalone
+        run: npm run build
+
+      - name: Empacotar e publicar (Windows)
+        if: matrix.os == 'windows-latest'
+        run: npx electron-builder --win nsis --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Empacotar e publicar (macOS)
+        if: matrix.os == 'macos-latest'
+        run: npx electron-builder --mac dmg zip --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Sem assinatura — app vai mostrar Gatekeeper warning na primeira execução.
+          # Adicione APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID e
+          # CSC_LINK/CSC_KEY_PASSWORD se for assinar e notarizar.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload do artefato (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-build
+          path: dist-electron/${{ matrix.artifact }}
+          if-no-files-found: warn
+          retention-days: 7

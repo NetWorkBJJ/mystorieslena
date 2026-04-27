@@ -88,69 +88,42 @@ function getResourcesPath() {
 }
 
 /**
- * Resolve o caminho do claude.exe (binário nativo usado pelo Claude Agent SDK).
+ * Resolve o caminho do binário claude (nativo usado pelo Claude Agent SDK).
+ * O nome do pacote e a extensão variam por plataforma:
+ *   win32-x64    → claude-agent-sdk-win32-x64/claude.exe
+ *   darwin-arm64 → claude-agent-sdk-darwin-arm64/claude
+ *   darwin-x64   → claude-agent-sdk-darwin-x64/claude
+ *   linux-x64    → claude-agent-sdk-linux-x64/claude
  */
 function getClaudeExecutablePath(sourceDir) {
-  const candidates = [];
+  const platform = process.platform; // "win32" | "darwin" | "linux"
+  const arch = process.arch; // "x64" | "arm64"
+  const platArch = `${platform}-${arch}`;
+  const exe = platform === "win32" ? "claude.exe" : "claude";
 
-  // Em modo LIVE, prioriza o binário da pasta-fonte (sempre fresco).
-  if (sourceDir) {
-    candidates.push(
-      path.join(
-        sourceDir,
-        "node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe",
-      ),
-      path.join(
-        sourceDir,
-        "node_modules/@anthropic-ai/claude-agent-sdk/node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe",
-      ),
-      path.join(
-        sourceDir,
-        "node_modules/@anthropic-ai/claude-code-win32-x64/claude.exe",
-      ),
-      path.join(
-        sourceDir,
-        "node_modules/@anthropic-ai/claude-code/bin/claude.exe",
-      ),
-    );
-  }
+  const subPaths = [
+    `node_modules/@anthropic-ai/claude-agent-sdk-${platArch}/${exe}`,
+    `node_modules/@anthropic-ai/claude-agent-sdk/node_modules/@anthropic-ai/claude-agent-sdk-${platArch}/${exe}`,
+    `node_modules/@anthropic-ai/claude-code-${platArch}/${exe}`,
+    `node_modules/@anthropic-ai/claude-code/node_modules/@anthropic-ai/claude-code-${platArch}/${exe}`,
+    `node_modules/@anthropic-ai/claude-code/bin/${exe}`,
+  ];
 
+  const roots = [];
+  if (sourceDir) roots.push(sourceDir);
   if (app.isPackaged) {
-    const unpacked = path.join(process.resourcesPath, "app.asar.unpacked");
-    candidates.push(
-      path.join(
-        unpacked,
-        "node_modules/@anthropic-ai/claude-agent-sdk/node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe",
-      ),
-      path.join(
-        unpacked,
-        "node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe",
-      ),
-      path.join(
-        unpacked,
-        "node_modules/@anthropic-ai/claude-code/bin/claude.exe",
-      ),
-      path.join(
-        unpacked,
-        "node_modules/@anthropic-ai/claude-code/node_modules/@anthropic-ai/claude-code-win32-x64/claude.exe",
-      ),
-    );
+    roots.push(path.join(process.resourcesPath, "app.asar.unpacked"));
+    // No Mac, recursos podem estar em Contents/Resources/app.asar.unpacked.
+    roots.push(path.join(process.resourcesPath, "app", "node_modules"));
   } else {
-    const projectRoot = path.join(__dirname, "..");
-    candidates.push(
-      path.join(
-        projectRoot,
-        "node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe",
-      ),
-      path.join(
-        projectRoot,
-        "node_modules/@anthropic-ai/claude-agent-sdk/node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe",
-      ),
-    );
+    roots.push(path.join(__dirname, ".."));
   }
 
-  for (const p of candidates) {
-    if (fs.existsSync(p)) return p;
+  for (const root of roots) {
+    for (const sub of subPaths) {
+      const full = path.join(root, sub);
+      if (fs.existsSync(full)) return full;
+    }
   }
   return null;
 }
