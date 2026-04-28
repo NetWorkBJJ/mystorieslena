@@ -39,6 +39,7 @@ import {
   parseEscritaOutput,
 } from "@/lib/parse-escrita-output";
 import {
+  hashEscritaContent,
   parseRevisorErrors,
   stripErrosDetalhados,
 } from "@/lib/parse-revisor-output";
@@ -165,8 +166,6 @@ export function StepShell({ step }: Props) {
   const isGenerating = useWizard((s) => s.isGenerating);
   const autoAdvance = useWizard((s) => s.autoAdvance);
   const setAutoAdvance = useWizard((s) => s.setAutoAdvance);
-  const fastMode = useWizard((s) => s.fastMode);
-  const setFastMode = useWizard((s) => s.setFastMode);
   const setIsGenerating = useWizard((s) => s.setIsGenerating);
   const setOutput = useWizard((s) => s.setOutput);
   const updateOutputContent = useWizard((s) => s.updateOutputContent);
@@ -365,7 +364,6 @@ export function StepShell({ step }: Props) {
             body: JSON.stringify({
               previousOutputs: roteiro.outputs,
               userInput: roteiro.userInput,
-              fastMode,
               referenceImage: roteiro.referenceImage,
               batch: {
                 part: b.part,
@@ -401,7 +399,7 @@ export function StepShell({ step }: Props) {
           const fallbackOnly = parsed.chapters.every((c) => c.number === 0);
           if (fallbackOnly && parsed.chapters.length > 0) {
             await failBatch(
-              `O modelo não seguiu o formato esperado (sem cabeçalhos "## Capítulo N — Título"). Isso é mais comum em Modo rápido (Sonnet) — desligue e tente novamente em Opus.`,
+              `O modelo não seguiu o formato esperado (sem cabeçalhos "## Capítulo N — Título"). Tente regenerar o batch.`,
               b.batchIndex,
             );
             setIsGenerating(false);
@@ -677,7 +675,6 @@ export function StepShell({ step }: Props) {
         body: JSON.stringify({
           previousOutputs: roteiro.outputs,
           userInput: roteiro.userInput,
-          fastMode,
           referenceImage: roteiro.referenceImage,
           ...(mode === "refine" && {
             refineMode: true,
@@ -704,22 +701,86 @@ export function StepShell({ step }: Props) {
         const { done, value } = await reader.read();
         if (done) break;
         acc += decoder.decode(value, { stream: true });
-        setDraft(acc);
+        // No Revisor o output traz <erros_detalhados> embutido — stripa do
+        // que mostramos pro usuário pra não poluir a leitura durante o
+        // streaming. O parse final continua sendo no `done` lá embaixo.
+        const display = step === "revisor" ? stripErrosDetalhados(acc) : acc;
+        setDraft(display);
         setOutput(step, {
-          content: acc,
+          content: display,
           generatedAt: startedAt,
         });
       }
 
       // No Revisor, parseamos o bloco <erros_detalhados> ao final pra
-      // popular os cards de correção automática (com checkbox + apply).
+      // popular os cards de correção automática (1 clique por erro).
       // O conteúdo principal fica sem o XML pra não poluir a leitura.
+      // Também salvamos um hash da Escrita usada como input — pra UI
+      // detectar se o roteiro foi editado depois e avisar o usuário.
       if (step === "revisor" && acc.trim()) {
-        const errors = parseRevisorErrors(acc);
+        let errors = parseRevisorErrors(acc);
         const cleanContent = stripErrosDetalhados(acc);
+        const escritaContent =
+          roteiro.outputs.escrita?.content?.trim() ?? "";
+        const escritaSnapshotHash = escritaContent
+          ? hashEscritaContent(escritaContent)
+          : undefined;
+
+        // Fallback: se o XML não veio (modelo truncou ou esqueceu) MAS o
+        // markdown lista erros em PRINCIPAIS ERROS, dispara segunda chamada
+        // estruturada que devolve só o XML. Vide app/api/revisor-extract-errors.
+        if (errors.length === 0 && /Erro\s*#?\s*\d+/i.test(cleanContent) && escritaContent) {
+          console.info(
+            "[revisor] XML <erros_detalhados> ausente — disparando fallback de extração estruturada",
+          );
+          try {
+            const fbRes = await fetch("/api/revisor-extract-errors", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                revisaoMarkdown: cleanContent,
+                escritaContent,
+              }),
+              signal: ctrl.signal,
+            });
+            if (fbRes.ok && fbRes.body) {
+              const fbReader = fbRes.body.getReader();
+              const fbDecoder = new TextDecoder();
+              let fbAcc = "";
+              while (true) {
+                const { done, value } = await fbReader.read();
+                if (done) break;
+                fbAcc += fbDecoder.decode(value, { stream: true });
+              }
+              const fallbackErrors = parseRevisorErrors(fbAcc);
+              if (fallbackErrors.length > 0) {
+                errors = fallbackErrors;
+                console.info(
+                  `[revisor] fallback extraiu ${fallbackErrors.length} erro(s) estruturado(s)`,
+                );
+              } else {
+                console.warn(
+                  "[revisor] fallback rodou mas não devolveu erros parseáveis",
+                );
+              }
+            } else {
+              console.warn(
+                `[revisor] fallback HTTP ${fbRes.status} — cards vão ficar vazios`,
+              );
+            }
+          } catch (fbErr) {
+            if ((fbErr as Error).name !== "AbortError") {
+              console.warn("[revisor] fallback falhou:", fbErr);
+            }
+          }
+        }
+
         setOutput(step, {
           content: cleanContent,
-          metadata: { errors },
+          metadata: {
+            errors,
+            ...(escritaSnapshotHash ? { escritaSnapshotHash } : {}),
+          },
           generatedAt: startedAt,
         });
         setDraft(cleanContent);
@@ -741,7 +802,6 @@ export function StepShell({ step }: Props) {
     step,
     next,
     autoAdvance,
-    fastMode,
     output,
     setOutput,
     setIsGenerating,
@@ -817,28 +877,6 @@ export function StepShell({ step }: Props) {
 
         {step !== "premissa" && (
         <div className="flex items-center gap-2 flex-wrap">
-          <label
-            className={cn(
-              "flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-md border cursor-pointer transition",
-              fastMode
-                ? "bg-amber-100 border-amber-400 text-amber-900"
-                : "bg-background border-border text-muted-foreground hover:bg-muted",
-            )}
-            title={
-              step === "escrita" || step === "revisor"
-                ? "Troca de Opus pra Sonnet — mais rápido, qualidade ainda alta. Útil pra rodadas de teste."
-                : "Troca de Sonnet pra Haiku — bem mais rápido, qualidade um pouco menor."
-            }
-          >
-            <input
-              type="checkbox"
-              className="sr-only"
-              checked={fastMode}
-              onChange={(e) => setFastMode(e.target.checked)}
-            />
-            <Rocket className="size-3.5" />
-            Modo rápido
-          </label>
           <label
             className={cn(
               "flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-md border cursor-pointer transition",
@@ -1108,18 +1146,21 @@ export function StepShell({ step }: Props) {
           !isEditing &&
           (output?.metadata?.errors?.length ?? 0) > 0 && (
             <div className="flex flex-col gap-3 pt-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Wand2 className="size-4 text-primary" />
                 <Label className="text-sm font-semibold">
                   Correção automática
                 </Label>
                 <span className="text-[11px] text-muted-foreground">
-                  marque os erros que quer aplicar e clique em &quot;Aplicar&quot; — o
+                  abra cada card e clique em &quot;Aplicar essa correção&quot; — o
                   trecho corrigido substitui o original no roteiro do Step 4
                 </span>
               </div>
               <RevisorErrorsView
                 errors={output!.metadata!.errors!}
+                {...(output?.metadata?.escritaSnapshotHash
+                  ? { escritaSnapshotHash: output.metadata.escritaSnapshotHash }
+                  : {})}
               />
             </div>
           )}
@@ -1153,14 +1194,6 @@ export function StepShell({ step }: Props) {
                   <Send className="size-4" />
                   Aplicar correção
                 </Button>
-              )}
-              {fastMode && (
-                <span className="text-[11px] text-amber-700 flex items-center gap-1 px-2 py-1 rounded bg-amber-50 border border-amber-200">
-                  <Rocket className="size-3" />
-                  {step === "escrita" || step === "revisor"
-                    ? "Sonnet (rápido)"
-                    : "Haiku (rápido)"}
-                </span>
               )}
             </>
           ) : (

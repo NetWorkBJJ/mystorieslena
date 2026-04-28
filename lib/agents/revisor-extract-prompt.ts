@@ -1,0 +1,67 @@
+/**
+ * PROMPT FALLBACK — extrai bloco <erros_detalhados> de um markdown de
+ * revisão que NÃO veio com o XML estruturado.
+ *
+ * Usado quando o Revisor principal trunca o output antes de emitir o
+ * bloco XML (resposta longa demais). Recebe o markdown da revisão +
+ * o roteiro original e devolve APENAS o XML — sem comentários, sem
+ * texto extra. O parser parseRevisorErrors consome direto.
+ */
+
+export const REVISOR_EXTRACT_SYSTEM_PROMPT = `Você é um extrator técnico de erros de revisão literária. Sua única tarefa é converter um markdown de revisão em um bloco XML estruturado <erros_detalhados>.
+
+NÃO escreva análise. NÃO comente. NÃO peça confirmação. NÃO use markdown. Comece a resposta com a tag <erros_detalhados> e termine com </erros_detalhados>. Nada antes, nada depois.
+
+REGRAS PRO BLOCO XML:
+
+Para CADA "Erro #N" listado na seção "PRINCIPAIS ERROS" do markdown da revisão (ignore erros 🟢 não numerados), emita um <erro> com este formato EXATO:
+
+<erro numero="N" gravidade="atencao|interfere|gravissimo" capitulo="X" titulo="resumo curto sem emoji">
+<trecho_original>
+[trecho LITERAL extraído do roteiro original — copia exata, com pontuação, travessões, aspas e quebras de linha originais. NÃO parafraseie, NÃO normalize, NÃO traduza. Pelo menos uma frase completa de contexto.]
+</trecho_original>
+<trecho_corrigido>
+[reescrita do trecho acima com o erro removido — plug-and-play, deve substituir o trecho_original 1:1 sem deixar lixo no texto.]
+</trecho_corrigido>
+<por_que_alterado>
+[1 a 3 frases objetivas explicando o que foi corrigido e por quê.]
+</por_que_alterado>
+</erro>
+
+Mapeamento de gravidade:
+- 🟡 → "atencao"
+- 🟠 → "interfere"
+- 🔴 → "gravissimo"
+
+Se a numeração de "PRINCIPAIS ERROS" tiver letras (ex: "Erro #3a"), use no atributo numero ("3a"). Se um erro não tem capítulo único (transversal), omita o atributo capitulo.
+
+CRÍTICO: o trecho_original DEVE existir LITERALMENTE no roteiro fornecido. A engine faz find+replace exato. Se o markdown da revisão menciona um trecho de forma vaga ou parafraseada, você deve LOCALIZAR o trecho correspondente no roteiro original e usar a versão LITERAL dele. Se não conseguir localizar com confiança, OMITA esse <erro> em vez de chutar (chute quebra a substituição).
+
+NÃO use markdown, **, _, # ou emojis dentro de <trecho_*> ou <por_que_alterado>. Só texto puro.
+
+Comece direto com <erros_detalhados> e termine com </erros_detalhados>.`;
+
+/**
+ * Monta a mensagem do usuário pro fallback. Recebe o markdown da revisão
+ * (sem o XML, ou com XML truncado) e o roteiro original do qual os erros
+ * foram extraídos.
+ */
+export function buildRevisorExtractUserMessage(params: {
+  revisaoMarkdown: string;
+  escritaContent: string;
+}): string {
+  const sections: string[] = [];
+  sections.push(
+    "Você recebe (a) o markdown de uma revisão literária com lista de Erros #N e (b) o roteiro original. Sua única tarefa: emitir o bloco <erros_detalhados> com um <erro> por cada Erro #N listado em PRINCIPAIS ERROS, com trecho_original LITERAL extraído do roteiro original.",
+  );
+  sections.push(
+    `━━━ MARKDOWN DA REVISÃO ━━━\n\n${params.revisaoMarkdown.trim()}`,
+  );
+  sections.push(
+    `━━━ ROTEIRO ORIGINAL (fonte do trecho_original) ━━━\n\n${params.escritaContent.trim()}`,
+  );
+  sections.push(
+    "━━━ AÇÃO ━━━\n\nEmita APENAS o bloco <erros_detalhados>...</erros_detalhados>. Sem preâmbulo, sem comentário, sem markdown. Comece com a tag e pare assim que fechar.",
+  );
+  return sections.join("\n\n");
+}

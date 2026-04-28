@@ -51,7 +51,7 @@ If you change anything about how the binary is bundled, the `extraResources` fil
 
 1. Looks up the agent by `step` from `lib/agents/index.ts`.
 2. Calls `agent.buildUserMessage({ previousOutputs, userInput, referenceImage })` to assemble the prompt.
-3. Resolves `effectiveModel` — if `body.fastMode === true` and the agent has a `fallbackModel`, use that; otherwise `agent.model`. Models are passed as the SDK shorthand strings `"opus" | "sonnet" | "haiku"` (see `lib/anthropic.ts`), not full IDs — let the SDK resolve them.
+3. Uses `agent.model` directly. Models are passed as the SDK shorthand strings `"opus" | "sonnet" | "haiku"` (see `lib/anthropic.ts`), not full IDs — let the SDK resolve them.
 4. If `agent.acceptsReferenceImage === true` and a `referenceImage` is present, decodes the data URL and sends a multimodal `[image, text]` user message; otherwise plain text.
 5. Streams `content_block_delta.text_delta` chunks back as `text/plain`. The frontend (`components/wizard/StepShell.tsx`) reads with `ReadableStreamDefaultReader` and either updates the buffer live or, for the Escrita step, parses the structured output post-stream via `lib/parse-escrita-output.ts`.
 
@@ -59,7 +59,7 @@ If the SDK throws an auth-shaped error, the route injects a Portuguese-language 
 
 ### Agent shape
 
-Each step in `lib/agents/` exports an `Agent` (`lib/agents/types.ts`) with: `model`, optional `fallbackModel` (used by Modo Rápido), `systemPrompt`, `buildUserMessage`, `thinking` (default `disabled` for speed), `effort` (default `low`), and `acceptsReferenceImage`. The Premissa step is intentionally manual in the UI — the user pastes text — but the agent definition exists for future use.
+Each step in `lib/agents/` exports an `Agent` (`lib/agents/types.ts`) with: `model`, `systemPrompt`, `buildUserMessage`, `thinking` (default `disabled` for speed), `effort` (default `low`), and `acceptsReferenceImage`. The Premissa step is intentionally manual in the UI — the user pastes text — but the agent definition exists for future use.
 
 The Escrita agent runs in **2-em-2 mode**: the frontend loop in `components/wizard/StepShell.tsx` dispatches sequential batches of 2 chapters each (`[P1:1,2] → [P1:3,4] → ... → [P2:1,2] → ...`), respecting the part boundary. Each batch returns the chapters plus a `═══ SINOPSES ═══` block with a 3-5 sentence summary per chapter — these synopses become context for subsequent batches and act as the bridge from Parte 1 to Parte 2. After each batch parse, a per-chapter word-count check fires `/api/escrita-fix-wordcount` (Opus) for any chapter outside the per-cap target. After the LAST batch of each Part, a part-total check sums the words and dispatches a compensating fix if the total falls outside the PDF range. After all Parts complete, `/api/escrita-revisor` (Opus) does a grammar-only pass over the whole script. The legacy parser `lib/parse-escrita-output.ts` is kept for retro-compat with old all-at-once roteiros in localStorage.
 

@@ -32,17 +32,33 @@ interface WizardState {
   /** Remove um snapshot do histórico. */
   deleteFromHistory: (step: StepId, snapshotId: string) => void;
   /**
-   * Aplica correções do Revisor (find+replace literal) no output da Escrita.
+   * Aplica correções do Revisor (find+replace) no output da Escrita.
    * Recebe IDs dos erros marcados — busca em metadata.errors do revisor,
-   * pega trecho_original / trecho_corrigido e substitui no output.escrita.
+   * pega trecho_original / trecho_corrigido e substitui no output.escrita
+   * (com fuzzy fallback pra aspas curvas/travessões/whitespace).
    * Atualiza chapter.content também quando o erro tiver capítulo. Marca
    * cada erro aplicado em metadata.errors[].applied=true.
    *
+   * `snapshotLabel` (opcional) sobrescreve o rótulo do snapshot da Escrita
+   * criado antes de mexer — útil pra distinguir aplicação singular vs lote.
+   *
    * Devolve { applied: ids[], failed: ids[] } pra UI exibir feedback.
    */
-  applyRevisorCorrections: (errorIds: string[]) => {
+  applyRevisorCorrections: (
+    errorIds: string[],
+    snapshotLabel?: string,
+  ) => {
     applied: string[];
     failed: string[];
+  };
+  /**
+   * Aplica UMA única correção do Revisor (1 clique no card). Wrapper sobre
+   * applyRevisorCorrections com snapshot rotulado pelo número do erro.
+   * Devolve estado pontual pra UI atualizar o card específico.
+   */
+  applyRevisorCorrection: (errorId: string) => {
+    applied: boolean;
+    found: boolean;
   };
   reset: () => void;
 }
@@ -212,7 +228,7 @@ export const useWizard = create<WizardState>((set, get) => ({
       };
     }),
 
-  applyRevisorCorrections: (errorIds) => {
+  applyRevisorCorrections: (errorIds, snapshotLabel) => {
     const state = get();
     const roteiro = state.roteiro;
     if (!roteiro) return { applied: [], failed: errorIds };
@@ -233,7 +249,10 @@ export const useWizard = create<WizardState>((set, get) => ({
     }
 
     // Antes de mexer, salva snapshot da Escrita no histórico pra reversão.
-    state.pushOutputToHistory("escrita", "Antes das correções do Revisor");
+    state.pushOutputToHistory(
+      "escrita",
+      snapshotLabel ?? "Antes das correções do Revisor",
+    );
 
     // 1) Aplica no content monolítico (sempre existe).
     const monolithic = applyCorrections(escritaOutput.content, targetErrors);
@@ -323,6 +342,21 @@ export const useWizard = create<WizardState>((set, get) => ({
     });
 
     return { applied, failed };
+  },
+
+  applyRevisorCorrection: (errorId) => {
+    const state = get();
+    const err = state.roteiro?.outputs.revisor?.metadata?.errors?.find(
+      (e) => e.id === errorId,
+    );
+    const label = err
+      ? `Antes da correção do Erro #${err.numero}`
+      : "Antes da correção do Revisor";
+    const result = state.applyRevisorCorrections([errorId], label);
+    return {
+      applied: result.applied.includes(errorId),
+      found: result.applied.includes(errorId),
+    };
   },
 
   reset: () => set({ roteiro: null, isGenerating: false, autoAdvance: false }),

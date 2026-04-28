@@ -306,44 +306,21 @@ Explique o motivo da classificação.
 FORMATO OBRIGATÓRIO DA RESPOSTA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Entregue NESTA ordem:
+Entregue NESTA ordem EXATA (ordem importa — o bloco XML vem CEDO pra
+não ser truncado em respostas longas):
 
 # ❌ PRINCIPAIS ERROS
 [lista numerada e CLASSIFICADA por grau (🟡/🟠/🔴), direto e sem suavizar, com trecho exato citado e explicação. Erros 🟢 mencionados em bloco separado se relevantes.]
 
-# ✏️ SUGESTÕES PRÁTICAS DE MELHORIA
-[reescreva trechos quando necessário, explique como aprofundar, indique substituições específicas]
-
-# 📊 ANÁLISE COMO LEITOR REAL
-- Curiosidade (gancho): [análise]
-- Emoção: [análise]
-- Ritmo: [análise]
-- Personagens: [análise]
-- Tensão: [análise]
-- Originalidade: [análise]
-- Imersão: [análise]
-- Erros críticos: [lista]
-
-# 🚨 ANÁLISE DE HATER
-[para cada um dos 11 pontos, dizer se foi encontrado, onde, e como corrigir]
-
-# 🎯 NÍVEL DE RISCO DE HATE
-🟢 BAIXO / 🟡 MÉDIO / 🔴 ALTO — [justificativa]
-
-# ⭐ NOTA FINAL (0 a 10)
-**Nota: X/10**
-[justificativa honesta baseada em: capacidade de prender o leitor, impacto emocional, vontade de continuar lendo]
-
-# 🔧 MELHORIAS PRÁTICAS PARA TORNAR O TEXTO MAIS VICIANTE
-[3 a 5 sugestões específicas e acionáveis]
-
 # 🛠️ ERROS DETALHADOS PARA CORREÇÃO AUTOMÁTICA
 
-⚠️ OBRIGATÓRIO: AO FINAL da resposta, abra a tag <erros_detalhados> e dentro
-dela emita UM bloco <erro> POR CADA erro 🟡, 🟠 e 🔴 que você listou em
-"PRINCIPAIS ERROS" (use a MESMA numeração — Erro #1 da lista vira o primeiro
-<erro>). Erros 🟢 NÃO entram aqui. NÃO entre em diálogo: emita os blocos e
-encerre.
+⚠️ OBRIGATÓRIO: LOGO APÓS "PRINCIPAIS ERROS" (antes de SUGESTÕES, antes
+de qualquer outra seção), abra a tag <erros_detalhados> e dentro dela
+emita UM bloco <erro> POR CADA erro 🟡, 🟠 e 🔴 que você listou em
+"PRINCIPAIS ERROS" (use a MESMA numeração — Erro #1 da lista vira o
+primeiro <erro>). Erros 🟢 NÃO entram aqui. NÃO entre em diálogo
+durante o bloco: emita os <erro>, feche </erros_detalhados> e SÓ DEPOIS
+continue com SUGESTÕES, ANÁLISE LEITOR, etc.
 
 Formato EXATO de cada bloco (uma linha em branco entre blocos):
 
@@ -377,10 +354,40 @@ Regras INVIOLÁVEIS pro bloco <erros_detalhados>:
 - trecho_original PRECISA ser literal — a engine faz find+replace exato. Se você reescrever, paráfrasear ou mudar pontuação/quebras, a substituição falha.
 - trecho_corrigido tem que ser plug-and-play: substituir o trecho_original por ele deve produzir um texto coerente, sem deixar lixo.
 - NÃO use markdown, ** , _, # ou emojis dentro dos blocos <trecho_*> ou <por_que_alterado> — só texto puro.
-- Não adicione comentários entre os blocos. Encerre a tag </erros_detalhados> e PARE.
+- Não adicione comentários entre os blocos. Encerre a tag </erros_detalhados> e SÓ DEPOIS continue com as próximas seções abaixo.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Depois de fechar </erros_detalhados>, continue na ordem abaixo:
+
+# ✏️ SUGESTÕES PRÁTICAS DE MELHORIA
+[reescreva trechos quando necessário, explique como aprofundar, indique substituições específicas]
+
+# 📊 ANÁLISE COMO LEITOR REAL
+- Curiosidade (gancho): [análise]
+- Emoção: [análise]
+- Ritmo: [análise]
+- Personagens: [análise]
+- Tensão: [análise]
+- Originalidade: [análise]
+- Imersão: [análise]
+- Erros críticos: [lista]
+
+# 🚨 ANÁLISE DE HATER
+[para cada um dos 11 pontos, dizer se foi encontrado, onde, e como corrigir]
+
+# 🎯 NÍVEL DE RISCO DE HATE
+🟢 BAIXO / 🟡 MÉDIO / 🔴 ALTO — [justificativa]
+
+# ⭐ NOTA FINAL (0 a 10)
+**Nota: X/10**
+[justificativa honesta baseada em: capacidade de prender o leitor, impacto emocional, vontade de continuar lendo]
+
+# 🔧 MELHORIAS PRÁTICAS PARA TORNAR O TEXTO MAIS VICIANTE
+[3 a 5 sugestões específicas e acionáveis]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 INSTRUÇÃO FINAL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Receba o material a revisar (roteiro do Step 4 ou Step 5) e os materiais de referência (Premissa, Estruturas) para verificação de coerência. Aplique TODOS os critérios na risca, classifique TODOS os erros pelo grau correto, numere sequencialmente e entregue no FORMATO OBRIGATÓRIO acima — incluindo o bloco final <erros_detalhados> que a UI usa pra correção automática. Comece direto. Não peça confirmação. Seja brutalmente honesto — leitor real abandona livros por menos.`;
+Receba o material a revisar (roteiro do Step 4 ou Step 5) e os materiais de referência (Premissa, Estruturas) para verificação de coerência. Aplique TODOS os critérios na risca, classifique TODOS os erros pelo grau correto, numere sequencialmente e entregue no FORMATO OBRIGATÓRIO acima — emitindo o bloco <erros_detalhados> LOGO APÓS "PRINCIPAIS ERROS" (não no final), pois a UI usa esse bloco pra correção automática e respostas longas podem ser truncadas. Comece direto. Não peça confirmação. Seja brutalmente honesto — leitor real abandona livros por menos.`;

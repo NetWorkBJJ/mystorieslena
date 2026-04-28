@@ -104,6 +104,19 @@ export function parseRevisorErrors(content: string): RevisorError[] {
   return out;
 }
 
+/**
+ * Hash leve do conteúdo da Escrita pra detectar edição posterior à revisão.
+ * Não é cripto — só precisa mudar quando o texto muda. Inclui length +
+ * primeiros e últimos 100 chars (cobre edições no meio também porque
+ * length muda).
+ */
+export function hashEscritaContent(content: string): string {
+  const len = content.length;
+  const head = content.slice(0, 100);
+  const tail = content.slice(-100);
+  return `${len}:${head.length}:${tail.length}:${head}|${tail}`;
+}
+
 /** Retorna o emoji + label correspondente à gravidade. */
 export function gravityLabel(g: RevisorErrorGravity): {
   emoji: string;
@@ -120,9 +133,97 @@ export function gravityLabel(g: RevisorErrorGravity): {
 }
 
 /**
- * Aplica uma lista de correções num texto-base (find+replace literal).
- * Devolve o texto novo + lista de IDs de erros que falharam (o trecho
- * original não foi encontrado no texto).
+ * Normalização tolerante a variações tipográficas: aspas curvas → retas,
+ * travessões equivalentes, runs de whitespace → 1 espaço. Devolve a string
+ * normalizada + mapa de índice (cada posição na normalizada aponta pro
+ * índice correspondente na original) pra permitir reconstituição.
+ */
+function normalizeForMatch(s: string): {
+  norm: string;
+  mapToOrig: number[];
+} {
+  const out: string[] = [];
+  const map: number[] = [];
+  let prevWasSpace = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]!;
+    let normalized: string;
+    if (c === "“" || c === "”" || c === "«" || c === "»") {
+      normalized = '"';
+    } else if (
+      c === "‘" ||
+      c === "’" ||
+      c === "′" ||
+      c === "`"
+    ) {
+      normalized = "'";
+    } else if (c === "–" || c === "—" || c === "−") {
+      // En-dash, em-dash, minus → em-dash unificado.
+      normalized = "—";
+    } else if (/\s/.test(c)) {
+      // Runs de whitespace viram um único espaço.
+      if (prevWasSpace) continue;
+      normalized = " ";
+      prevWasSpace = true;
+      out.push(normalized);
+      map.push(i);
+      continue;
+    } else {
+      normalized = c;
+    }
+    prevWasSpace = false;
+    out.push(normalized);
+    map.push(i);
+  }
+  return { norm: out.join(""), mapToOrig: map };
+}
+
+/**
+ * Procura `needle` dentro de `haystack` tentando primeiro match literal e,
+ * se falhar, match fuzzy (normalizando aspas curvas, travessões e
+ * whitespace). Devolve {start, end} no texto ORIGINAL pra fazer slice
+ * direto, ou null se nem assim achou.
+ */
+function findTrechoInText(
+  haystack: string,
+  needle: string,
+): { start: number; end: number } | null {
+  // Tentativa 1: literal.
+  const literal = haystack.indexOf(needle);
+  if (literal !== -1) {
+    return { start: literal, end: literal + needle.length };
+  }
+
+  // Tentativa 2: fuzzy.
+  const normHay = normalizeForMatch(haystack);
+  const normNeedle = normalizeForMatch(needle);
+  const fuzzy = normHay.norm.indexOf(normNeedle.norm);
+  if (fuzzy === -1) return null;
+
+  const normEnd = fuzzy + normNeedle.norm.length;
+  // Mapeia: posição no normalizado → posição no original.
+  const start = normHay.mapToOrig[fuzzy];
+  if (start === undefined) return null;
+  // O fim é a posição original do último char + 1. Se o último char no
+  // normalizado é um " " (whitespace run colapsado), pegamos até o fim do
+  // run no original.
+  const lastNormIdx = normEnd - 1;
+  const lastOrigIdx = normHay.mapToOrig[lastNormIdx];
+  if (lastOrigIdx === undefined) return null;
+  // Se a posição seguinte no original também é whitespace (parte do mesmo
+  // run colapsado), avança até sair do run.
+  let end = lastOrigIdx + 1;
+  if (/\s/.test(haystack[lastOrigIdx]!)) {
+    while (end < haystack.length && /\s/.test(haystack[end]!)) end++;
+  }
+  return { start, end };
+}
+
+/**
+ * Aplica uma lista de correções num texto-base (find+replace).
+ * Tenta primeiro match literal; se o trecho não bate exatamente (aspas
+ * curvas vs retas, travessão diferente, whitespace), tenta match fuzzy
+ * normalizado. Devolve o texto novo + lista de IDs aplicados/falhados.
  */
 export function applyCorrections(
   baseText: string,
@@ -138,8 +239,8 @@ export function applyCorrections(
       failedIds.push(err.id);
       continue;
     }
-    const idx = text.indexOf(original);
-    if (idx === -1) {
+    const range = findTrechoInText(text, original);
+    if (!range) {
       failedIds.push(err.id);
       continue;
     }
@@ -147,7 +248,7 @@ export function applyCorrections(
     // o agente deveria ter dado contexto suficiente pra desambiguar (frase
     // completa). Substituir todas é arriscado.
     text =
-      text.slice(0, idx) + err.trechoCorrigido + text.slice(idx + original.length);
+      text.slice(0, range.start) + err.trechoCorrigido + text.slice(range.end);
     appliedIds.push(err.id);
   }
 

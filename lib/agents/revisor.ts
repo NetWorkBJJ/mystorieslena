@@ -122,7 +122,9 @@ export const revisorAgent: Agent = {
 
     return sections.join("\n\n");
   },
-  // Capacidade alta — revisão de roteiro completo + relatório estruturado.
-  maxTokens: 24000,
+  // Capacidade máxima — revisão de roteiro completo + relatório estruturado +
+  // bloco <erros_detalhados>. Folga pra não truncar antes do XML mesmo com
+  // muitos erros encontrados.
+  maxTokens: 32000,
   temperature: 0.4,
 };

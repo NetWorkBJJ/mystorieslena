@@ -96,6 +96,13 @@ export interface StepOutputMetadata {
   chapters?: EscritaChapter[];
   /** Erros estruturados parseados do bloco <erros_detalhados> do Revisor. */
   errors?: RevisorError[];
+  /**
+   * Hash leve do conteúdo da Escrita NO MOMENTO em que a revisão foi gerada.
+   * Usado pelo Revisor para detectar se o roteiro do Step 4 foi editado
+   * depois da revisão — se sim, alguns trechos_originais podem não bater
+   * mais e a UI avisa o usuário.
+   */
+  escritaSnapshotHash?: string;
   /** Sinopses por capítulo do fluxo 2-em-2 (continuidade entre batches). */
   synopses?: EscritaSynopsis[];
 }
