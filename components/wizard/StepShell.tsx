@@ -18,7 +18,9 @@ import {
   Pencil,
   Rocket,
   RotateCcw,
+  Send,
   Sparkles,
+  Wand2,
   Zap,
 } from "lucide-react";
 import {
@@ -36,6 +38,11 @@ import {
   filterMemoryBlockForDisplay,
   parseEscritaOutput,
 } from "@/lib/parse-escrita-output";
+import {
+  parseRevisorErrors,
+  stripErrosDetalhados,
+} from "@/lib/parse-revisor-output";
+import { RevisorErrorsView } from "@/components/wizard/RevisorErrorsView";
 import { MemoryVivaCard } from "@/components/wizard/MemoryVivaCard";
 import {
   WordCountBadge,
@@ -136,16 +143,28 @@ export function StepShell({ step }: Props) {
     return {};
   }, [step]);
 
-  const generate = useCallback(async () => {
+  const generate = useCallback(async (mode: "regenerate" | "refine" = "regenerate") => {
     if (!roteiro) return;
+
+    // Modo correção precisa de output existente + instrução escrita.
+    if (mode === "refine") {
+      if (!output?.content?.trim() || !roteiro.userInput?.trim()) return;
+    }
+
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
     // Antes de gerar, salva o output atual no histórico (incluindo Escrita,
-    // que agora gera tudo de uma vez — a versão anterior é preservada).
-    if (output?.content?.trim()) {
-      pushOutputToHistory(step);
+    // que agora gera tudo de uma vez — a versão anterior é preservada). Em
+    // modo correção também salvamos pra que a roteirista possa voltar pra
+    // versão antes da correção.
+    const baseContent = output?.content?.trim() ?? "";
+    if (baseContent) {
+      pushOutputToHistory(
+        step,
+        mode === "refine" ? "Antes da correção" : undefined,
+      );
     }
 
     setIsGenerating(true);
@@ -163,6 +182,10 @@ export function StepShell({ step }: Props) {
           userInput: roteiro.userInput,
           fastMode,
           referenceImage: roteiro.referenceImage,
+          ...(mode === "refine" && {
+            refineMode: true,
+            currentOutput: baseContent,
+          }),
         }),
         signal: ctrl.signal,
       });
@@ -219,6 +242,20 @@ export function StepShell({ step }: Props) {
         };
         setOutput(step, structured);
         setDraft(parsed.roteiro || acc);
+      }
+
+      // No Revisor, parseamos o bloco <erros_detalhados> ao final pra
+      // popular os cards de correção automática (com checkbox + apply).
+      // O conteúdo principal fica sem o XML pra não poluir a leitura.
+      if (step === "revisor" && acc.trim()) {
+        const errors = parseRevisorErrors(acc);
+        const cleanContent = stripErrosDetalhados(acc);
+        setOutput(step, {
+          content: cleanContent,
+          metadata: { errors },
+          generatedAt: startedAt,
+        });
+        setDraft(cleanContent);
       }
 
       setIsGenerating(false);
@@ -539,10 +576,32 @@ export function StepShell({ step }: Props) {
           </div>
         )}
 
+        {step === "revisor" &&
+          hasContent &&
+          !isGenerating &&
+          !isEditing &&
+          (output?.metadata?.errors?.length ?? 0) > 0 && (
+            <div className="flex flex-col gap-3 pt-2">
+              <div className="flex items-center gap-2">
+                <Wand2 className="size-4 text-primary" />
+                <Label className="text-sm font-semibold">
+                  Correção automática
+                </Label>
+                <span className="text-[11px] text-muted-foreground">
+                  marque os erros que quer aplicar e clique em &quot;Aplicar&quot; — o
+                  trecho corrigido substitui o original no roteiro do Step 4
+                </span>
+              </div>
+              <RevisorErrorsView
+                errors={output!.metadata!.errors!}
+              />
+            </div>
+          )}
+
         <div className="flex items-center gap-2 flex-wrap pt-2">
           {!isGenerating ? (
             <>
-              <Button onClick={generate} size="lg" className="gap-2">
+              <Button onClick={() => generate("regenerate")} size="lg" className="gap-2">
                 {step === "escrita" && chapterCount > 0 ? (
                   <ArrowRight className="size-4" />
                 ) : hasContent ? (
@@ -552,6 +611,23 @@ export function StepShell({ step }: Props) {
                 )}
                 {generateLabel}
               </Button>
+              {hasContent && (
+                <Button
+                  onClick={() => generate("refine")}
+                  size="lg"
+                  variant="outline"
+                  className="gap-2"
+                  disabled={!roteiro.userInput?.trim()}
+                  title={
+                    !roteiro.userInput?.trim()
+                      ? "Escreva a correção na caixa 'Instruções adicionais' acima"
+                      : "Aplica a correção sem regenerar do zero — mantém o resto intacto"
+                  }
+                >
+                  <Send className="size-4" />
+                  Aplicar correção
+                </Button>
+              )}
               {fastMode && (
                 <span className="text-[11px] text-amber-700 flex items-center gap-1 px-2 py-1 rounded bg-amber-50 border border-amber-200">
                   <Rocket className="size-3" />

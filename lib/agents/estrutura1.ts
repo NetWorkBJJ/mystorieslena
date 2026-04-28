@@ -28,6 +28,31 @@ export const estrutura1Agent: Agent = {
   acceptsReferenceImage: true,
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
+
+    // Modo correção: aplica um ajuste pontual sem regenerar do zero. A versão
+    // atual da estrutura é a base; o userInput é a instrução de correção.
+    if (ctx.refineMode && ctx.currentOutput?.trim() && ctx.userInput?.trim()) {
+      const refine: string[] = [];
+      refine.push(
+        "Você JÁ entregou uma versão dessa ESTRUTURA da PARTE 1. A roteirista pediu uma CORREÇÃO PONTUAL — NÃO é pra regenerar do zero. Aplique APENAS o ajuste pedido e devolva a estrutura COMPLETA atualizada, mantendo TUDO o resto intacto (mapa, capítulos não afetados, contagens, hook, questionamento). Use o mesmo LAYOUT DE SAÍDA OBRIGATÓRIO do system prompt.",
+      );
+      refine.push(
+        `━━━ VERSÃO ATUAL DA ESTRUTURA — PARTE 1 (base a corrigir) ━━━\n\n${ctx.currentOutput.trim()}`,
+      );
+      refine.push(
+        `━━━ CORREÇÃO PEDIDA PELA ROTEIRISTA ━━━\n\n${ctx.userInput.trim()}`,
+      );
+      if (premissa) {
+        refine.push(
+          `━━━ PREMISSA APROVADA (Step 1 — referência de coerência) ━━━\n\n${premissa}`,
+        );
+      }
+      refine.push(
+        "━━━ AÇÃO ━━━\n\nReescreva a ESTRUTURA COMPLETA aplicando APENAS a correção pedida acima. Não invente mudanças que a roteirista não pediu. Se a correção mexer em alguma seção, reflita o impacto coerentemente nas outras (ex: mudou contagem de um capítulo → rebalance os demais pra manter o total entre 11.300 e 11.700 palavras). Mantenha a faixa de palavras total como REGRA INEGOCIÁVEL. Comece direto, sem pedir confirmação.",
+      );
+      return refine.join("\n\n");
+    }
+
     const sections: string[] = [];
 
     sections.push(

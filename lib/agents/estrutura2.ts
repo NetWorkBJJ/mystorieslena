@@ -30,6 +30,35 @@ export const estrutura2Agent: Agent = {
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
     const estrutura1 = ctx.previousOutputs.estrutura1?.content?.trim() ?? "";
+
+    // Modo correção: aplica um ajuste pontual sem regenerar do zero.
+    if (ctx.refineMode && ctx.currentOutput?.trim() && ctx.userInput?.trim()) {
+      const refine: string[] = [];
+      refine.push(
+        "Você JÁ entregou uma versão dessa ESTRUTURA da PARTE 2. A roteirista pediu uma CORREÇÃO PONTUAL — NÃO é pra regenerar do zero. Aplique APENAS o ajuste pedido e devolva a estrutura COMPLETA atualizada, mantendo TUDO o resto intacto. Use o mesmo LAYOUT DE SAÍDA OBRIGATÓRIO do system prompt.",
+      );
+      refine.push(
+        `━━━ VERSÃO ATUAL DA ESTRUTURA — PARTE 2 (base a corrigir) ━━━\n\n${ctx.currentOutput.trim()}`,
+      );
+      refine.push(
+        `━━━ CORREÇÃO PEDIDA PELA ROTEIRISTA ━━━\n\n${ctx.userInput.trim()}`,
+      );
+      if (premissa) {
+        refine.push(
+          `━━━ PREMISSA APROVADA (Step 1 — referência de coerência) ━━━\n\n${premissa}`,
+        );
+      }
+      if (estrutura1) {
+        refine.push(
+          `━━━ ESTRUTURA DA PARTE 1 APROVADA (Step 2 — referência de coerência) ━━━\n\n${estrutura1}`,
+        );
+      }
+      refine.push(
+        "━━━ AÇÃO ━━━\n\nReescreva a ESTRUTURA COMPLETA aplicando APENAS a correção pedida acima. Não invente mudanças que a roteirista não pediu. Se a correção mexer em algum capítulo, rebalance contagens dos demais pra manter o total entre 13.000 e 13.500 palavras (REGRA INEGOCIÁVEL). Cap. 5 ou 6 (máx 6). Comece direto, sem pedir confirmação.",
+      );
+      return refine.join("\n\n");
+    }
+
     const sections: string[] = [];
 
     sections.push(

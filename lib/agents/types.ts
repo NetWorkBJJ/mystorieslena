@@ -5,6 +5,15 @@ export interface AgentContext {
   userInput?: string;
   /** Imagem de referência opcional anexada na Premissa. */
   referenceImage?: RoteiroReferenceImage;
+  /**
+   * Modo correção: a roteirista NÃO quer regenerar do zero, só aplicar uma
+   * correção pontual em cima da versão atual. Quando true, o agente recebe
+   * `currentOutput` (a versão atual desse step) e o `userInput` vira a
+   * instrução de correção.
+   */
+  refineMode?: boolean;
+  /** Versão atual do output desse step — usada como base no modo correção. */
+  currentOutput?: string;
 }
 
 export interface Agent {

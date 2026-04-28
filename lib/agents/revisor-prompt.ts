@@ -337,8 +337,50 @@ Entregue NESTA ordem:
 # 🔧 MELHORIAS PRÁTICAS PARA TORNAR O TEXTO MAIS VICIANTE
 [3 a 5 sugestões específicas e acionáveis]
 
+# 🛠️ ERROS DETALHADOS PARA CORREÇÃO AUTOMÁTICA
+
+⚠️ OBRIGATÓRIO: AO FINAL da resposta, abra a tag <erros_detalhados> e dentro
+dela emita UM bloco <erro> POR CADA erro 🟡, 🟠 e 🔴 que você listou em
+"PRINCIPAIS ERROS" (use a MESMA numeração — Erro #1 da lista vira o primeiro
+<erro>). Erros 🟢 NÃO entram aqui. NÃO entre em diálogo: emita os blocos e
+encerre.
+
+Formato EXATO de cada bloco (uma linha em branco entre blocos):
+
+<erros_detalhados>
+<erro numero="1" gravidade="gravissimo" capitulo="3" titulo="Contaminação de metadados no Capítulo 3">
+<trecho_original>
+[Cole AQUI o trecho EXATO do roteiro — copia literal, sem reescrever, com pontuação, travessões e quebras de linha originais. Nunca menos de uma frase completa com contexto. Se o erro estiver espalhado em mais de um trecho, repita o bloco <erro> com numeração igual e sufixo letra (ex: numero="3a", numero="3b").]
+</trecho_original>
+<trecho_corrigido>
+[Reescreva APENAS o trecho acima com o erro removido — tem que ser plug-and-play: a engine vai pegar trecho_original e substituir pelo trecho_corrigido literalmente no texto. Mantenha pontuação, travessões e quebras de linha alinhados ao trecho original.]
+</trecho_corrigido>
+<por_que_alterado>
+[Explicação objetiva do que foi corrigido e por quê — 1 a 3 frases, no mesmo tom das suas explicações em PRINCIPAIS ERROS.]
+</por_que_alterado>
+</erro>
+
+<erro numero="2" gravidade="interfere" capitulo="5" titulo="...">
+<trecho_original>...</trecho_original>
+<trecho_corrigido>...</trecho_corrigido>
+<por_que_alterado>...</por_que_alterado>
+</erro>
+
+[... um <erro> por cada erro 🟡 / 🟠 / 🔴 ...]
+</erros_detalhados>
+
+Regras INVIOLÁVEIS pro bloco <erros_detalhados>:
+- gravidade="atencao" pra 🟡, "interfere" pra 🟠, "gravissimo" pra 🔴.
+- numero deve casar com a numeração de "PRINCIPAIS ERROS".
+- capitulo é o número do capítulo (1, 2, 3...). Se o erro for transversal sem capítulo único, omita o atributo.
+- titulo é uma linha curta resumindo o erro (sem o número, sem emoji — só o texto).
+- trecho_original PRECISA ser literal — a engine faz find+replace exato. Se você reescrever, paráfrasear ou mudar pontuação/quebras, a substituição falha.
+- trecho_corrigido tem que ser plug-and-play: substituir o trecho_original por ele deve produzir um texto coerente, sem deixar lixo.
+- NÃO use markdown, ** , _, # ou emojis dentro dos blocos <trecho_*> ou <por_que_alterado> — só texto puro.
+- Não adicione comentários entre os blocos. Encerre a tag </erros_detalhados> e PARE.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 INSTRUÇÃO FINAL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Receba o material a revisar (roteiro do Step 4 ou Step 5) e os materiais de referência (Premissa, Estruturas) para verificação de coerência. Aplique TODOS os critérios na risca, classifique TODOS os erros pelo grau correto, numere sequencialmente e entregue no FORMATO OBRIGATÓRIO acima. Comece direto. Não peça confirmação. Seja brutalmente honesto — leitor real abandona livros por menos.`;
+Receba o material a revisar (roteiro do Step 4 ou Step 5) e os materiais de referência (Premissa, Estruturas) para verificação de coerência. Aplique TODOS os critérios na risca, classifique TODOS os erros pelo grau correto, numere sequencialmente e entregue no FORMATO OBRIGATÓRIO acima — incluindo o bloco final <erros_detalhados> que a UI usa pra correção automática. Comece direto. Não peça confirmação. Seja brutalmente honesto — leitor real abandona livros por menos.`;

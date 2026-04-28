@@ -27,6 +27,36 @@ export const escritaAgent: Agent = {
     const estrutura2 = ctx.previousOutputs.estrutura2?.content?.trim() ?? "";
     const ajustes = ctx.userInput?.trim() ?? "";
 
+    // Modo correção: a roteirista pediu pra ajustar um detalhe do roteiro JÁ
+    // escrito, sem regenerar tudo do zero. O agente devolve o roteiro inteiro
+    // (no mesmo formato) com a correção aplicada — só o que foi pedido muda.
+    if (ctx.refineMode && ctx.currentOutput?.trim() && ajustes) {
+      const refine: string[] = [];
+      refine.push(
+        "Você JÁ escreveu o ROTEIRO COMPLETO. A roteirista pediu uma CORREÇÃO PONTUAL — NÃO é pra reescrever tudo do zero. Mantenha o roteiro existente como base, aplique APENAS a correção pedida nos trechos afetados, e devolva o ROTEIRO COMPLETO atualizado no MESMO FORMATO de saída obrigatório (═══ ROTEIRO ═══, ═══ PARTE 1 ═══, capítulos, ═══ PARTE 2 ═══, capítulos, RELATÓRIO, MEMÓRIA, VALIDAÇÃO).",
+      );
+      refine.push(
+        `━━━ ROTEIRO ATUAL (base a corrigir) ━━━\n\n${ctx.currentOutput.trim()}`,
+      );
+      refine.push(
+        `━━━ CORREÇÃO PEDIDA PELA ROTEIRISTA ━━━\n\n${ajustes}`,
+      );
+      if (estrutura1) {
+        refine.push(
+          `━━━ ESTRUTURA DA PARTE 1 (referência) ━━━\n\n${estrutura1}`,
+        );
+      }
+      if (estrutura2) {
+        refine.push(
+          `━━━ ESTRUTURA DA PARTE 2 (referência) ━━━\n\n${estrutura2}`,
+        );
+      }
+      refine.push(
+        "━━━ AÇÃO ━━━\n\nDevolva o ROTEIRO COMPLETO atualizado: só os trechos diretamente impactados pela correção devem mudar, o resto fica IGUAL ao roteiro atual. Mantenha a contagem de palavras das Partes (Parte 1: 11.300–11.700; Parte 2: 13.000–13.500) e o formato de saída na risca. Ao final, regere RELATÓRIO de auto-revisão, MEMÓRIA VIVA e VALIDAÇÃO refletindo o estado pós-correção. NÃO peça confirmação. Comece direto pelo marcador ═══ ROTEIRO ═══.",
+      );
+      return refine.join("\n\n");
+    }
+
     const sections: string[] = [];
 
     sections.push(

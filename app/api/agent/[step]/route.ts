@@ -16,6 +16,11 @@ interface Body {
   /** Imagem de referência anexada na Premissa (passada por todos steps; só
    *  agentes com acceptsReferenceImage=true recebem como input multimodal). */
   referenceImage?: RoteiroReferenceImage;
+  /** Modo correção: usa currentOutput como base e userInput como instrução
+   *  de ajuste pontual, sem regenerar do zero. */
+  refineMode?: boolean;
+  /** Versão atual do output desse step (base do modo correção). */
+  currentOutput?: string;
 }
 
 const ACCEPTED_IMAGE_MIMES: ClaudeImageMime[] = [
@@ -60,6 +65,8 @@ export async function POST(
     previousOutputs: body.previousOutputs ?? {},
     userInput: body.userInput,
     referenceImage: body.referenceImage,
+    refineMode: body.refineMode,
+    currentOutput: body.currentOutput,
   });
 
   // Modo rápido: troca pro fallbackModel (geralmente Haiku) — bem mais

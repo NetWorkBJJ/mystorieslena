@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  EscritaChapter,
   Roteiro,
   RoteiroReferenceImage,
   StepGenerationSnapshot,
@@ -8,6 +9,7 @@ import type {
 } from "@/types/roteiro";
 import { STEP_ORDER } from "@/types/roteiro";
 import { saveRoteiro } from "@/lib/storage";
+import { applyCorrections } from "@/lib/parse-revisor-output";
 
 interface WizardState {
   roteiro: Roteiro | null;
@@ -31,6 +33,19 @@ interface WizardState {
   restoreFromHistory: (step: StepId, snapshotId: string) => void;
   /** Remove um snapshot do histórico. */
   deleteFromHistory: (step: StepId, snapshotId: string) => void;
+  /**
+   * Aplica correções do Revisor (find+replace literal) no output da Escrita.
+   * Recebe IDs dos erros marcados — busca em metadata.errors do revisor,
+   * pega trecho_original / trecho_corrigido e substitui no output.escrita.
+   * Atualiza chapter.content também quando o erro tiver capítulo. Marca
+   * cada erro aplicado em metadata.errors[].applied=true.
+   *
+   * Devolve { applied: ids[], failed: ids[] } pra UI exibir feedback.
+   */
+  applyRevisorCorrections: (errorIds: string[]) => {
+    applied: string[];
+    failed: string[];
+  };
   reset: () => void;
 }
 
@@ -59,7 +74,7 @@ function snapshotFromOutput(
   };
 }
 
-export const useWizard = create<WizardState>((set) => ({
+export const useWizard = create<WizardState>((set, get) => ({
   roteiro: null,
   isGenerating: false,
   autoAdvance: false,
@@ -201,6 +216,119 @@ export const useWizard = create<WizardState>((set) => ({
         }),
       };
     }),
+
+  applyRevisorCorrections: (errorIds) => {
+    const state = get();
+    const roteiro = state.roteiro;
+    if (!roteiro) return { applied: [], failed: errorIds };
+
+    const revisorOutput = roteiro.outputs.revisor;
+    const escritaOutput = roteiro.outputs.escrita;
+    const allErrors = revisorOutput?.metadata?.errors ?? [];
+    if (!escritaOutput?.content || allErrors.length === 0) {
+      return { applied: [], failed: errorIds };
+    }
+
+    // Filtra os erros marcados que ainda não foram aplicados.
+    const targetErrors = allErrors.filter(
+      (e) => errorIds.includes(e.id) && !e.applied,
+    );
+    if (targetErrors.length === 0) {
+      return { applied: [], failed: errorIds };
+    }
+
+    // Antes de mexer, salva snapshot da Escrita no histórico pra reversão.
+    state.pushOutputToHistory("escrita", "Antes das correções do Revisor");
+
+    // 1) Aplica no content monolítico (sempre existe).
+    const monolithic = applyCorrections(escritaOutput.content, targetErrors);
+
+    // 2) Aplica nos chapters[] também — varre todos os capítulos e tenta
+    //    substituir cada trecho. Como o monolithic já anota quais aplicaram,
+    //    aqui só atualizamos chapters que mudaram.
+    let updatedChapters: EscritaChapter[] | undefined =
+      escritaOutput.metadata?.chapters
+        ? escritaOutput.metadata.chapters.map((ch) => {
+            const res = applyCorrections(ch.content, targetErrors);
+            if (res.appliedIds.length === 0) return ch;
+            return {
+              ...ch,
+              content: res.text,
+              edited: true,
+              editedAt: new Date().toISOString(),
+            };
+          })
+        : undefined;
+
+    // União dos IDs aplicados: tanto os que pegaram no monolítico quanto
+    // os que pegaram em algum chapter — pra não falsamente marcar fail.
+    const appliedSet = new Set(monolithic.appliedIds);
+    if (updatedChapters) {
+      for (const ch of escritaOutput.metadata?.chapters ?? []) {
+        const res = applyCorrections(ch.content, targetErrors);
+        for (const id of res.appliedIds) appliedSet.add(id);
+      }
+    }
+    const applied = targetErrors
+      .filter((e) => appliedSet.has(e.id))
+      .map((e) => e.id);
+    const failed = targetErrors
+      .filter((e) => !appliedSet.has(e.id))
+      .map((e) => e.id);
+
+    if (applied.length === 0) {
+      return { applied: [], failed };
+    }
+
+    const now = new Date().toISOString();
+
+    set((s) => {
+      if (!s.roteiro) return s;
+
+      // Atualiza output da Escrita (content + chapters + edited flags)
+      const updatedEscrita: StepOutput = {
+        ...s.roteiro.outputs.escrita!,
+        content: monolithic.text,
+        edited: true,
+        editedAt: now,
+        ...(updatedChapters && {
+          metadata: {
+            ...s.roteiro.outputs.escrita!.metadata,
+            chapters: updatedChapters,
+          },
+        }),
+      };
+
+      // Marca os erros aplicados em metadata.errors[].applied
+      const revisor = s.roteiro.outputs.revisor;
+      const updatedRevisor: StepOutput | undefined = revisor
+        ? {
+            ...revisor,
+            metadata: {
+              ...revisor.metadata,
+              errors: (revisor.metadata?.errors ?? []).map((e) =>
+                applied.includes(e.id)
+                  ? { ...e, applied: true, appliedAt: now }
+                  : e,
+              ),
+            },
+          }
+        : revisor;
+
+      return {
+        roteiro: persist({
+          ...s.roteiro,
+          outputs: {
+            ...s.roteiro.outputs,
+            escrita: updatedEscrita,
+            ...(updatedRevisor && { revisor: updatedRevisor }),
+          },
+        }),
+      };
+    });
+
+    return { applied, failed };
+  },
 
   reset: () => set({ roteiro: null, isGenerating: false, autoAdvance: false }),
 }));

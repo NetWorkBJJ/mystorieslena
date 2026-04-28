@@ -42,6 +42,37 @@ export interface EscritaChapter {
   editedAt?: string;
 }
 
+/** Grau de severidade de um erro apontado pelo Revisor. */
+export type RevisorErrorGravity = "atencao" | "interfere" | "gravissimo";
+
+/**
+ * Um erro estruturado emitido pelo Revisor (bloco <erros_detalhados>).
+ * Cada erro tem trecho_original / trecho_corrigido literais — a UI usa
+ * essa info pra fazer find+replace direto no roteiro da Escrita quando
+ * a roteirista marca o checkbox e clica em "Aplicar correções".
+ */
+export interface RevisorError {
+  /** ID estável (numero + sufixo, ex: "1", "3a"). */
+  id: string;
+  /** Numeração que casa com "PRINCIPAIS ERROS" (ex: "1", "3a"). */
+  numero: string;
+  gravidade: RevisorErrorGravity;
+  /** Capítulo onde o erro foi encontrado, se aplicável. */
+  capitulo?: number;
+  /** Linha curta resumindo o erro. */
+  titulo: string;
+  /** Trecho exato do roteiro a substituir — literal, fiel ao original. */
+  trechoOriginal: string;
+  /** Versão corrigida — substitui o trecho original 1:1. */
+  trechoCorrigido: string;
+  /** Justificativa da mudança (1-3 frases). */
+  porqueAlterado: string;
+  /** Marcado como aplicado no roteiro (find+replace já rodou com sucesso). */
+  applied?: boolean;
+  /** Timestamp de quando foi aplicado. */
+  appliedAt?: string;
+}
+
 export interface StepOutputMetadata {
   /** Relatório de auto-revisão. */
   report?: string;
@@ -53,6 +84,8 @@ export interface StepOutputMetadata {
   validationStatus?: "APROVADO" | "BLOQUEADO";
   /** Capítulos extraídos do roteiro completo (Escrita all-at-once). */
   chapters?: EscritaChapter[];
+  /** Erros estruturados parseados do bloco <erros_detalhados> do Revisor. */
+  errors?: RevisorError[];
 }
 
 export interface StepOutput {
