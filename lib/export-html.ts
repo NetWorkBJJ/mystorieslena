@@ -1,35 +1,37 @@
 /**
  * Helpers de exportação HTML do roteiro.
  *
- * Produz HTML estilizado fiel ao formato manual usado pela roteirista —
- * fonte serif Georgia, parágrafos justificados, capítulos em heading grande,
- * marcadores de POV (✦ Nome) como sub-heading e separadores de parte
- * elegantes em centralizado dourado.
+ * Produz HTML estilizado pra colar no Google Docs preservando a hierarquia —
+ * Capítulo como Heading 1 grande e bold, PARTE como subtítulo centralizado,
+ * fonte Arial 11pt, parágrafos justificados (match exato do default do Docs).
  *
  * O mesmo HTML é usado tanto no download direto (.html), na exportação PDF
- * (printToPDF do Electron) quanto no copy-clipboard pra colar no Google Docs
- * preservando a hierarquia.
+ * (printToPDF do Electron) quanto no copy-clipboard pra colar no Google Docs.
  *
  * Tolera dois formatos de marcador (legado e novo):
- *   - "═══ PARTE 1 ═══" (legado)              → vira separador "PARTE 1"
- *   - "# PARTE 1"                             → vira separador "PARTE 1"
- *   - "# Capítulo 1 — X" (legado)             → vira heading 2 Capítulo 1 — X
- *   - "## Capítulo 1 — X" (novo)              → vira heading 2 Capítulo 1 — X
- *   - "━━━ NOME ━━━" (legado)                 → vira heading 3 ✦ Nome
- *   - "### ✦ Nome" (novo)                     → vira heading 3 ✦ Nome
+ *   - "═══ PARTE 1 ═══" (legado)              → separador "PARTE 1" centralizado
+ *   - "# PARTE 1"                             → separador "PARTE 1" centralizado
+ *   - "# Capítulo 1 — X" (legado)             → <h1> Capítulo 1 — X
+ *   - "## Capítulo 1 — X" (novo)              → <h1> Capítulo 1 — X
+ *   - "━━━ NOME ━━━" / "### ✦ Nome"           → omitido (POV markers escondidos)
  */
 
-const SERIF = "Georgia, 'Times New Roman', Times, serif";
+const SANS = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
 
-const STYLE_BODY = `font-family: ${SERIF}; line-height: 1.7; color: #1a1a1a; font-size: 16px;`;
+const STYLE_BODY =
+  `font-family: ${SANS}; line-height: 1.5; color: #000; font-size: 11pt; font-weight: 400;`;
+// font-weight: 400 explícito no <p> impede o Google Docs de herdar o weight 700
+// do <h1> de Capítulo anterior durante o paste (bug visto no Revisor onde
+// todo o body saia em negrito). font-family redundante aqui pra travar a fonte
+// caso o Docs decida não herdar do body.
 const STYLE_PARA =
-  "margin: 0 0 14px 0; text-align: justify; line-height: 1.7; font-size: 16px;";
+  `margin: 0 0 11pt 0; text-align: justify; line-height: 1.5; font-size: 11pt; font-weight: 400; font-family: ${SANS};`;
 const STYLE_H_CHAPTER =
-  `font-family: ${SERIF}; font-size: 22px; font-weight: 700; color: #1a1a1a; margin: 36px 0 18px 0; line-height: 1.3;`;
-const STYLE_H_POV = `font-family: ${SERIF}; font-size: 16px; font-weight: 700; color: #1a1a1a; margin: 24px 0 14px 0; letter-spacing: 0.02em;`;
-const STYLE_PART_DIVIDER = `text-align: center; margin: 56px 0 36px 0; font-family: ${SERIF}; color: #6b1f2d; font-size: 18px; font-weight: 700; letter-spacing: 0.32em; text-transform: uppercase; border-top: 1px solid #d4b87a; border-bottom: 1px solid #d4b87a; padding: 10px 0;`;
+  `font-family: ${SANS}; font-size: 20pt; font-weight: 700; color: #000; margin: 20pt 0 6pt 0; line-height: 1.15; text-align: left;`;
+const STYLE_PART_DIVIDER =
+  `text-align: center; margin: 36pt 0 24pt 0; font-family: ${SANS}; font-size: 14pt; font-weight: 700; color: #000;`;
 const STYLE_HR =
-  "border: none; border-top: 1px solid #d4b87a; opacity: 0.6; margin: 24px auto; width: 40%;";
+  "border: none; border-top: 1px solid #999; opacity: 0.5; margin: 24pt auto; width: 40%;";
 
 /**
  * Converte o output cru da Escrita em HTML formatado, com hierarquia
@@ -42,12 +44,11 @@ export function escritaContentToHtml(raw: string): string {
 
   // Pré-processa banners legados pra normalizar pra markdown:
   //  ═══ PARTE 1 ═══ → # PARTE 1
-  //  ━━━ NOME ━━━     → ### ✦ Nome
+  //  ━━━ NOME ━━━     → ### ✦ Nome (que é descartado adiante)
   let preprocessed = raw.replace(
     /═{3,}\s*\n\s*(PARTE 1|PARTE 2)\s*\n\s*═{3,}/g,
     (_m, label) => `# ${label}`,
   );
-  // Remove banner ROTEIRO (decorativo, não vai no doc final).
   preprocessed = preprocessed.replace(
     /═{3,}\s*\n\s*ROTEIRO\s*\n\s*═{3,}/g,
     "",
@@ -80,7 +81,7 @@ export function escritaContentToHtml(raw: string): string {
       inCodeBlock = !inCodeBlock;
       if (inCodeBlock) {
         out.push(
-          '<pre style="background: #f4f4f4; padding: 8px; border-radius: 4px; font-family: Consolas, monospace; font-size: 12px; white-space: pre-wrap;">',
+          '<pre style="background: #f4f4f4; padding: 8px; border-radius: 4px; font-family: Consolas, monospace; font-size: 10pt; white-space: pre-wrap;">',
         );
       } else {
         out.push("</pre>");
@@ -102,21 +103,20 @@ export function escritaContentToHtml(raw: string): string {
     const h3 = line.match(/^###\s+(.+)$/);
 
     if (h3) {
+      // POV markers (### ✦ Nome) ficam invisíveis no export — só quebram parágrafo.
       flushPara();
-      out.push(`<h3 style="${STYLE_H_POV}">${escapeHtml(h3[1])}</h3>`);
       continue;
     }
     if (h2) {
+      // Capítulo — sai como <h1> pra virar Heading 1 ao colar no Google Docs.
       flushPara();
-      out.push(`<h2 style="${STYLE_H_CHAPTER}">${escapeHtml(h2[1])}</h2>`);
+      out.push(`<h1 style="${STYLE_H_CHAPTER}">${escapeHtml(h2[1])}</h1>`);
       continue;
     }
     if (h1) {
-      // Separador de PARTE — ocupa o nível mais alto da hierarquia.
-      // Quebra de página só pra PARTE 2+ (a primeira começa no topo do doc).
+      // Separador de PARTE — centralizado, simples; page-break antes da PARTE 2+.
       flushPara();
-      const isFirstPart = !out.some((s) => s.includes("STYLE_PART_DIVIDER")) &&
-        !out.some((s) => /class="part-divider"/.test(s));
+      const isFirstPart = !out.some((s) => /class="part-divider"/.test(s));
       const breakStyle = isFirstPart ? "" : "; page-break-before: always";
       out.push(
         `<div class="part-divider" style="${STYLE_PART_DIVIDER}${breakStyle}">${escapeHtml(h1[1])}</div>`,
@@ -154,47 +154,68 @@ export function buildEscritaHtmlDocument(
   title: string,
   bodyHtml: string,
 ): string {
+  // Sem <title>: quando o HTML é colado no Google Docs, o Docs usa o <title>
+  // como cabeçalho de página, deixando o nome do roteiro vazado pro topo do doc
+  // ("Novo roteiro — 28/04/2026, 10:34:45"). Omitir resolve.
+  void title;
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>${escapeHtml(title)}</title>
 <style>
   @page { size: A4; margin: 18mm 22mm 18mm 22mm; }
-  body { ${STYLE_BODY} max-width: 720px; margin: 30px auto; padding: 0 24px; }
-  h1.doc-title {
-    font-family: ${SERIF};
-    font-size: 26px;
-    font-weight: 700;
-    color: #1a1a1a;
-    margin: 0 0 18px 0;
-    text-align: center;
-    line-height: 1.3;
-  }
-  h1.doc-title small {
-    display: block;
-    margin-top: 6px;
-    font-size: 12px;
-    font-weight: 400;
-    letter-spacing: 0.32em;
-    text-transform: uppercase;
-    color: #6b1f2d;
-    font-style: normal;
-  }
-  hr.doc-rule { border: none; border-top: 1px solid #d4b87a; margin: 0 auto 28px; width: 35%; }
+  body { ${STYLE_BODY} margin: 0; padding: 0; }
 </style>
 </head>
 <body>
-<h1 class="doc-title">${escapeHtml(title)}<small>MyStoriesLena · Romance Dark</small></h1>
-<hr class="doc-rule">
 ${bodyHtml}
 </body>
 </html>`;
 }
 
+/**
+ * Divide o conteúdo cru da Escrita em Parte 1 e Parte 2, já tirando os marcadores
+ * `# PARTE 1` / `# PARTE 2` (eles viram nome de aba no Docs, não vão no body).
+ *
+ * Retorna { parte1, parte2 } como strings cruas (markdown), prontas pra passar
+ * pelo `escritaContentToHtml`. Se a Parte 2 não existir (roteiro só com P1),
+ * `parte2` vem como string vazia.
+ */
+export function splitRoteiroByParts(
+  raw: string,
+): { parte1: string; parte2: string } {
+  // Normaliza banners legados primeiro (mesmo que escritaContentToHtml faz).
+  const normalized = raw
+    .replace(
+      /═{3,}\s*\n\s*(PARTE 1|PARTE 2)\s*\n\s*═{3,}/g,
+      (_m, label) => `# ${label}`,
+    )
+    .replace(/═{3,}\s*\n\s*ROTEIRO\s*\n\s*═{3,}/g, "");
+
+  const parte2Match = normalized.match(/^#\s+PARTE 2\s*$/m);
+
+  if (!parte2Match || parte2Match.index === undefined) {
+    // Roteiro só com Parte 1 (ou sem marcador): tudo vai pra parte1.
+    const parte1Only = normalized.replace(/^#\s+PARTE 1\s*\n?/m, "").trim();
+    return { parte1: parte1Only, parte2: "" };
+  }
+
+  const parte1Raw = normalized.slice(0, parte2Match.index);
+  const parte2Raw = normalized.slice(parte2Match.index + parte2Match[0].length);
+
+  return {
+    parte1: parte1Raw.replace(/^#\s+PARTE 1\s*\n?/m, "").trim(),
+    parte2: parte2Raw.trim(),
+  };
+}
+
 function inlineFormat(text: string): string {
   let escaped = escapeHtml(text);
-  escaped = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  // Tira pares de ** sem renderizar negrito. Prosa de romance não usa negrito
+  // no corpo; quando aparece ** é ruído (o Revisor, ao chamar /api/escrita-fix-
+  // wordcount, às vezes recebe do Opus trechos envolvidos em **). Stripar aqui
+  // garante export limpo independente do que a IA tenha gerado.
+  escaped = escaped.replace(/\*\*/g, "");
   escaped = escaped.replace(/\*(.+?)\*/g, "<em>$1</em>");
   escaped = escaped.replace(/`(.+?)`/g, "<code>$1</code>");
   return escaped;

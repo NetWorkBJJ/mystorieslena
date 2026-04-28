@@ -33,15 +33,18 @@ export const escritaAgent: Agent = {
     const previousSynopses = ctx.previousSynopses ?? [];
 
     // Modo correção: a roteirista pediu pra ajustar um detalhe do roteiro JÁ
-    // escrito, sem regenerar tudo do zero. O agente devolve o roteiro inteiro
-    // (no mesmo formato) com a correção aplicada — só o que foi pedido muda.
+    // escrito. O agente devolve **APENAS os capítulos que precisaram mudar** —
+    // não o roteiro inteiro. O frontend mescla os capítulos retornados com os
+    // existentes (substitui por número+parte). Isso evita regerar 25k palavras
+    // pra alterar 1 cap, mantém os outros capítulos exatamente como estavam,
+    // e a chamada fica rápida (gera só o que foi pedido).
     if (ctx.refineMode && ctx.currentOutput?.trim() && ajustes) {
       const refine: string[] = [];
       refine.push(
-        "Você JÁ escreveu o ROTEIRO COMPLETO. A roteirista pediu uma CORREÇÃO PONTUAL — NÃO é pra reescrever tudo do zero. Mantenha o roteiro existente como base, aplique APENAS a correção pedida nos trechos afetados, e devolva o ROTEIRO COMPLETO atualizado no MESMO FORMATO de saída obrigatório (═══ ROTEIRO ═══, ═══ PARTE 1 ═══, capítulos, ═══ PARTE 2 ═══, capítulos, RELATÓRIO, MEMÓRIA, VALIDAÇÃO).",
+        "Você JÁ escreveu o ROTEIRO COMPLETO. A roteirista pediu uma CORREÇÃO PONTUAL — devolva APENAS os capítulos que precisam mudar pra atender o pedido. NÃO devolva capítulos não impactados. NÃO devolva o roteiro inteiro. NÃO inclua RELATÓRIO, MEMÓRIA VIVA, VALIDAÇÃO, nem banner ═══ ROTEIRO ═══.",
       );
       refine.push(
-        `━━━ ROTEIRO ATUAL (base a corrigir) ━━━\n\n${ctx.currentOutput.trim()}`,
+        `━━━ ROTEIRO ATUAL COMPLETO (apenas referência — você verá o que NÃO precisa mudar) ━━━\n\n${ctx.currentOutput.trim()}`,
       );
       refine.push(
         `━━━ CORREÇÃO PEDIDA PELA ROTEIRISTA ━━━\n\n${ajustes}`,
@@ -57,7 +60,33 @@ export const escritaAgent: Agent = {
         );
       }
       refine.push(
-        "━━━ AÇÃO ━━━\n\nDevolva o ROTEIRO COMPLETO atualizado: só os trechos diretamente impactados pela correção devem mudar, o resto fica IGUAL ao roteiro atual. Mantenha a contagem de palavras das Partes (Parte 1: 11.300–11.700; Parte 2: 13.000–13.500) e o formato de saída na risca. Ao final, regere RELATÓRIO de auto-revisão, MEMÓRIA VIVA e VALIDAÇÃO refletindo o estado pós-correção. NÃO peça confirmação. Comece direto pelo marcador ═══ ROTEIRO ═══.",
+        [
+          "━━━ AÇÃO ━━━",
+          "",
+          "1) Identifique qual(is) capítulo(s) precisa(m) mudar pra atender a correção pedida. Se a roteirista citou um cap específico (ex: \"cap 5 da Parte 2\"), mexa SÓ nele. Se a correção é difusa (ex: \"deixe o tom mais íntimo\"), mexa só nos capítulos onde o tom realmente precisa mudar — não em todos por precaução.",
+          "",
+          "2) Pra cada capítulo que vai mudar, escreva-o INTEIRO no formato exato:",
+          "",
+          "═══ PARTE 1 ═══   (banner antes do primeiro cap da Parte 1, se houver)",
+          "## Capítulo N — [Título]",
+          "",
+          "[texto completo do capítulo, já corrigido]",
+          "",
+          "═══ PARTE 2 ═══   (banner antes do primeiro cap da Parte 2, se houver)",
+          "## Capítulo N — [Título]",
+          "",
+          "[texto completo do capítulo, já corrigido]",
+          "",
+          "REGRAS RIGOROSAS:",
+          "• SÓ inclua os capítulos que mudaram. Nada de listar capítulos intactos \"por contexto\".",
+          "• Se mexer apenas em capítulos da Parte 2, inclua só o banner ═══ PARTE 2 ═══ — não inclua a Parte 1 nem o banner dela.",
+          "• Cada capítulo precisa vir COMPLETO (não só o trecho mudado) — o frontend faz find+replace por número+parte.",
+          "• Mantenha a contagem de palavras de cada capítulo dentro de ±3% do alvo declarado na ESTRUTURA correspondente.",
+          "• NÃO inclua ═══ ROTEIRO ═══, ═══ RELATÓRIO ═══, ═══ MEMÓRIA ═══, ═══ VALIDAÇÃO ═══.",
+          "• NÃO peça confirmação. NÃO comente o que mudou. Comece direto pelo banner da Parte do(s) cap(s) corrigido(s).",
+          "",
+          "3) Se a correção pedida não exigir alteração em capítulo nenhum (ex.: pergunta, pedido inválido), devolva apenas a string `[NENHUMA_ALTERACAO_NECESSARIA]` e nada mais.",
+        ].join("\n"),
       );
       return refine.join("\n\n");
     }

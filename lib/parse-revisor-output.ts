@@ -211,8 +211,12 @@ function normalizeForMatch(s: string): {
  * se falhar, match fuzzy (normalizando aspas curvas, travessões e
  * whitespace). Devolve {start, end} no texto ORIGINAL pra fazer slice
  * direto, ou null se nem assim achou.
+ *
+ * Exportado para reuso em `lib/parse-correction-patches.ts` — outros steps
+ * (Estrutura 1, Estrutura 2, Revisor) usam o mesmo find+replace literal/
+ * fuzzy pra aplicar correções pontuais ditadas pelo agente em refineMode.
  */
-function findTrechoInText(
+export function findTrechoInText(
   haystack: string,
   needle: string,
 ): { start: number; end: number } | null {
@@ -245,6 +249,32 @@ function findTrechoInText(
     while (end < haystack.length && /\s/.test(haystack[end]!)) end++;
   }
   return { start, end };
+}
+
+/**
+ * Serializa de volta um array de RevisorError pro formato XML
+ * `<erros_detalhados><erro>...</erro>...</erros_detalhados>` que o agente
+ * Revisor emite. Usado em refineMode pra reconstituir o output completo
+ * antes de aplicar patches do agente — assim os patches podem mexer no
+ * XML também (remover <erro>, atualizar <trechoCorrigido>, etc) e o
+ * resultado fica reparseável por `parseRevisorErrors`.
+ */
+export function serializeRevisorErrors(errors: RevisorError[]): string {
+  if (errors.length === 0) return "<erros_detalhados></erros_detalhados>";
+  const blocks = errors.map((e) => {
+    const fields: string[] = [];
+    fields.push(`<numero>${e.numero}</numero>`);
+    fields.push(`<gravidade>${e.gravidade}</gravidade>`);
+    if (typeof e.parte === "number") fields.push(`<parte>${e.parte}</parte>`);
+    if (typeof e.capitulo === "number")
+      fields.push(`<capitulo>${e.capitulo}</capitulo>`);
+    fields.push(`<titulo>${e.titulo}</titulo>`);
+    fields.push(`<trechoOriginal>${e.trechoOriginal}</trechoOriginal>`);
+    fields.push(`<trechoCorrigido>${e.trechoCorrigido}</trechoCorrigido>`);
+    fields.push(`<porqueAlterado>${e.porqueAlterado}</porqueAlterado>`);
+    return `<erro>\n${fields.join("\n")}\n</erro>`;
+  });
+  return `<erros_detalhados>\n${blocks.join("\n\n")}\n</erros_detalhados>`;
 }
 
 /**

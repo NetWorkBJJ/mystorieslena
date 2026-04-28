@@ -30,14 +30,17 @@ export const estrutura2Agent: Agent = {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
     const estrutura1 = ctx.previousOutputs.estrutura1?.content?.trim() ?? "";
 
-    // Modo correção: aplica um ajuste pontual sem regenerar do zero.
+    // Modo correção: a roteirista pediu um ajuste pontual. NÃO é pra regerar
+    // a estrutura inteira. O agente devolve APENAS pares <alteracao>/<original>
+    // /<corrigido> com find+replace literal — o frontend aplica no output
+    // corrente. Trechos não tocados permanecem byte-a-byte como estavam.
     if (ctx.refineMode && ctx.currentOutput?.trim() && ctx.userInput?.trim()) {
       const refine: string[] = [];
       refine.push(
-        "Você JÁ entregou uma versão dessa ESTRUTURA da PARTE 2. A roteirista pediu uma CORREÇÃO PONTUAL — NÃO é pra regenerar do zero. Aplique APENAS o ajuste pedido e devolva a estrutura COMPLETA atualizada, mantendo TUDO o resto intacto. Use o mesmo LAYOUT DE SAÍDA OBRIGATÓRIO do system prompt.",
+        "Você JÁ entregou uma versão dessa ESTRUTURA da PARTE 2. A roteirista pediu uma CORREÇÃO PONTUAL. NÃO regere a estrutura inteira. Devolva APENAS as alterações no formato XML descrito abaixo — o app aplica via find+replace literal no documento corrente.",
       );
       refine.push(
-        `━━━ VERSÃO ATUAL DA ESTRUTURA — PARTE 2 (base a corrigir) ━━━\n\n${ctx.currentOutput.trim()}`,
+        `━━━ ESTRUTURA ATUAL — PARTE 2 (consulte mas NÃO devolva inteira) ━━━\n\n${ctx.currentOutput.trim()}`,
       );
       refine.push(
         `━━━ CORREÇÃO PEDIDA PELA ROTEIRISTA ━━━\n\n${ctx.userInput.trim()}`,
@@ -53,7 +56,31 @@ export const estrutura2Agent: Agent = {
         );
       }
       refine.push(
-        "━━━ AÇÃO ━━━\n\nReescreva a ESTRUTURA COMPLETA aplicando APENAS a correção pedida acima. Não invente mudanças que a roteirista não pediu. Se a correção mexer em algum capítulo, rebalance contagens dos demais pra manter o total entre 13.000 e 13.500 palavras (REGRA INEGOCIÁVEL). Cap. 5 ou 6 (máx 6). Comece direto, sem pedir confirmação.",
+        [
+          "━━━ FORMATO DE SAÍDA OBRIGATÓRIO ━━━",
+          "",
+          "Para cada trecho da estrutura que precisa mudar, emita um bloco:",
+          "",
+          "<alteracao>",
+          "<descricao>linha curta explicando o que muda</descricao>",
+          "<original>",
+          "[trecho EXATO do documento atual — copie literal, com mesma quebra de linha, mesmas aspas, mesmos travessões. Inclua contexto suficiente pra ser único no documento.]",
+          "</original>",
+          "<corrigido>",
+          "[trecho novo que substitui o original.]",
+          "</corrigido>",
+          "</alteracao>",
+          "",
+          "REGRAS RIGOROSAS:",
+          "• Inclua um bloco <alteracao> POR cada trecho que muda — pode ser 1, 5, 20.",
+          "• <original> precisa ser uma cópia LITERAL do documento atual — qualquer caractere errado faz o find+replace falhar.",
+          "• <original> precisa ser ÚNICO no documento. Se aparece duplicado, expanda com contexto até ficar único.",
+          "• NÃO devolva a estrutura inteira. NÃO devolva markdown explicativo fora dos blocos <alteracao>.",
+          "• Se mudar a contagem de palavras de um capítulo, EMITA TAMBÉM blocos <alteracao> rebalanceando outros capítulos pra manter o total entre 13.000 e 13.500 palavras (REGRA INEGOCIÁVEL — Parte 2 NUNCA pode cair fora dessa faixa).",
+          "• Se a correção pedida não exigir alteração nenhuma, devolva apenas a string [NENHUMA_ALTERACAO_NECESSARIA] e nada mais.",
+          "",
+          "Comece direto pelo primeiro <alteracao>. Sem preâmbulo, sem perguntas.",
+        ].join("\n"),
       );
       return refine.join("\n\n");
     }

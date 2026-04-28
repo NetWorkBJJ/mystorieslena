@@ -109,6 +109,13 @@ export interface StepOutputMetadata {
   escritaSnapshotHash?: string;
   /** Sinopses por capítulo do fluxo 2-em-2 (continuidade entre batches). */
   synopses?: EscritaSynopsis[];
+  /**
+   * Aviso pra UI quando a Escrita pós-correção pontual não conseguiu ser
+   * quebrada em capítulos (parser legado falhou). O content fica salvo cru
+   * e a UI renderiza como `<pre>` puro mostrando esse aviso. Edição cap-a-cap
+   * fica indisponível até regenerar do zero.
+   */
+  parseWarning?: string;
 }
 
 export interface StepOutput {

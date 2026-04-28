@@ -30,16 +30,18 @@ export const revisorAgent: Agent = {
     const estrutura2 = ctx.previousOutputs.estrutura2?.content?.trim() ?? "";
     const escrita = ctx.previousOutputs.escrita?.content?.trim() ?? "";
 
-    // Modo correção: a roteirista pediu pra ajustar um detalhe da REVISÃO
-    // anterior — não é pra revisar o roteiro do zero. O agente devolve a
-    // revisão atualizada no mesmo formato, aplicando apenas o ajuste pedido.
+    // Modo correção: a roteirista pediu um ajuste pontual na REVISÃO. NÃO é
+    // pra revisar o roteiro do zero nem regerar a revisão inteira. O agente
+    // devolve APENAS pares <alteracao>/<original>/<corrigido> com find+replace
+    // literal — o frontend aplica no output corrente. As partes não tocadas
+    // (incluindo o XML <erros_detalhados>) permanecem byte-a-byte como estavam.
     if (ctx.refineMode && ctx.currentOutput?.trim() && ctx.userInput?.trim()) {
       const refine: string[] = [];
       refine.push(
-        "Você JÁ entregou uma revisão completa do roteiro. A roteirista pediu uma CORREÇÃO PONTUAL na sua revisão — NÃO é pra revisar o roteiro do zero. Aplique APENAS o ajuste pedido (pode ser: rever uma classificação que ela discorda, refocar uma seção, expandir uma análise específica, recalcular a nota considerando algo que faltou) e devolva a revisão COMPLETA atualizada no FORMATO OBRIGATÓRIO do system prompt.",
+        "Você JÁ entregou uma revisão completa do roteiro. A roteirista pediu uma CORREÇÃO PONTUAL na sua revisão. NÃO regere a revisão inteira. Devolva APENAS as alterações no formato XML descrito abaixo — o app aplica via find+replace literal no documento corrente.",
       );
       refine.push(
-        `━━━ SUA REVISÃO ANTERIOR (base a corrigir) ━━━\n\n${ctx.currentOutput.trim()}`,
+        `━━━ SUA REVISÃO ATUAL (consulte mas NÃO devolva inteira) ━━━\n\n${ctx.currentOutput.trim()}`,
       );
       refine.push(
         `━━━ INSTRUÇÃO DE CORREÇÃO DA ROTEIRISTA ━━━\n\n${ctx.userInput.trim()}`,
@@ -65,7 +67,38 @@ export const revisorAgent: Agent = {
         );
       }
       refine.push(
-        "━━━ AÇÃO ━━━\n\nReescreva a revisão COMPLETA aplicando APENAS a correção pedida. Mantenha o restante INTACTO (mesmas classificações, mesmos números, mesma análise) — só o que a roteirista pediu pra ajustar deve mudar. Se a correção implicar revisar a Nota Final ou o Risco de Hate, recalcule e justifique a mudança no item correspondente. Use o formato obrigatório (Principais Erros → Sugestões → Análise como Leitor Real → Análise de Hater → Risco de Hate → Nota Final → Melhorias Práticas). Comece direto, sem pedir confirmação.",
+        [
+          "━━━ FORMATO DE SAÍDA OBRIGATÓRIO ━━━",
+          "",
+          "Para cada trecho da revisão que precisa mudar, emita um bloco:",
+          "",
+          "<alteracao>",
+          "<descricao>linha curta explicando o que muda (ex.: \"remove erro #3 que era falso positivo\")</descricao>",
+          "<original>",
+          "[trecho EXATO da revisão atual — copie literal, com mesma quebra de linha, mesmas aspas, mesmos emojis (🟢🟡🟠🔴), mesmos travessões. Inclua contexto suficiente pra ser único na revisão. Se for remover um <erro> do bloco <erros_detalhados>, copie o <erro>...</erro> INTEIRO no <original>.]",
+          "</original>",
+          "<corrigido>",
+          "[trecho novo que substitui o original. Pode ser vazio (string vazia) se a intenção é REMOVER o trecho — útil pra remover um <erro> do <erros_detalhados>.]",
+          "</corrigido>",
+          "</alteracao>",
+          "",
+          "EXEMPLOS DE USO:",
+          "",
+          "1) Remover um erro do bloco <erros_detalhados>: <original> = `<erro><numero>3</numero>...</erro>` inteiro / <corrigido> = vazio.",
+          "2) Reclassificar um erro de 🟠 pra 🟡: <original> = `## 🟠 INTERFERE — Erro #5: ...` (frase única) / <corrigido> = `## 🟡 ATENÇÃO — Erro #5: ...`.",
+          "3) Atualizar a Nota Final: <original> = `Nota Final: 7.5/10` / <corrigido> = `Nota Final: 8.0/10` (com justificativa atualizada num bloco separado se necessário).",
+          "4) Adicionar um novo erro ao XML: <original> = `</erros_detalhados>` (a tag de fechamento) / <corrigido> = `<erro>...</erro>\\n</erros_detalhados>` (insere o novo erro antes do fechamento).",
+          "",
+          "REGRAS RIGOROSAS:",
+          "• Inclua um bloco <alteracao> POR cada trecho que muda — pode ser 1, 5, 20.",
+          "• <original> precisa ser uma cópia LITERAL da revisão atual — qualquer caractere errado faz o find+replace falhar.",
+          "• <original> precisa ser ÚNICO na revisão. Se aparece duplicado, expanda com contexto até ficar único.",
+          "• NÃO devolva a revisão inteira. NÃO devolva markdown explicativo fora dos blocos <alteracao>.",
+          "• Se mexer em uma classificação ou erro, considere se a Nota Final ou o Risco de Hate precisa ser recalculado — emita <alteracao> pra esses também se for o caso.",
+          "• Se a correção pedida não exigir alteração nenhuma, devolva apenas a string [NENHUMA_ALTERACAO_NECESSARIA] e nada mais.",
+          "",
+          "Comece direto pelo primeiro <alteracao>. Sem preâmbulo, sem perguntas.",
+        ].join("\n"),
       );
       return refine.join("\n\n");
     }

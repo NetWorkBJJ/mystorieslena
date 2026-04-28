@@ -209,7 +209,18 @@ function extractJsonFromMemoryBlock(
  * cabeçalhos no formato "# Capítulo N — Título" (ou "# Capítulo N").
  * Detecta também os marcadores de PARTE 1 / PARTE 2 para preencher o
  * campo `part` de cada capítulo.
+ *
+ * Exportado para uso pela correção pontual da Escrita, que recebe apenas
+ * os capítulos alterados (sem banner ═══ ROTEIRO ═══) e precisa quebrar
+ * direto sem o pré-corte que `parseEscritaOutput` faz.
  */
+export function parseEscritaChaptersDirect(
+  text: string,
+  memoryJson?: string,
+): EscritaChapter[] {
+  return parseChaptersFromRoteiro(text, memoryJson);
+}
+
 function parseChaptersFromRoteiro(
   roteiroText: string,
   memoryJson?: string,

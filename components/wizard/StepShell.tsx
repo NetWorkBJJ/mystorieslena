@@ -36,13 +36,18 @@ import { useWizard } from "@/store/wizard";
 import { AGENTS } from "@/lib/agents";
 import {
   filterMemoryBlockForDisplay,
-  parseEscritaOutput,
+  parseEscritaChaptersDirect,
 } from "@/lib/parse-escrita-output";
 import {
   hashEscritaContent,
   parseRevisorErrors,
+  serializeRevisorErrors,
   stripErrosDetalhados,
 } from "@/lib/parse-revisor-output";
+import {
+  applyCorrectionPatches,
+  parseCorrectionPatches,
+} from "@/lib/parse-correction-patches";
 import { RevisorErrorsView } from "@/components/wizard/RevisorErrorsView";
 import {
   countChaptersInEstrutura,
@@ -60,9 +65,8 @@ import { WordCountBadge } from "@/components/wizard/WordCountBadge";
 // exibir os totais. Ver CLAUDE.md seção "Contagem de palavras".
 import { countWords } from "@/lib/word-count";
 import { HistoryPanel } from "@/components/wizard/HistoryPanel";
-import { GoogleDocsButton } from "@/components/wizard/GoogleDocsButton";
 import { DownloadEscritaButton } from "@/components/wizard/DownloadEscritaButton";
-import { CopyEscritaButton } from "@/components/wizard/CopyEscritaButton";
+import { CopyPartButton } from "@/components/wizard/CopyPartButton";
 import { ReferenceImageUpload } from "@/components/wizard/ReferenceImageUpload";
 import { cn } from "@/lib/utils";
 
@@ -257,12 +261,21 @@ export function StepShell({ step }: Props) {
     return {};
   }, [step]);
 
-  const generate = useCallback(async (mode: "regenerate" | "refine" = "regenerate") => {
+  const generate = useCallback(async (
+    mode: "regenerate" | "refine" = "regenerate",
+    userInputOverride?: string,
+  ) => {
     if (!roteiro) return;
+
+    // userInput pode vir do store OU de um override (caso o caller acabou
+    // de comitar via setUserInput e ainda não viu o re-render do Zustand —
+    // ex.: botão "Aplicar correção" da caixa, que comita+dispara num clique).
+    const effectiveUserInput =
+      (userInputOverride ?? roteiro.userInput ?? "").trim();
 
     // Modo correção precisa de output existente + instrução escrita.
     if (mode === "refine") {
-      if (!output?.content?.trim() || !roteiro.userInput?.trim()) return;
+      if (!output?.content?.trim() || !effectiveUserInput) return;
     }
 
     abortRef.current?.abort();
@@ -280,17 +293,41 @@ export function StepShell({ step }: Props) {
       );
     }
 
+    // Pra correção pontual da Escrita, o agente devolve APENAS os capítulos
+    // que mudaram — precisamos dos existentes pra fazer merge depois.
+    const previousChapters: EscritaChapter[] =
+      output?.metadata?.chapters ? [...output.metadata.chapters] : [];
+    const previousSynopsesAll: EscritaSynopsis[] =
+      output?.metadata?.synopses ? [...output.metadata.synopses] : [];
+
     setIsGenerating(true);
-    setDraft("");
     setLiveStream("");
     setBatchProgress(null);
     const startedAt = new Date().toISOString();
-    setOutput(step, { content: "", generatedAt: startedAt });
+
+    // Em correção pontual (qualquer step), NÃO zere o output corrente:
+    //  - Escrita: a resposta é parcial (só os caps corrigidos) — o resto
+    //    do roteiro precisa continuar exibido durante a chamada.
+    //  - Estrutura 1/2 e Revisor: a resposta é só patches <alteracao> que
+    //    o frontend aplica no output atual via find+replace literal.
+    // O stream parcial vai pra liveStream (área secundária) e só a
+    // finalização toca no output de fato (merge da Escrita ou apply dos
+    // patches dos demais).
+    const isRefine = mode === "refine";
+    const isEscritaRefine = step === "escrita" && isRefine;
+    if (!isRefine) {
+      setDraft("");
+      setOutput(step, { content: "", generatedAt: startedAt });
+    }
 
     // ─── Branch Escrita: loop 2-em-2 (sem fix-wordcount nem revisor) ────
     // Calibração de palavras e revisão gramatical/estrutural acontecem no
     // step Revisor — aqui só geramos os capítulos.
-    if (step === "escrita") {
+    //
+    // Em modo correção, pulamos o loop 2-em-2 e caímos no branch padrão
+    // (1 chamada com refineMode: true). O agente da Escrita devolve o
+    // roteiro inteiro corrigido em uma única passada.
+    if (step === "escrita" && mode !== "refine") {
       const estrutura1 = roteiro.outputs.estrutura1?.content;
       const estrutura2 = roteiro.outputs.estrutura2?.content;
       const totalP1 = countChaptersInEstrutura(estrutura1);
@@ -380,7 +417,7 @@ export function StepShell({ step }: Props) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               previousOutputs: roteiro.outputs,
-              userInput: roteiro.userInput,
+              userInput: effectiveUserInput,
               referenceImage: roteiro.referenceImage,
               batch: {
                 part: b.part,
@@ -464,7 +501,11 @@ export function StepShell({ step }: Props) {
     //      fora de partTotalRange.
     //   4) Tira escritaSnapshotHash do roteiro já calibrado.
     //   5) Roda /api/agent/revisor (XML estruturado) e parseia erros + fallback.
-    if (step === "revisor") {
+    //
+    // Em modo correção, pulamos a pré-fase de extensão/balance e caímos no
+    // branch padrão (1 chamada com refineMode: true). O agente do Revisor
+    // devolve a revisão completa atualizada com apenas a correção pedida.
+    if (step === "revisor" && mode !== "refine") {
       const escritaOutput = roteiro.outputs.escrita;
       const accChapters: EscritaChapter[] = escritaOutput?.metadata?.chapters
         ? [...escritaOutput.metadata.chapters]
@@ -713,7 +754,7 @@ export function StepShell({ step }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             previousOutputs: roteiro.outputs,
-            userInput: roteiro.userInput,
+            userInput: effectiveUserInput,
             referenceImage: roteiro.referenceImage,
           }),
           signal: ctrl.signal,
@@ -830,18 +871,33 @@ export function StepShell({ step }: Props) {
       return;
     }
 
-    // ─── Branch padrão (outros steps): 1 request, 1 stream ──────────────
+    // ─── Branch padrão: 1 request, 1 stream ─────────────────────────────
+    // Atende:
+    //   - Premissa, Estrutura 1/2 (regenerate ou refine)
+    //   - Escrita em modo REFINE (correção pontual: 1 chamada com refineMode,
+    //     pula o loop 2-em-2)
+    //   - Revisor em modo REFINE (correção pontual: 1 chamada com refineMode,
+    //     pula a pré-fase de extensão/balance)
+    // Pro Revisor refine, o agente precisa enxergar o XML <erros_detalhados>
+    // pra poder mexer nele via patches. O `output.content` corrente foi
+    // stripado do XML quando salvamos no store — reconstituímos a partir
+    // de `metadata.errors` antes de enviar.
+    const currentOutputForAgent =
+      isRefine && step === "revisor" && output?.metadata?.errors
+        ? `${baseContent}\n\n${serializeRevisorErrors(output.metadata.errors)}`
+        : baseContent;
+
     try {
       const res = await fetch(`/api/agent/${step}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           previousOutputs: roteiro.outputs,
-          userInput: roteiro.userInput,
+          userInput: effectiveUserInput,
           referenceImage: roteiro.referenceImage,
           ...(mode === "refine" && {
             refineMode: true,
-            currentOutput: baseContent,
+            currentOutput: currentOutputForAgent,
           }),
         }),
         signal: ctrl.signal,
@@ -864,11 +920,261 @@ export function StepShell({ step }: Props) {
         const { done, value } = await reader.read();
         if (done) break;
         acc += decoder.decode(value, { stream: true });
-        setDraft(acc);
+        if (isRefine) {
+          // Em correção pontual (qualquer step) o output corrente fica
+          // intacto — só atualizamos o liveStream (área secundária)
+          // mostrando o que o agente está emitindo (caps na Escrita,
+          // <alteracao> blocks nos demais). A finalização aplica.
+          setLiveStream(acc);
+          continue;
+        }
+        // Geração do zero: stream em tempo real no output principal.
+        // Display: Revisor esconde o XML <erros_detalhados>.
+        let display = acc;
+        if (step === "revisor") display = stripErrosDetalhados(acc);
+        setDraft(display);
         setOutput(step, {
-          content: acc,
+          content: display,
           generatedAt: startedAt,
         });
+      }
+
+      if (ctrl.signal.aborted) {
+        setIsGenerating(false);
+        return;
+      }
+
+      // ── Finalização específica por step ────────────────────────────────
+
+      if (step === "revisor" && !isRefine && acc.trim()) {
+        // Geração do zero do Revisor: parse <erros_detalhados> pra popular
+        // os cards de correção automática. Snapshot da Escrita pra detectar
+        // drift na UI.
+        let errors = parseRevisorErrors(acc);
+        const cleanContent = stripErrosDetalhados(acc);
+        const escritaContent =
+          roteiro.outputs.escrita?.content?.trim() ?? "";
+        const escritaSnapshotHash = escritaContent
+          ? hashEscritaContent(escritaContent)
+          : undefined;
+
+        if (
+          errors.length === 0 &&
+          /Erro\s*#?\s*\d+/i.test(cleanContent) &&
+          escritaContent
+        ) {
+          console.info(
+            "[revisor] XML <erros_detalhados> ausente — disparando fallback de extração estruturada",
+          );
+          try {
+            const fbRes = await fetch("/api/revisor-extract-errors", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                revisaoMarkdown: cleanContent,
+                escritaContent,
+              }),
+              signal: ctrl.signal,
+            });
+            if (fbRes.ok && fbRes.body) {
+              const fbReader = fbRes.body.getReader();
+              const fbDecoder = new TextDecoder();
+              let fbAcc = "";
+              while (true) {
+                const { done, value } = await fbReader.read();
+                if (done) break;
+                fbAcc += fbDecoder.decode(value, { stream: true });
+              }
+              const fallbackErrors = parseRevisorErrors(fbAcc);
+              if (fallbackErrors.length > 0) errors = fallbackErrors;
+            }
+          } catch (fbErr) {
+            if ((fbErr as Error).name !== "AbortError") {
+              console.warn("[revisor] fallback falhou:", fbErr);
+            }
+          }
+        }
+
+        setOutput(step, {
+          content: cleanContent,
+          metadata: {
+            errors,
+            ...(escritaSnapshotHash ? { escritaSnapshotHash } : {}),
+          },
+          generatedAt: startedAt,
+        });
+        setDraft(cleanContent);
+      } else if (
+        isRefine &&
+        (step === "estrutura1" || step === "estrutura2" || step === "revisor") &&
+        acc.trim()
+      ) {
+        // Correção pontual em Estrutura 1, Estrutura 2 ou Revisor: o agente
+        // devolve apenas pares <alteracao>/<original>/<corrigido>. Aplicamos
+        // via find+replace literal no output corrente — trechos não tocados
+        // permanecem byte-a-byte. Pra Revisor, o XML <erros_detalhados> faz
+        // parte da base do patch (foi reconstituído via serializeRevisorErrors
+        // antes da chamada) e os erros são reparseados ao final.
+        const trimmed = acc.trim();
+
+        if (/\[NENHUMA_ALTERACAO_NECESSARIA\]/i.test(trimmed)) {
+          console.info(
+            `[${step} refine] agente respondeu NENHUMA_ALTERACAO_NECESSARIA — mantendo output intacto`,
+          );
+          setLiveStream("");
+        } else {
+          const patches = parseCorrectionPatches(trimmed);
+          if (patches.length === 0) {
+            console.warn(
+              `[${step} refine] nenhum bloco <alteracao> detectado — descartando resposta`,
+            );
+            setOutput(step, {
+              content: output?.content ?? "",
+              metadata: {
+                ...(output?.metadata ?? {}),
+                parseWarning:
+                  "A correção não pôde ser aplicada — o agente respondeu em formato inesperado. Tente uma instrução mais específica.",
+              },
+              generatedAt: output?.generatedAt ?? startedAt,
+            });
+            setLiveStream("");
+          } else {
+            // Pro Revisor, base inclui o XML reconstituído (mesma string que
+            // foi enviada ao agente). Pros demais, base = output.content cru.
+            const patchBase = currentOutputForAgent;
+            const result = applyCorrectionPatches(patchBase, patches);
+            console.info(
+              `[${step} refine] aplicados ${result.appliedIndices.length}/${patches.length} patches (${result.failedIndices.length} falharam)`,
+            );
+
+            if (step === "revisor") {
+              const newErrors = parseRevisorErrors(result.text);
+              const cleanContent = stripErrosDetalhados(result.text);
+              const escritaContent =
+                roteiro.outputs.escrita?.content?.trim() ?? "";
+              const escritaSnapshotHash = escritaContent
+                ? hashEscritaContent(escritaContent)
+                : output?.metadata?.escritaSnapshotHash;
+              setOutput(step, {
+                content: cleanContent,
+                metadata: {
+                  errors: newErrors,
+                  ...(escritaSnapshotHash ? { escritaSnapshotHash } : {}),
+                },
+                generatedAt: startedAt,
+              });
+              setDraft(cleanContent);
+            } else {
+              // Estrutura 1 / 2: o output é texto plano markdown.
+              setOutput(step, {
+                content: result.text,
+                metadata: { ...(output?.metadata ?? {}) },
+                generatedAt: startedAt,
+              });
+              setDraft(result.text);
+            }
+            setLiveStream("");
+
+            // Avisa via console quando patches falharam (a UI continua
+            // mostrando o output com os patches que deram certo aplicados).
+            if (result.failedIndices.length > 0) {
+              const failedLabels = result.failedIndices
+                .map((i) => patches[i]?.descricao ?? `#${i + 1}`)
+                .join(", ");
+              console.warn(
+                `[${step} refine] patches que não casaram: ${failedLabels}`,
+              );
+            }
+          }
+        }
+      } else if (isEscritaRefine && acc.trim()) {
+        // Pós-correção pontual da Escrita: o agente devolve APENAS os caps
+        // que mudaram (banner ═══ PARTE X ═══ + ## Capítulo N — Título +
+        // texto completo do cap). Mesclamos com os capítulos existentes —
+        // os intactos ficam exatamente como estavam.
+        const trimmed = acc.trim();
+
+        // Sentinela: agente decidiu que nenhuma alteração é necessária.
+        if (/\[NENHUMA_ALTERACAO_NECESSARIA\]/i.test(trimmed)) {
+          console.info(
+            "[escrita refine] agente respondeu NENHUMA_ALTERACAO_NECESSARIA — mantendo roteiro intacto",
+          );
+          // Restaura o output do snapshot (já mexemos só em userInput).
+          // Não há o que fazer — o output atual no store já está intacto.
+          setLiveStream("");
+        } else {
+          // Parser direto (sem o pré-corte de parseEscritaOutput) — pega os
+          // banners ═══ PARTE 1/2 ═══ no próprio texto pra atribuir a Parte
+          // certa a cada capítulo retornado.
+          const incoming = parseEscritaChaptersDirect(trimmed).filter(
+            (c) => c.number > 0,
+          );
+
+          if (incoming.length === 0) {
+            console.warn(
+              "[escrita refine] parser não detectou capítulos no output corrigido — descartando resposta",
+            );
+            // Não sobrescreve o roteiro corrente; avisa o usuário via parseWarning
+            // sem destruir os capítulos.
+            setOutput(step, {
+              content: output?.content ?? "",
+              metadata: {
+                ...(output?.metadata ?? {}),
+                parseWarning:
+                  "A correção não pôde ser aplicada — o agente respondeu em formato inesperado. Tente reescrever a correção mais específica (ex.: \"refaça o cap 5 da Parte 2 deixando o tom mais íntimo\").",
+              },
+              generatedAt: output?.generatedAt ?? startedAt,
+            });
+            setLiveStream("");
+          } else {
+            // Merge: substitui capítulos existentes com mesmo (number, part);
+            // se vier um cap novo (não existia antes), adiciona no final da
+            // sua Parte. Os caps intactos permanecem inalterados.
+            const merged: EscritaChapter[] = previousChapters.map((existing) => {
+              const replacement = incoming.find(
+                (i) =>
+                  i.number === existing.number &&
+                  (i.part ?? "") === (existing.part ?? ""),
+              );
+              return replacement
+                ? {
+                    ...existing,
+                    title: replacement.title ?? existing.title,
+                    content: replacement.content,
+                    edited: false,
+                    generatedAt: new Date().toISOString(),
+                  }
+                : existing;
+            });
+            // Caps novos (não casaram com nada existente) — append.
+            const newOnes = incoming.filter(
+              (i) =>
+                !previousChapters.some(
+                  (e) =>
+                    e.number === i.number &&
+                    (e.part ?? "") === (i.part ?? ""),
+                ),
+            );
+            merged.push(...newOnes);
+
+            const finalContent = concatenateChapters(merged);
+            setOutput(step, {
+              content: finalContent,
+              metadata: {
+                chapters: merged,
+                ...(previousSynopsesAll.length > 0
+                  ? { synopses: previousSynopsesAll }
+                  : {}),
+              },
+              generatedAt: startedAt,
+            });
+            setDraft(finalContent);
+            setLiveStream("");
+            console.info(
+              `[escrita refine] mesclados ${incoming.length} cap(s) corrigido(s) (${newOnes.length} novo(s), ${incoming.length - newOnes.length} substituído(s))`,
+            );
+          }
+        }
       }
 
       setIsGenerating(false);
@@ -1048,17 +1354,26 @@ export function StepShell({ step }: Props) {
           rows={step === "escrita" ? 4 : 3}
           className="resize-none"
         />
-        {/* Botão "Aplicar correção" — comita o ajuste local pro store. Sem
-            esse clique, o texto digitado fica só local e a próxima geração
-            usa o ajuste anterior (vazio na primeira vez). Visual indica
-            estado: dirty (pendente) / aplicado / desabilitado. */}
+        {/* Botão "Aplicar correção" — UM ÚNICO CLIQUE.
+            Comita o texto da caixa em `roteiro.userInput` E dispara
+            imediatamente uma correção pontual no step atual (refineMode).
+            O agente recebe o output corrente + a correção pedida e devolve
+            o output completo só com a correção aplicada — sem regerar do
+            zero, sem cascatear pra outros steps.
+            Pré-requisito: já existe um output gerado pra esse step (a
+            correção é "em cima" de algo). Sem output, o botão fica
+            desabilitado com hint pedindo Gerar primeiro. */}
         {(() => {
           const savedInput = roteiro.userInput ?? "";
+          const trimmedPending = pendingInput.trim();
           const isDirty = pendingInput !== savedInput;
-          const hasContent = pendingInput.trim().length > 0;
+          const hasInputContent = trimmedPending.length > 0;
+          const hasOutputContent = !!output?.content?.trim();
+          const canApply =
+            hasInputContent && hasOutputContent && !isGenerating;
           return (
             <div className="flex items-center justify-end gap-2 flex-wrap">
-              {!isDirty && hasContent && (
+              {!isDirty && hasInputContent && (
                 <Badge
                   variant="outline"
                   className="font-normal gap-1 border-emerald-300 bg-emerald-50 text-emerald-800"
@@ -1070,15 +1385,21 @@ export function StepShell({ step }: Props) {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={!isDirty || isGenerating}
-                onClick={() => setUserInput(pendingInput)}
+                disabled={!canApply}
+                onClick={() => {
+                  // Comita o input no store pra a UI/badge refletirem,
+                  // e dispara a correção passando o input via override
+                  // (evita race com o re-render do Zustand).
+                  setUserInput(pendingInput);
+                  void generate("refine", pendingInput);
+                }}
                 className="gap-2"
                 title={
-                  isDirty
-                    ? "Aplica a correção pra a próxima geração"
-                    : hasContent
-                      ? "Correção já aplicada — edite o texto pra reativar"
-                      : "Digite uma correção primeiro"
+                  !hasInputContent
+                    ? "Digite a correção primeiro"
+                    : !hasOutputContent
+                      ? "Gere o conteúdo desse step antes de aplicar uma correção"
+                      : "Aplica essa correção pontual no step atual sem regerar do zero"
                 }
               >
                 <Send className="size-3.5" />
@@ -1176,17 +1497,40 @@ export function StepShell({ step }: Props) {
           <div className="flex flex-col gap-4">
             {chapters.length > 0 && <EscritaOutputView output={output!} />}
             {chapters.length === 0 && hasContent && !isGenerating && (
-              <div className="rounded-lg border bg-card p-4 sm:p-5 max-h-[50vh] overflow-auto">
-                <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed">
-                  {output?.content}
-                </pre>
-              </div>
+              <>
+                {output?.metadata?.parseWarning && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900 text-sm flex items-start gap-2">
+                    <AlertTriangle className="size-4 flex-none mt-0.5" />
+                    <span>{output.metadata.parseWarning}</span>
+                  </div>
+                )}
+                <div className="rounded-lg border bg-card p-4 sm:p-5 max-h-[50vh] overflow-auto">
+                  <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed">
+                    {output?.content}
+                  </pre>
+                </div>
+              </>
             )}
             {isGenerating && batchProgress && batchProgress.kind === "writing" && (
               <BatchProgressPanel
                 progress={batchProgress}
                 liveStream={liveStream}
               />
+            )}
+            {isGenerating && !batchProgress && (
+              <div className="rounded-lg border-2 border-primary/40 bg-primary/[0.03] px-4 sm:px-5 py-4 flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="size-4 animate-spin text-primary" />
+                  <span className="text-sm font-semibold text-primary">
+                    Aplicando correção pontual no roteiro…
+                  </span>
+                </div>
+                {liveStream && (
+                  <pre className="whitespace-pre-wrap font-sans text-[12px] leading-relaxed text-muted-foreground max-h-48 overflow-auto border-t border-primary/20 pt-3">
+                    {liveStream.slice(-2000)}
+                  </pre>
+                )}
+              </div>
             )}
             {!isGenerating && !hasContent && (
               <div className="rounded-lg border border-dashed bg-muted/20 p-8 text-center">
@@ -1266,35 +1610,16 @@ export function StepShell({ step }: Props) {
 
         <div className="flex items-center gap-2 flex-wrap pt-2">
           {!isGenerating ? (
-            <>
-              <Button onClick={() => generate("regenerate")} size="lg" className="gap-2">
-                {step === "escrita" && chapterCount > 0 ? (
-                  <ArrowRight className="size-4" />
-                ) : hasContent ? (
-                  <RotateCcw className="size-4" />
-                ) : (
-                  <Sparkles className="size-4" />
-                )}
-                {generateLabel}
-              </Button>
-              {hasContent && (
-                <Button
-                  onClick={() => generate("refine")}
-                  size="lg"
-                  variant="outline"
-                  className="gap-2"
-                  disabled={!roteiro.userInput?.trim()}
-                  title={
-                    !roteiro.userInput?.trim()
-                      ? "Escreva a correção na caixa 'Instruções adicionais' acima"
-                      : "Aplica a correção sem regenerar do zero — mantém o resto intacto"
-                  }
-                >
-                  <Send className="size-4" />
-                  Aplicar correção
-                </Button>
+            <Button onClick={() => generate("regenerate")} size="lg" className="gap-2">
+              {step === "escrita" && chapterCount > 0 ? (
+                <ArrowRight className="size-4" />
+              ) : hasContent ? (
+                <RotateCcw className="size-4" />
+              ) : (
+                <Sparkles className="size-4" />
               )}
-            </>
+              {generateLabel}
+            </Button>
           ) : (
             <Button
               onClick={cancel}
@@ -1339,15 +1664,16 @@ export function StepShell({ step }: Props) {
         <div className="flex items-center gap-2 flex-wrap">
           {step === "escrita" && hasContent && (
             <>
-              <CopyEscritaButton roteiro={roteiro} />
+              <CopyPartButton roteiro={roteiro} part={1} />
+              <CopyPartButton roteiro={roteiro} part={2} />
               <DownloadEscritaButton roteiro={roteiro} />
             </>
           )}
           {step === "revisor" && (
             <>
-              <CopyEscritaButton roteiro={roteiro} />
+              <CopyPartButton roteiro={roteiro} part={1} />
+              <CopyPartButton roteiro={roteiro} part={2} />
               <DownloadEscritaButton roteiro={roteiro} />
-              <GoogleDocsButton roteiro={roteiro} />
             </>
           )}
           {next && (
