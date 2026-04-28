@@ -59,6 +59,10 @@ export interface RevisorError {
   gravidade: RevisorErrorGravity;
   /** Capítulo onde o erro foi encontrado, se aplicável. */
   capitulo?: number;
+  /** Parte do roteiro onde o erro está (1 ou 2). Importante porque a
+   *  numeração de capítulos reinicia em cada Parte — sem essa info,
+   *  "Cap. 3" é ambíguo. */
+  parte?: 1 | 2;
   /** Linha curta resumindo o erro. */
   titulo: string;
   /** Trecho exato do roteiro a substituir — literal, fiel ao original. */

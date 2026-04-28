@@ -78,6 +78,7 @@ export function parseRevisorErrors(content: string): RevisorError[] {
     const gravidadeRaw = getAttr(attrs, "gravidade")?.toLowerCase();
     const titulo = getAttr(attrs, "titulo");
     const capituloRaw = getAttr(attrs, "capitulo");
+    const parteRaw = getAttr(attrs, "parte");
     const gravidade = gravidadeRaw
       ? (GRAVITY_MAP[gravidadeRaw] ?? "interfere")
       : "interfere";
@@ -89,11 +90,17 @@ export function parseRevisorErrors(content: string): RevisorError[] {
     // Skipa erro malformado — sem trechos, não dá pra aplicar.
     if (!trechoOriginal || !trechoCorrigido) continue;
 
+    // Parte só aceita 1 ou 2 — qualquer outra coisa fica undefined.
+    const parteNum = parteRaw ? Number(parteRaw) : undefined;
+    const parte =
+      parteNum === 1 || parteNum === 2 ? (parteNum as 1 | 2) : undefined;
+
     out.push({
       id: numero ?? `${out.length + 1}`,
       numero: numero ?? String(out.length + 1),
       gravidade,
       capitulo: capituloRaw ? Number(capituloRaw) : undefined,
+      ...(parte ? { parte } : {}),
       titulo: titulo ?? "Erro sem título",
       trechoOriginal,
       trechoCorrigido,
@@ -102,6 +109,27 @@ export function parseRevisorErrors(content: string): RevisorError[] {
   }
 
   return out;
+}
+
+/**
+ * Tenta inferir se um erro está na Parte 1 ou Parte 2 do roteiro buscando
+ * o trechoOriginal no conteúdo da Escrita e comparando a posição com o
+ * banner "═══ PARTE 2 ═══" que separa as duas partes. Devolve undefined
+ * se não conseguir localizar o trecho. Útil pra erros gerados antes do
+ * agente passar a emitir o atributo parte explicitamente.
+ */
+export function inferPartFromContent(
+  escritaContent: string,
+  trechoOriginal: string,
+): 1 | 2 | undefined {
+  if (!escritaContent || !trechoOriginal) return undefined;
+  const range = findTrechoInText(escritaContent, trechoOriginal);
+  if (!range) return undefined;
+  // Match tolerante a variações: "═══ PARTE 2 ═══", "PARTE 2", "## Parte 2".
+  const parte2Re = /PARTE\s+2/i;
+  const parte2Match = parte2Re.exec(escritaContent);
+  if (!parte2Match) return 1; // Sem banner Parte 2 — tudo é Parte 1.
+  return range.start < parte2Match.index ? 1 : 2;
 }
 
 /**

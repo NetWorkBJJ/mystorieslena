@@ -13,6 +13,7 @@ import type { RevisorError } from "@/types/roteiro";
 import {
   gravityLabel,
   hashEscritaContent,
+  inferPartFromContent,
 } from "@/lib/parse-revisor-output";
 import { useWizard } from "@/store/wizard";
 import { cn } from "@/lib/utils";
@@ -126,14 +127,21 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
       )}
 
       <div className="flex flex-col gap-2">
-        {errors.map((err) => (
-          <ErrorCard
-            key={err.id}
-            error={err}
-            disabled={!escritaContent}
-            onApply={() => applyOne(err.id)}
-          />
-        ))}
+        {errors.map((err) => {
+          // Fallback: se o agente não emitiu `parte` no XML (revisões
+          // antigas), tenta inferir buscando o trecho no roteiro.
+          const parte =
+            err.parte ?? inferPartFromContent(escritaContent, err.trechoOriginal);
+          const enrichedErr = parte ? { ...err, parte } : err;
+          return (
+            <ErrorCard
+              key={err.id}
+              error={enrichedErr}
+              disabled={!escritaContent}
+              onApply={() => applyOne(err.id)}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -209,8 +217,16 @@ function ErrorCard({ error, disabled, onApply }: CardProps) {
     });
   };
 
-  const titleLabel = error.titulo
-    ? `Erro #${error.numero} — ${error.titulo}`
+  // Append "(Parte N)" no título se a parte é conhecida E o agente ainda
+  // não colocou isso no titulo (alguns títulos já vêm com a info — não
+  // queremos duplicar pra "...(Parte 2) (Parte 2)").
+  const titleHasParte = /\(Parte\s+[12]\)/i.test(error.titulo ?? "");
+  const tituloComParte =
+    error.titulo && error.parte && !titleHasParte
+      ? `${error.titulo} (Parte ${error.parte})`
+      : error.titulo;
+  const titleLabel = tituloComParte
+    ? `Erro #${error.numero} — ${tituloComParte}`
     : `Erro #${error.numero}`;
 
   return (

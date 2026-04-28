@@ -325,7 +325,7 @@ continue com SUGESTÕES, ANÁLISE LEITOR, etc.
 Formato EXATO de cada bloco (uma linha em branco entre blocos):
 
 <erros_detalhados>
-<erro numero="1" gravidade="gravissimo" capitulo="3" titulo="Contaminação de metadados no Capítulo 3">
+<erro numero="1" gravidade="gravissimo" parte="2" capitulo="3" titulo="Contaminação de metadados no Capítulo 3">
 <trecho_original>
 [Cole AQUI o trecho EXATO do roteiro — copia literal, sem reescrever, com pontuação, travessões e quebras de linha originais. Nunca menos de uma frase completa com contexto. Se o erro estiver espalhado em mais de um trecho, repita o bloco <erro> com numeração igual e sufixo letra (ex: numero="3a", numero="3b").]
 </trecho_original>
@@ -337,7 +337,7 @@ Formato EXATO de cada bloco (uma linha em branco entre blocos):
 </por_que_alterado>
 </erro>
 
-<erro numero="2" gravidade="interfere" capitulo="5" titulo="...">
+<erro numero="2" gravidade="interfere" parte="1" capitulo="5" titulo="...">
 <trecho_original>...</trecho_original>
 <trecho_corrigido>...</trecho_corrigido>
 <por_que_alterado>...</por_que_alterado>
@@ -349,7 +349,8 @@ Formato EXATO de cada bloco (uma linha em branco entre blocos):
 Regras INVIOLÁVEIS pro bloco <erros_detalhados>:
 - gravidade="atencao" pra 🟡, "interfere" pra 🟠, "gravissimo" pra 🔴.
 - numero deve casar com a numeração de "PRINCIPAIS ERROS".
-- capitulo é o número do capítulo (1, 2, 3...). Se o erro for transversal sem capítulo único, omita o atributo.
+- parte é OBRIGATÓRIO quando o erro está num capítulo específico — vale "1" ou "2". A numeração de capítulos REINICIA em cada Parte (Parte 1 tem Cap. 1, 2, 3... e Parte 2 também tem Cap. 1, 2, 3...), então sem o atributo parte o "Cap. 3" fica ambíguo. Identifique a Parte pelo banner ═══ PARTE 1/2 ═══ que separa os blocos no roteiro. Se o erro for transversal (ex: voz da narradora ao longo do roteiro inteiro), omita parte E capitulo.
+- capitulo é o número do capítulo dentro da Parte (1, 2, 3...). Se o erro for transversal sem capítulo único, omita o atributo.
 - titulo é uma linha curta resumindo o erro (sem o número, sem emoji — só o texto).
 - trecho_original PRECISA ser literal — a engine faz find+replace exato. Se você reescrever, paráfrasear ou mudar pontuação/quebras, a substituição falha.
 - trecho_corrigido tem que ser plug-and-play: substituir o trecho_original por ele deve produzir um texto coerente, sem deixar lixo.

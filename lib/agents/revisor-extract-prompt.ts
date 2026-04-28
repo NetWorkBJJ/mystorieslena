@@ -16,7 +16,7 @@ REGRAS PRO BLOCO XML:
 
 Para CADA "Erro #N" listado na seção "PRINCIPAIS ERROS" do markdown da revisão (ignore erros 🟢 não numerados), emita um <erro> com este formato EXATO:
 
-<erro numero="N" gravidade="atencao|interfere|gravissimo" capitulo="X" titulo="resumo curto sem emoji">
+<erro numero="N" gravidade="atencao|interfere|gravissimo" parte="1|2" capitulo="X" titulo="resumo curto sem emoji">
 <trecho_original>
 [trecho LITERAL extraído do roteiro original — copia exata, com pontuação, travessões, aspas e quebras de linha originais. NÃO parafraseie, NÃO normalize, NÃO traduza. Pelo menos uma frase completa de contexto.]
 </trecho_original>
@@ -33,7 +33,12 @@ Mapeamento de gravidade:
 - 🟠 → "interfere"
 - 🔴 → "gravissimo"
 
-Se a numeração de "PRINCIPAIS ERROS" tiver letras (ex: "Erro #3a"), use no atributo numero ("3a"). Se um erro não tem capítulo único (transversal), omita o atributo capitulo.
+Identificação de parte e capítulo:
+- O roteiro original é separado por banners ═══ PARTE 1 ═══ e ═══ PARTE 2 ═══. A numeração de capítulos REINICIA em cada Parte. Sem o atributo parte, "Cap. 3" é ambíguo.
+- parte="1" ou parte="2" — OBRIGATÓRIO quando o erro tem capítulo específico. Identifique localizando o trecho_original no roteiro original e vendo qual banner o precede.
+- Se o markdown da revisão menciona explicitamente "Parte 1"/"Parte 2", use isso. Caso contrário, infira pela posição do trecho no roteiro.
+- Se o erro for transversal (sem capítulo único), omita parte E capitulo.
+- Se a numeração de "PRINCIPAIS ERROS" tiver letras (ex: "Erro #3a"), use no atributo numero ("3a").
 
 CRÍTICO: o trecho_original DEVE existir LITERALMENTE no roteiro fornecido. A engine faz find+replace exato. Se o markdown da revisão menciona um trecho de forma vaga ou parafraseada, você deve LOCALIZAR o trecho correspondente no roteiro original e usar a versão LITERAL dele. Se não conseguir localizar com confiança, OMITA esse <erro> em vez de chutar (chute quebra a substituição).
 
