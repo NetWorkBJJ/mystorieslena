@@ -16,8 +16,6 @@ export interface StreamClaudeParams {
   systemPrompt: string;
   userMessage: string;
   model: string;
-  /** Fallback model if primary fails (e.g. "haiku"). */
-  fallbackModel?: string;
   /** Override thinking mode. Default: disabled (maior velocidade). */
   thinking?: "disabled" | "adaptive";
   /**
@@ -111,7 +109,6 @@ export async function* streamClaudeText(
       prompt: promptInput,
       options: {
         model: params.model,
-        fallbackModel: params.fallbackModel,
         systemPrompt: params.systemPrompt,
         tools: [],
         maxTurns: 1,

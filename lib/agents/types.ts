@@ -1,4 +1,25 @@
-import type { RoteiroReferenceImage, StepId, StepOutput } from "@/types/roteiro";
+import type {
+  EscritaSynopsis,
+  RoteiroReferenceImage,
+  StepId,
+  StepOutput,
+} from "@/types/roteiro";
+
+/**
+ * Quando o Escrita roda em modo 2-em-2, cada request descreve qual par de
+ * capítulos a IA deve gerar e em qual Parte está. Outros agentes ignoram.
+ */
+export interface AgentBatchContext {
+  part: "Parte 1" | "Parte 2";
+  /** Números absolutos dos capítulos a gerar — 1 ou 2 entradas. Ex.: [3, 4]. */
+  chapters: number[];
+  /** Quantidade total de capítulos da Parte (pra orientar o agente). */
+  totalInPart: number;
+  /** Índice 1-based deste batch dentro da rodada inteira. */
+  batchIndex: number;
+  /** Total de batches que serão disparados nessa rodada (Parte 1 + Parte 2). */
+  totalBatches: number;
+}
 
 export interface AgentContext {
   previousOutputs: Partial<Record<StepId, StepOutput>>;
@@ -14,6 +35,10 @@ export interface AgentContext {
   refineMode?: boolean;
   /** Versão atual do output desse step — usada como base no modo correção. */
   currentOutput?: string;
+  /** Modo 2-em-2 do Escrita — só presente quando o frontend está iterando. */
+  batch?: AgentBatchContext;
+  /** Sinopses dos capítulos já gerados em batches anteriores (continuidade). */
+  previousSynopses?: EscritaSynopsis[];
 }
 
 export interface Agent {
@@ -21,8 +46,6 @@ export interface Agent {
   label: string;
   description: string;
   model: string;
-  /** Fallback model se o primário falhar (ex: 'haiku'). */
-  fallbackModel?: string;
   systemPrompt: string;
   buildUserMessage: (ctx: AgentContext) => string;
   maxTokens: number;

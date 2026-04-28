@@ -8,17 +8,10 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-export function countWords(text: string): number {
-  if (!text) return 0;
-  return text
-    .replace(/```[\s\S]*?```/g, " ") // Remove code blocks
-    .replace(/[#*_`>~|—–-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .filter(Boolean).length;
-}
+// countWords vem de lib/word-count.ts — ÚNICA fonte de verdade no projeto.
+// NÃO crie outro contador local. Veja CLAUDE.md seção "Contagem de palavras".
+export { countWords } from "@/lib/word-count";
+import { countWords } from "@/lib/word-count";
 
 interface WordCountBadgeProps {
   content: string;

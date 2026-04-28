@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,6 @@ import {
   FileText,
   Loader2,
   Pencil,
-  Rocket,
   RotateCcw,
   Send,
   Sparkles,
@@ -29,6 +28,7 @@ import {
   nextStep,
   prevStep,
   type EscritaChapter,
+  type EscritaSynopsis,
   type StepId,
   type StepOutput,
 } from "@/types/roteiro";
@@ -43,11 +43,21 @@ import {
   stripErrosDetalhados,
 } from "@/lib/parse-revisor-output";
 import { RevisorErrorsView } from "@/components/wizard/RevisorErrorsView";
-import { MemoryVivaCard } from "@/components/wizard/MemoryVivaCard";
 import {
-  WordCountBadge,
-  countWords,
-} from "@/components/wizard/WordCountBadge";
+  countChaptersInEstrutura,
+  planBatches,
+} from "@/lib/parse-estrutura-chapters";
+import { parseEscritaBatch } from "@/lib/parse-escrita-batch";
+import {
+  extractChapterTargets,
+  isWithinTarget,
+  partTotalRange,
+} from "@/lib/parse-estrutura-targets";
+import { MemoryVivaCard } from "@/components/wizard/MemoryVivaCard";
+import { WordCountBadge } from "@/components/wizard/WordCountBadge";
+// countWords sempre da lib canônica — mesmo contador que a UI usa pra
+// exibir os totais. Ver CLAUDE.md seção "Contagem de palavras".
+import { countWords } from "@/lib/word-count";
 import { HistoryPanel } from "@/components/wizard/HistoryPanel";
 import { GoogleDocsButton } from "@/components/wizard/GoogleDocsButton";
 import { DownloadEscritaButton } from "@/components/wizard/DownloadEscritaButton";
@@ -55,8 +65,80 @@ import { CopyEscritaButton } from "@/components/wizard/CopyEscritaButton";
 import { ReferenceImageUpload } from "@/components/wizard/ReferenceImageUpload";
 import { cn } from "@/lib/utils";
 
+type EscritaProgress =
+  | {
+      kind: "writing";
+      batchIndex: number;
+      totalBatches: number;
+      part: "Parte 1" | "Parte 2";
+      chapters: number[];
+    }
+  | {
+      kind: "fixing-wordcount";
+      chapterNumber: number;
+      part: "Parte 1" | "Parte 2";
+      currentWords: number;
+      targetWords: number;
+      direction: "expand" | "shrink";
+    }
+  | {
+      kind: "revising-grammar";
+      chaptersCount: number;
+    };
+
 const PART_BANNER = (part: string) =>
   `═══════════════════════════════════════\n${part.toUpperCase()}\n═══════════════════════════════════════`;
+
+/**
+ * Parser leve do output do revisor gramatical: extrai capítulos pela
+ * mesma regex do batch normal. Cada cap volta SEM `part` — o caller
+ * (que tem a lista original) faz o merge por número.
+ */
+function parseRevisedChapters(
+  raw: string,
+): Array<{ number: number; title?: string; content: string }> {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  type Hit = { number: number; title?: string; index: number; headerEnd: number };
+  const hits: Hit[] = [];
+  const titledRe = /^#{1,4}\s*Cap[ií]tulo\s+(\d+)\s*(?:—|–|-)\s*(.+?)\s*$/gim;
+  const noTitleRe = /^#{1,4}\s*Cap[ií]tulo\s+(\d+)\s*$/gim;
+  let m: RegExpExecArray | null;
+  while ((m = titledRe.exec(trimmed)) !== null) {
+    hits.push({
+      number: parseInt(m[1]!, 10),
+      title: m[2]!.trim(),
+      index: m.index,
+      headerEnd: m.index + m[0].length,
+    });
+  }
+  while ((m = noTitleRe.exec(trimmed)) !== null) {
+    if (hits.some((h) => h.index === m!.index)) continue;
+    hits.push({
+      number: parseInt(m[1]!, 10),
+      index: m.index,
+      headerEnd: m.index + m[0].length,
+    });
+  }
+  hits.sort((a, b) => a.index - b.index);
+  const result: Array<{ number: number; title?: string; content: string }> = [];
+  for (let i = 0; i < hits.length; i++) {
+    const cur = hits[i]!;
+    const nextStart = i + 1 < hits.length ? hits[i + 1]!.index : trimmed.length;
+    result.push({
+      number: cur.number,
+      title: cur.title,
+      content: trimmed.slice(cur.headerEnd, nextStart).trim(),
+    });
+  }
+  return result;
+}
+
+// Contador de palavras: SEMPRE `countWords` de @/lib/word-count.
+// Importado acima. NUNCA criar outro contador local — split(/\s+/) ingênuo
+// conta diferente porque não trata `—`, `–`, `-` (separadores em diálogo).
+// Toda divergência entre o contador do backend e o da UI vira bug de
+// fix-wordcount/balance pedindo expansão errada.
 
 function concatenateChapters(chapters: EscritaChapter[]): string {
   const blocks: string[] = [];
@@ -101,6 +183,19 @@ export function StepShell({ step }: Props) {
   const [draft, setDraft] = useState(output?.content ?? "");
   const [liveStream, setLiveStream] = useState<string>("");
   const [isEditing, setIsEditing] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<EscritaProgress | null>(
+    null,
+  );
+  // Ajuste/correção é "draft" local — só vira o userInput do roteiro quando
+  // o usuário clica "Aplicar correção". Sem isso, qualquer caractere digitado
+  // entra na próxima geração mesmo sem confirmação. Sync com store quando
+  // o roteiro muda (carregar outro / restaurar histórico).
+  const [pendingInput, setPendingInput] = useState<string>(
+    roteiro?.userInput ?? "",
+  );
+  useEffect(() => {
+    setPendingInput(roteiro?.userInput ?? "");
+  }, [roteiro?.id, roteiro?.userInput]);
   const abortRef = useRef<AbortController | null>(null);
 
   const previousOutputsSummary = useMemo(() => {
@@ -137,7 +232,7 @@ export function StepShell({ step }: Props) {
     label?: string;
   }>(() => {
     if (step === "escrita") {
-      // Total = Parte 1 (~11.500) + Parte 2 (~13.000-13.500) ≈ 24.300-25.200
+      // Total prompt mestre: P1 (11.300-11.700) + P2 (13.000-13.500) = 24.300-25.200
       return { min: 24300, max: 25200, label: "Total" };
     }
     return {};
@@ -155,10 +250,9 @@ export function StepShell({ step }: Props) {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
-    // Antes de gerar, salva o output atual no histórico (incluindo Escrita,
-    // que agora gera tudo de uma vez — a versão anterior é preservada). Em
-    // modo correção também salvamos pra que a roteirista possa voltar pra
-    // versão antes da correção.
+    // Antes de gerar, salva o output atual no histórico (incluindo Escrita
+    // 2-em-2 — a versão anterior é preservada). Em modo correção também
+    // salvamos pra que a roteirista possa voltar pra versão antes da correção.
     const baseContent = output?.content?.trim() ?? "";
     if (baseContent) {
       pushOutputToHistory(
@@ -170,9 +264,412 @@ export function StepShell({ step }: Props) {
     setIsGenerating(true);
     setDraft("");
     setLiveStream("");
+    setBatchProgress(null);
     const startedAt = new Date().toISOString();
     setOutput(step, { content: "", generatedAt: startedAt });
 
+    // ─── Branch Escrita: loop 2-em-2 + fix-wordcount + revisor ──────────
+    if (step === "escrita") {
+      const estrutura1 = roteiro.outputs.estrutura1?.content;
+      const estrutura2 = roteiro.outputs.estrutura2?.content;
+      const totalP1 = countChaptersInEstrutura(estrutura1);
+      const totalP2 = countChaptersInEstrutura(estrutura2);
+
+      if (totalP1 === 0 || totalP2 === 0) {
+        setOutput(step, {
+          content: `[ERRO] As Estruturas das Partes 1 e 2 precisam ter capítulos detectáveis (cabeçalhos como "# Capítulo 1 — Título"). Detectei Parte 1 = ${totalP1} capítulos, Parte 2 = ${totalP2} capítulos. Volte aos Steps 2 e 3 e regenere.`,
+          generatedAt: startedAt,
+        });
+        setIsGenerating(false);
+        return;
+      }
+
+      // Extrai alvos de palavras por capítulo da estrutura. Cap sem alvo
+      // declarado vira fallback proporcional (11.500/N pra Parte 1, 13.250/N
+      // pra Parte 2).
+      const targetsP1Raw = extractChapterTargets(estrutura1);
+      const targetsP2Raw = extractChapterTargets(estrutura2);
+      // Totais do prompt mestre das estruturas (lib/agents/estrutura{1,2}-prompt.ts):
+      //   P1 = 11.500 alvo (faixa 11.300-11.700)
+      //   P2 = 13.000-13.500 (rigoroso, alvo 13.250)
+      // Fallback só ativo se a estrutura não declarar alvo per cap (caso
+      // degenerado — o prompt real sempre declara entre parênteses no header).
+      const targetsP1 = Array.from({ length: totalP1 }, (_, i) =>
+        targetsP1Raw.find((t) => t.number === i + 1)?.target ??
+        Math.round(11500 / totalP1),
+      );
+      const targetsP2 = Array.from({ length: totalP2 }, (_, i) =>
+        targetsP2Raw.find((t) => t.number === i + 1)?.target ??
+        Math.round(13250 / totalP2),
+      );
+
+      const plan = planBatches(totalP1, totalP2, targetsP1, targetsP2);
+      const accChapters: EscritaChapter[] = [];
+      const accSynopses: EscritaSynopsis[] = [];
+
+      // ─── helpers locais ──────────────────────────────────────────────
+      const readStreamFully = async (res: Response): Promise<string> => {
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        let acc = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          acc += decoder.decode(value, { stream: true });
+          setLiveStream(acc);
+        }
+        return acc;
+      };
+
+      const persist = () => {
+        const newContent = concatenateChapters(accChapters);
+        setOutput(step, {
+          content: newContent,
+          metadata: {
+            chapters: [...accChapters],
+            synopses: [...accSynopses],
+          },
+          generatedAt: startedAt,
+        });
+        setDraft(newContent);
+      };
+
+      const failBatch = async (msg: string, batchIdx: number) => {
+        const errContent =
+          accChapters.length > 0
+            ? `${concatenateChapters(accChapters)}\n\n[ERRO no Par ${batchIdx} de ${plan.length}] ${msg}`
+            : `[ERRO no Par ${batchIdx} de ${plan.length}] ${msg}`;
+        setOutput(step, {
+          content: errContent,
+          metadata: { chapters: accChapters, synopses: accSynopses },
+          generatedAt: startedAt,
+        });
+      };
+
+      try {
+        // ═══ PHASE 1: gerar batches + fix word count ════════════════════
+        for (const b of plan) {
+          if (ctrl.signal.aborted) break;
+          setBatchProgress({
+            kind: "writing",
+            batchIndex: b.batchIndex,
+            totalBatches: plan.length,
+            part: b.part,
+            chapters: b.chapters,
+          });
+          setLiveStream("");
+
+          const res = await fetch(`/api/agent/${step}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              previousOutputs: roteiro.outputs,
+              userInput: roteiro.userInput,
+              fastMode,
+              referenceImage: roteiro.referenceImage,
+              batch: {
+                part: b.part,
+                chapters: b.chapters,
+                totalInPart: b.totalInPart,
+                batchIndex: b.batchIndex,
+                totalBatches: plan.length,
+              },
+              previousSynopses: accSynopses,
+            }),
+            signal: ctrl.signal,
+          });
+
+          if (!res.ok || !res.body) {
+            await failBatch(
+              (await res.text()) || res.statusText,
+              b.batchIndex,
+            );
+            setIsGenerating(false);
+            setBatchProgress(null);
+            return;
+          }
+
+          const acc = await readStreamFully(res);
+          if (ctrl.signal.aborted) break;
+
+          const parsed = parseEscritaBatch(acc, b.part);
+
+          // Sanity check: se o parser caiu no fallback (cap número 0)
+          // significa que o modelo não devolveu cabeçalho `## Capítulo N`.
+          // Não tem sentido tentar fix-wordcount em cima disso. Para o
+          // loop com erro claro pra a roteirista regenerar.
+          const fallbackOnly = parsed.chapters.every((c) => c.number === 0);
+          if (fallbackOnly && parsed.chapters.length > 0) {
+            await failBatch(
+              `O modelo não seguiu o formato esperado (sem cabeçalhos "## Capítulo N — Título"). Isso é mais comum em Modo rápido (Sonnet) — desligue e tente novamente em Opus.`,
+              b.batchIndex,
+            );
+            setIsGenerating(false);
+            setBatchProgress(null);
+            return;
+          }
+
+          // Verifica word count de cada capítulo do batch e dispara fix
+          // automático se algum estiver fora de ±5% do alvo. Max 1 retry
+          // por capítulo (evita loop).
+          for (let i = 0; i < parsed.chapters.length; i++) {
+            if (ctrl.signal.aborted) break;
+            const ch = parsed.chapters[i]!;
+            const target = b.targets[i];
+            if (!target) continue;
+            const real = countWords(ch.content);
+            if (isWithinTarget(real, target)) continue;
+
+            const direction: "expand" | "shrink" =
+              real < target ? "expand" : "shrink";
+            setBatchProgress({
+              kind: "fixing-wordcount",
+              chapterNumber: ch.number,
+              part: b.part,
+              currentWords: real,
+              targetWords: target,
+              direction,
+            });
+            setLiveStream("");
+
+            const fixRes = await fetch("/api/escrita-fix-wordcount", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chapter: {
+                  number: ch.number,
+                  title: ch.title,
+                  part: b.part,
+                  content: ch.content,
+                },
+                currentWords: real,
+                targetWords: target,
+                premissa: roteiro.outputs.premissa?.content,
+                neighborSynopses: accSynopses.slice(-4), // sinopses recentes pra continuidade
+              }),
+              signal: ctrl.signal,
+            });
+
+            if (!fixRes.ok || !fixRes.body) {
+              // Falha do fix não é fatal — segue com o cap original.
+              console.warn(
+                `Fix word count falhou pro Cap ${ch.number}: ${fixRes.statusText}`,
+              );
+              continue;
+            }
+
+            const fixAcc = await readStreamFully(fixRes);
+            if (ctrl.signal.aborted) break;
+
+            // Parse: extrai o capítulo reescrito do output do fix.
+            const fixParsed = parseRevisedChapters(fixAcc);
+            const fixedCh = fixParsed.find((p) => p.number === ch.number);
+            if (fixedCh?.content) {
+              parsed.chapters[i] = {
+                ...ch,
+                content: fixedCh.content,
+                title: fixedCh.title ?? ch.title,
+              };
+            } else {
+              console.warn(
+                `Fix devolveu output sem header parseável pro Cap ${ch.number} — mantendo original`,
+              );
+            }
+          }
+
+          if (ctrl.signal.aborted) break;
+
+          accChapters.push(...parsed.chapters);
+          accSynopses.push(...parsed.synopses);
+          persist();
+
+          // ─── Check de TOTAL da Parte após o último batch dela ─────────
+          // Se o total da Parte ficou fora do range PDF (P1: 11.200-11.500,
+          // P2: 13.400-13.600), dispara UM fix compensatório no cap mais
+          // distante do alvo per-cap na direção certa.
+          const remainingInPart = plan
+            .slice(plan.indexOf(b) + 1)
+            .some((p) => p.part === b.part);
+
+          if (!remainingInPart) {
+            const partCaps = accChapters.filter((c) => c.part === b.part);
+            const partTotal = partCaps.reduce(
+              (s, c) => s + countWords(c.content),
+              0,
+            );
+            const range = partTotalRange(b.part);
+
+            if (partTotal < range.min || partTotal > range.max) {
+              const direction: "expand" | "shrink" =
+                partTotal < range.min ? "expand" : "shrink";
+              const delta = range.target - partTotal; // positivo = expandir
+
+              // Escolhe cap pra ajustar:
+              //   expand → cap MENOR (tem mais espaço pra crescer)
+              //   shrink → cap MAIOR
+              let pickedCap = partCaps[0]!;
+              for (const c of partCaps) {
+                const cWords = countWords(c.content);
+                const pickedWords = countWords(pickedCap.content);
+                if (direction === "expand" && cWords < pickedWords)
+                  pickedCap = c;
+                if (direction === "shrink" && cWords > pickedWords)
+                  pickedCap = c;
+              }
+
+              const currentWords = countWords(pickedCap.content);
+              const newTarget = currentWords + delta;
+
+              setBatchProgress({
+                kind: "fixing-wordcount",
+                chapterNumber: pickedCap.number,
+                part: b.part,
+                currentWords,
+                targetWords: newTarget,
+                direction,
+              });
+              setLiveStream("");
+
+              const balanceRes = await fetch("/api/escrita-fix-wordcount", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chapter: {
+                    number: pickedCap.number,
+                    title: pickedCap.title,
+                    part: b.part,
+                    content: pickedCap.content,
+                  },
+                  currentWords,
+                  targetWords: newTarget,
+                  premissa: roteiro.outputs.premissa?.content,
+                  neighborSynopses: accSynopses.slice(-4),
+                }),
+                signal: ctrl.signal,
+              });
+
+              if (balanceRes.ok && balanceRes.body) {
+                const balAcc = await readStreamFully(balanceRes);
+                if (!ctrl.signal.aborted) {
+                  const balParsed = parseRevisedChapters(balAcc);
+                  const balCh = balParsed.find(
+                    (p) => p.number === pickedCap.number,
+                  );
+                  if (balCh?.content) {
+                    // Atualiza o cap em accChapters (precisa achar o índice
+                    // certo — pode ter o mesmo number em P1 e P2).
+                    const idxInAcc = accChapters.findIndex(
+                      (c) =>
+                        c.part === b.part && c.number === pickedCap.number,
+                    );
+                    if (idxInAcc >= 0) {
+                      accChapters[idxInAcc] = {
+                        ...accChapters[idxInAcc]!,
+                        content: balCh.content,
+                        title: balCh.title ?? accChapters[idxInAcc]!.title,
+                      };
+                      persist();
+                    }
+                  } else {
+                    console.warn(
+                      `Balance da ${b.part} devolveu output sem header — total ficou em ${partTotal} (range ${range.min}-${range.max})`,
+                    );
+                  }
+                }
+              } else {
+                console.warn(
+                  `Balance da ${b.part} falhou — total ficou em ${partTotal}`,
+                );
+              }
+            }
+          }
+        }
+
+        if (ctrl.signal.aborted) {
+          setLiveStream("");
+          setBatchProgress(null);
+          setIsGenerating(false);
+          return;
+        }
+
+        // ═══ PHASE 2: revisor gramatical no roteiro inteiro ═════════════
+        if (accChapters.length > 0) {
+          setBatchProgress({
+            kind: "revising-grammar",
+            chaptersCount: accChapters.length,
+          });
+          setLiveStream("");
+
+          const revRes = await fetch("/api/escrita-revisor", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chapters: accChapters.map((c) => ({
+                number: c.number,
+                title: c.title,
+                part: c.part as "Parte 1" | "Parte 2",
+                content: c.content,
+              })),
+            }),
+            signal: ctrl.signal,
+          });
+
+          if (revRes.ok && revRes.body) {
+            const revAcc = await readStreamFully(revRes);
+            if (!ctrl.signal.aborted) {
+              const revised = parseRevisedChapters(revAcc);
+              if (revised.length > 0) {
+                // Merge por (numero + parte) — capítulos têm o mesmo número
+                // em Parte 1 e Parte 2, então preciso considerar a ordem
+                // também. Estratégia: caminha em paralelo pelos arrays.
+                // Se a ordem dos parseados bate, substitui; se não, fallback
+                // por número dentro da mesma parte (raro mas seguro).
+                if (revised.length === accChapters.length) {
+                  for (let i = 0; i < accChapters.length; i++) {
+                    const r = revised[i]!;
+                    if (r.content) {
+                      accChapters[i] = {
+                        ...accChapters[i]!,
+                        content: r.content,
+                        title: r.title ?? accChapters[i]!.title,
+                      };
+                    }
+                  }
+                } else {
+                  console.warn(
+                    `Revisor devolveu ${revised.length} capítulos, esperava ${accChapters.length} — pulando merge`,
+                  );
+                }
+                persist();
+              } else {
+                console.warn("Revisor devolveu output não parseável — pulando");
+              }
+            }
+          } else {
+            console.warn(
+              `Revisor falhou: ${revRes.statusText} — capítulos ficam sem revisão final`,
+            );
+          }
+        }
+
+        setLiveStream("");
+        setBatchProgress(null);
+        setIsGenerating(false);
+
+        if (autoAdvance && next && !ctrl.signal.aborted) {
+          setCurrentStep(next);
+        }
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          console.error(err);
+        }
+        setIsGenerating(false);
+        setBatchProgress(null);
+      }
+      return;
+    }
+
+    // ─── Branch padrão (outros steps): 1 request, 1 stream ──────────────
     try {
       const res = await fetch(`/api/agent/${step}`, {
         method: "POST",
@@ -207,41 +704,11 @@ export function StepShell({ step }: Props) {
         const { done, value } = await reader.read();
         if (done) break;
         acc += decoder.decode(value, { stream: true });
-
-        if (step === "escrita") {
-          // Stream cru fica visível (com tarjas ROTEIRO / PARTE 1 / PARTE 2
-          // / RELATÓRIO / VALIDAÇÃO) — só o bloco bruto do JSON da Memória
-          // Viva vira placeholder elegante até o stream terminar.
-          setLiveStream(filterMemoryBlockForDisplay(acc));
-        } else {
-          setDraft(acc);
-          setOutput(step, {
-            content: acc,
-            generatedAt: startedAt,
-          });
-        }
-      }
-
-      // Stream terminou. No caso da Escrita, parseamos o acumulado completo:
-      // o roteiro vira o `content`, e capítulos individuais + relatório +
-      // memória + validação vão para metadata.
-      if (step === "escrita" && acc.trim()) {
-        const parsed = parseEscritaOutput(acc);
-        const structured: StepOutput = {
-          content: parsed.roteiro || acc,
-          metadata: {
-            memory: parsed.memory,
-            chapters: parsed.chapters,
-            report: parsed.report,
-            validation: parsed.validation,
-            ...(parsed.validationStatus && {
-              validationStatus: parsed.validationStatus,
-            }),
-          },
+        setDraft(acc);
+        setOutput(step, {
+          content: acc,
           generatedAt: startedAt,
-        };
-        setOutput(step, structured);
-        setDraft(parsed.roteiro || acc);
+        });
       }
 
       // No Revisor, parseamos o bloco <erros_detalhados> ao final pra
@@ -453,11 +920,50 @@ export function StepShell({ step }: Props) {
                 ? "Ex.: romance com executiva herdeira que retorna pra cidade natal..."
                 : "Ex.: deixe o tom mais intenso, foco no conflito interno..."
           }
-          value={roteiro.userInput ?? ""}
-          onChange={(e) => setUserInput(e.target.value)}
+          value={pendingInput}
+          onChange={(e) => setPendingInput(e.target.value)}
           rows={step === "escrita" ? 4 : 3}
           className="resize-none"
         />
+        {/* Botão "Aplicar correção" — comita o ajuste local pro store. Sem
+            esse clique, o texto digitado fica só local e a próxima geração
+            usa o ajuste anterior (vazio na primeira vez). Visual indica
+            estado: dirty (pendente) / aplicado / desabilitado. */}
+        {(() => {
+          const savedInput = roteiro.userInput ?? "";
+          const isDirty = pendingInput !== savedInput;
+          const hasContent = pendingInput.trim().length > 0;
+          return (
+            <div className="flex items-center justify-end gap-2 flex-wrap">
+              {!isDirty && hasContent && (
+                <Badge
+                  variant="outline"
+                  className="font-normal gap-1 border-emerald-300 bg-emerald-50 text-emerald-800"
+                >
+                  <CheckCircle2 className="size-3" />
+                  Correção aplicada
+                </Badge>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!isDirty || isGenerating}
+                onClick={() => setUserInput(pendingInput)}
+                className="gap-2"
+                title={
+                  isDirty
+                    ? "Aplica a correção pra a próxima geração"
+                    : hasContent
+                      ? "Correção já aplicada — edite o texto pra reativar"
+                      : "Digite uma correção primeiro"
+                }
+              >
+                <Send className="size-3.5" />
+                Aplicar correção
+              </Button>
+            </div>
+          );
+        })()}
       </section>
       )}
 
@@ -543,14 +1049,34 @@ export function StepShell({ step }: Props) {
             rows={16}
             className="font-mono text-sm"
           />
-        ) : isGenerating && step === "escrita" && liveStream ? (
-          <div className="rounded-lg border bg-card p-4 sm:p-5 max-h-[60vh] overflow-auto">
-            <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed">
-              {liveStream}
-            </pre>
+        ) : step === "escrita" ? (
+          <div className="flex flex-col gap-4">
+            {chapters.length > 0 && <EscritaOutputView output={output!} />}
+            {chapters.length === 0 && hasContent && !isGenerating && (
+              <div className="rounded-lg border bg-card p-4 sm:p-5 max-h-[50vh] overflow-auto">
+                <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed">
+                  {output?.content}
+                </pre>
+              </div>
+            )}
+            {isGenerating && batchProgress && (
+              <BatchProgressPanel
+                progress={batchProgress}
+                liveStream={liveStream}
+              />
+            )}
+            {!isGenerating && !hasContent && (
+              <div className="rounded-lg border border-dashed bg-muted/20 p-8 text-center">
+                <Sparkles className="size-6 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  Clique em <span className="font-semibold">Gerar</span> para
+                  executar o agente{" "}
+                  <span className="font-semibold">{agent.label}</span> em pares
+                  de capítulos.
+                </p>
+              </div>
+            )}
           </div>
-        ) : hasContent && step === "escrita" ? (
-          <EscritaOutputView output={output!} />
         ) : hasContent ? (
           <div className="rounded-lg border bg-card p-4 sm:p-5 max-h-[50vh] overflow-auto">
             <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed">
@@ -987,6 +1513,57 @@ function ChapterCard({
         </div>
       </div>
     </details>
+  );
+}
+
+function BatchProgressPanel({
+  progress,
+  liveStream,
+}: {
+  progress: EscritaProgress;
+  liveStream: string;
+}) {
+  let title: string;
+  let subtitle: string;
+  let placeholder: string;
+
+  if (progress.kind === "writing") {
+    const chapsLabel =
+      progress.chapters.length === 2
+        ? `Capítulos ${progress.chapters[0]} e ${progress.chapters[1]}`
+        : `Capítulo ${progress.chapters[0]}`;
+    title = `Par ${progress.batchIndex} de ${progress.totalBatches}`;
+    subtitle = `· ${chapsLabel} da ${progress.part}`;
+    placeholder = "Conectando ao agente…";
+  } else if (progress.kind === "fixing-wordcount") {
+    const verb = progress.direction === "expand" ? "Expandindo" : "Encurtando";
+    title = `Ajustando contagem do Cap ${progress.chapterNumber}`;
+    subtitle = `· ${verb} de ${progress.currentWords.toLocaleString("pt-BR")} → ${progress.targetWords.toLocaleString("pt-BR")} palavras (${progress.part})`;
+    placeholder = "Reescrevendo capítulo dentro do alvo…";
+  } else {
+    // revising-grammar
+    title = "Revisão gramatical final";
+    subtitle = `· ${progress.chaptersCount} capítulos · Opus`;
+    placeholder = "Revisor lendo o roteiro completo…";
+  }
+
+  return (
+    <div className="rounded-lg border-2 border-primary/40 bg-primary/[0.03] overflow-hidden">
+      <div className="px-4 sm:px-5 py-3 bg-primary/10 border-b border-primary/30 flex items-center gap-3 flex-wrap">
+        <Loader2 className="size-4 animate-spin text-primary" />
+        <span className="text-sm font-semibold text-primary">{title}</span>
+        <span className="text-xs text-foreground/70">{subtitle}</span>
+      </div>
+      <div className="px-4 sm:px-5 py-4 max-h-[55vh] overflow-auto">
+        {liveStream ? (
+          <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed">
+            {liveStream}
+          </pre>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">{placeholder}</p>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -5,18 +5,21 @@ import { ESCRITA_SYSTEM_PROMPT } from "./escrita-prompt";
 /**
  * Etapa 4 — Escrita (Helô Stories™ / Kay - Romance de Milionário).
  *
- * Fluxo unificado (Escrita + Start fundidos): recebe Premissa + Estrutura
- * Parte 1 + Estrutura Parte 2 e ESCREVE o roteiro completo de uma só vez,
- * em fluxo contínuo, todos os capítulos. Ao final aplica a tecnologia
- * promptmaster — relatório de auto-revisão, memória viva final e validação.
+ * Fluxo 2-em-2: cada request gera UM par de capítulos (1-2, 3-4, ...) da
+ * Parte indicada. O frontend itera os batches em sequência, levando as
+ * sinopses dos capítulos anteriores como contexto pra próxima rodada.
+ *
+ * Esse formato foi validado empiricamente pela roteirista — segue 100% as
+ * regras de contagem de palavras do prompt mestre, coisa que o all-at-once
+ * antigo não conseguia. Sem auto-revisão/memória/validação no fim — as
+ * sinopses bastam pra continuidade Parte 1 → Parte 2.
  */
 export const escritaAgent: Agent = {
   id: "escrita",
   label: "Escrita",
   description:
-    "Escreve o roteiro COMPLETO (Parte 1 + Parte 2) em fluxo contínuo seguindo as estruturas aprovadas, e aplica auto-revisão + memória viva + validação ao final",
+    "Escreve o roteiro em pares de capítulos (2-em-2) seguindo as estruturas aprovadas; produz sinopses curtas pra dar continuidade entre os pares e ponte Parte 1 → Parte 2",
   model: MODELS.opus,
-  fallbackModel: MODELS.sonnet,
   thinking: "disabled",
   effort: "low",
   systemPrompt: ESCRITA_SYSTEM_PROMPT,
@@ -26,6 +29,8 @@ export const escritaAgent: Agent = {
     const estrutura1 = ctx.previousOutputs.estrutura1?.content?.trim() ?? "";
     const estrutura2 = ctx.previousOutputs.estrutura2?.content?.trim() ?? "";
     const ajustes = ctx.userInput?.trim() ?? "";
+    const batch = ctx.batch;
+    const previousSynopses = ctx.previousSynopses ?? [];
 
     // Modo correção: a roteirista pediu pra ajustar um detalhe do roteiro JÁ
     // escrito, sem regenerar tudo do zero. O agente devolve o roteiro inteiro
@@ -59,9 +64,20 @@ export const escritaAgent: Agent = {
 
     const sections: string[] = [];
 
-    sections.push(
-      "Você vai escrever o ROTEIRO COMPLETO agora — Parte 1 + Parte 2, todos os capítulos, em fluxo contínuo, sem interrupções, no estilo Helô Stories™. As estruturas abaixo são FONTE DE VERDADE — eventos, ordem, cenas, gancho de cada capítulo precisam bater com elas. Identifique automaticamente quantos capítulos cada Parte tem, a contagem alvo de cada um, onde há cena íntima e onde há trocas de POV (Parte 2). Comece DIRETO pelo Capítulo 1 da Parte 1.",
-    );
+    if (batch) {
+      const chapsLabel =
+        batch.chapters.length === 2
+          ? `Capítulos ${batch.chapters[0]} e ${batch.chapters[1]}`
+          : `Capítulo ${batch.chapters[0]}`;
+      sections.push(
+        `Você vai escrever AGORA apenas o(s) ${chapsLabel} da ${batch.part} (de ${batch.totalInPart} capítulos no total dessa Parte). Este é o batch ${batch.batchIndex} de ${batch.totalBatches}. As estruturas abaixo são FONTE DE VERDADE — eventos, ordem, cenas, gancho e CONTAGEM DE PALAVRAS de cada capítulo precisam bater com elas. Não escreva mais capítulos do que os pedidos.`,
+      );
+    } else {
+      // Fallback (chamada sem batch — não deve acontecer no fluxo novo).
+      sections.push(
+        "Você vai escrever um capítulo do roteiro. As estruturas abaixo são FONTE DE VERDADE — siga FIELMENTE.",
+      );
+    }
 
     if (ctx.referenceImage) {
       sections.push(
@@ -73,7 +89,7 @@ export const escritaAgent: Agent = {
       sections.push(`━━━ PREMISSA APROVADA (Step 1) ━━━\n\n${premissa}`);
     } else {
       sections.push(
-        "━━━ PREMISSA ━━━\n\n⚠️ Não fornecida. Avise no início do roteiro mas siga gerando com base nas estruturas.",
+        "━━━ PREMISSA ━━━\n\n⚠️ Não fornecida. Siga gerando com base nas estruturas.",
       );
     }
 
@@ -83,7 +99,7 @@ export const escritaAgent: Agent = {
       );
     } else {
       sections.push(
-        "━━━ ESTRUTURA DA PARTE 1 ━━━\n\n⚠️ Não fornecida. Marque \"⚠️ ESTRUTURA DA PARTE 1 NÃO RECEBIDA — improviso baseado na premissa\" e siga.",
+        "━━━ ESTRUTURA DA PARTE 1 ━━━\n\n⚠️ Não fornecida — improviso baseado na premissa.",
       );
     }
 
@@ -93,7 +109,23 @@ export const escritaAgent: Agent = {
       );
     } else {
       sections.push(
-        "━━━ ESTRUTURA DA PARTE 2 ━━━\n\n⚠️ Não fornecida. Marque \"⚠️ ESTRUTURA DA PARTE 2 NÃO RECEBIDA — improviso\" e siga até a Parte 2 com base no que tiver.",
+        "━━━ ESTRUTURA DA PARTE 2 ━━━\n\n⚠️ Não fornecida — improviso quando chegar a Parte 2.",
+      );
+    }
+
+    if (previousSynopses.length > 0) {
+      const lines = previousSynopses
+        .map(
+          (s) =>
+            `• [${s.part} · Cap ${s.number}] ${s.synopsis}`,
+        )
+        .join("\n");
+      sections.push(
+        `━━━ SINOPSES DOS CAPÍTULOS JÁ ESCRITOS (continuidade obrigatória) ━━━\n\n${lines}\n\nUSE essas sinopses pra manter coerência de personagens, eventos, ganchos pendentes e tom. NUNCA contradiga o que já aconteceu. Se algum cliffhanger anterior precisa pagar agora, pague.`,
+      );
+    } else if (batch && batch.batchIndex > 1) {
+      sections.push(
+        "━━━ SINOPSES DOS CAPÍTULOS JÁ ESCRITOS ━━━\n\n(Nenhuma sinopse anterior recebida — gere com base só nas estruturas.)",
       );
     }
 
@@ -103,15 +135,24 @@ export const escritaAgent: Agent = {
       );
     }
 
-    sections.push(
-      "━━━ AÇÃO ━━━\n\n1) Identifique pela estrutura quantos capítulos a Parte 1 tem, quantos a Parte 2 tem, a contagem alvo de cada um, onde há cena íntima e onde há trocas de POV.\n2) Escreva TODOS os capítulos da Parte 1 em fluxo contínuo, depois TODOS os capítulos da Parte 2 (com marcadores de POV onde a estrutura indicar).\n3) NÃO escreva HOOK. NÃO interrompa entre capítulos. NÃO insira contagem de palavras dentro do corpo da narrativa. NÃO mencione \"parte 1\", \"parte 2\", \"capítulo X\" no corpo da narrativa — só nos cabeçalhos estruturais.\n4) AO FINAL DO ROTEIRO COMPLETO, aplique a tecnologia: 5 passadas de auto-revisão (espaço, tempo, cruzamento, POV, 1ª pessoa) → memória viva final completa → validação bloqueante (8 regras).\n5) Siga o FORMATO DE SAÍDA do system prompt na risca — comece com o marcador \"═══ ROTEIRO ═══\", depois \"═══ PARTE 1 ═══\", depois capítulos, depois \"═══ PARTE 2 ═══\", depois capítulos, depois RELATÓRIO, MEMÓRIA, VALIDAÇÃO.\n\n⚠️ CONTAGEM DE PALAVRAS (REGRAS INEGOCIÁVEIS):\n- **Parte 1: TOTAL entre 11.300 e 11.700 palavras** (alvo 11.500), distribuídas conforme a estrutura aprovada.\n- **Parte 2: TOTAL entre 13.000 e 13.500 palavras** (RIGOROSO), distribuídas conforme a estrutura aprovada.\n- Cada capítulo dentro da margem ±5% do que a estrutura indica.\n- Antes de fechar cada Parte, SOME mentalmente as palavras de seus capítulos. Se faltar, EXPANDA cenas; se sobrar, ENCURTE.\n- Registre a contagem real de cada capítulo no campo \`contagem_palavras\` da memória viva final.",
-    );
+    if (batch) {
+      const chapsList = batch.chapters
+        .map((n) => `Capítulo ${n}`)
+        .join(" e ");
+      const partTotalLabel =
+        batch.part === "Parte 1"
+          ? "11.300 a 11.700 palavras totais (alvo 11.500 — RIGOROSO)"
+          : "13.000 a 13.500 palavras totais (RIGOROSO — jamais abaixo de 13.000, jamais acima de 13.500)";
+      sections.push(
+        `━━━ AÇÃO ━━━\n\n1) Escreva APENAS ${chapsList} da ${batch.part}. Não escreva HOOK. Não escreva nenhum outro capítulo nesta resposta. Não inclua banners ═══ ROTEIRO ═══ / ═══ PARTE X ═══ / ═══ RELATÓRIO ═══ / ═══ MEMÓRIA ═══ / ═══ VALIDAÇÃO ═══ — esses ficam por conta do app.\n\n2) Cada capítulo começa com um cabeçalho exatamente neste formato:\n\n## Capítulo N — [Título do capítulo conforme a estrutura]\n\n[texto do capítulo]\n\n3) CONTAGEM DE PALAVRAS — REGRA INEGOCIÁVEL DO PDF MESTRE:\n   • Margem por capítulo: ±3% do alvo declarado na estrutura (NÃO ±5%, é mais rígido agora).\n   • Total da ${batch.part}: ${partTotalLabel}. O somatório dos capítulos dessa Parte (depois de todos os pares) precisa cair nesse intervalo.\n   • Antes de fechar cada capítulo, conte palavra-por-palavra as suas próprias palavras escritas. Se ficar abaixo do alvo, EXPANDA as cenas existentes (não invente novas) com mais detalhe sensorial e diálogo. Se ficar acima, ENCURTE redundâncias.\n   • Não tente "salvar palavras pra próximo cap" nem "compensar capítulo anterior" — cada cap precisa fechar dentro do seu alvo individual.\n\n4) Não mencione "parte 1", "parte 2", "capítulo X" no corpo da narrativa — só nos cabeçalhos estruturais.\n\n5) AO FINAL DOS CAPÍTULOS, gere um bloco de sinopses no formato exato:\n\n═══ SINOPSES ═══\n- Cap N: [3-5 frases. O que aconteceu, tom predominante, cliffhanger, contagem real de palavras escrita.]\n- Cap N+1: [idem]\n\nAs sinopses entram como contexto pro próximo par de capítulos — sejam precisas sobre eventos, mudanças de status entre personagens, ganchos abertos. Foco em CONTINUIDADE, não em estilo literário.`,
+      );
+    }
 
     return sections.join("\n\n");
   },
-  // Capacidade alta — roteiro completo (Parte 1 ~11.500 + Parte 2 ~13.250)
-  // ≈ 24.750 palavras + relatório + memória viva + validação. Subindo o
-  // teto pro máximo razoável; se truncar, ajustamos.
-  maxTokens: 64000,
+  // 2 capítulos × ~2.500 palavras + sinopses ≈ 5.500-6.000 palavras
+  // ≈ 8k-9k tokens. Subimos pra 12k pra ter folga em capítulos longos
+  // (cena íntima da Parte 2, climax) sem truncar.
+  maxTokens: 12000,
   temperature: 0.85,
 };

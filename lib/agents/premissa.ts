@@ -166,7 +166,6 @@ export const premissaAgent: Agent = {
   description:
     "Premissa do roteiro (Parte 1 + Parte 2). Escrita manualmente — agente especializado fica disponível como recurso opcional",
   model: MODELS.sonnet,
-  fallbackModel: MODELS.haiku,
   thinking: "disabled",
   effort: "low",
   systemPrompt: PREMISSA_SYSTEM_PROMPT,

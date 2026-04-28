@@ -20,7 +20,6 @@ export const revisorAgent: Agent = {
   description:
     "Editor literário rigoroso — revisa o roteiro completo classificando erros em 4 graus (não interfere / atenção / interfere / gravíssimo), numerando sequencialmente, com análise de leitor real, hater e nota final 0-10",
   model: MODELS.opus,
-  fallbackModel: MODELS.sonnet,
   thinking: "disabled",
   effort: "low",
   systemPrompt: REVISOR_SYSTEM_PROMPT,

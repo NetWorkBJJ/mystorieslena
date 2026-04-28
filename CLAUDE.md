@@ -1,1 +1,96 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 @AGENTS.md
+
+## What this is
+
+Desktop app (Electron + Next.js 16) that drives a 5-step wizard for producing Brazilian Portuguese romance scripts ("Romance de Milionário"). Each step is a specialized Claude agent. **Auth is OAuth via the user's Claude Pro/Max subscription — there is no API key path in the runtime.**
+
+## Commands
+
+```bash
+npm install
+npm run electron:dev      # Next dev (port 3000) + Electron with hot-reload
+npm run dev               # just Next.js, no Electron shell
+npm run package           # next build + electron-builder NSIS installer (Windows)
+npm run release           # same + publish to GitHub Releases (needs GH_TOKEN env)
+npm run icon:build        # regenerates electron/icons/icon.ico from SVG (runs as `prepackage`)
+```
+
+There is no test suite, no linter script, and no typecheck script. Type errors surface only at `next build` time.
+
+## Architecture
+
+### Three runtime modes (electron/main.js)
+
+The Electron main process boots in one of three modes, decided in `boot()`:
+
+1. **`external-dev`** — `NEXT_DEV_URL` is set (used by `npm run electron:dev`). Loads from the external Next dev server.
+2. **`live`** — `MYSTORIESLENA_SOURCE_DIR` env var points at a valid project dir with `node_modules/next` installed. Spawns `next dev` from that source directory on a free port. This is the **maintainer-only mode**: the installed `MyStoriesLena.exe` reads directly from the working tree, so editing code + closing/reopening the app shows changes instantly. Auto-updater is disabled in this mode.
+3. **`packaged`** — default for end users. Spawns `node server.js` from the standalone bundle in `process.resourcesPath/app` (copied there by `extraResources` in package.json), waits for `/api/health`, then loads it in the BrowserWindow.
+
+### Claude binary resolution
+
+The Claude Agent SDK shells out to a native `claude` binary (per-platform subpackage like `@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe`). When packaged, those subpackages live outside `require.resolve` reach, so:
+
+- `electron/main.js#getClaudeExecutablePath()` walks a list of candidate paths and picks the first that exists.
+- The resolved path is passed to the Next server via `MYSTORIESLENA_CLAUDE_EXEC` env var.
+- `lib/claude.ts` reads `process.env.MYSTORIESLENA_CLAUDE_EXEC` and passes it to `query()` as `pathToClaudeCodeExecutable`.
+
+If you change anything about how the binary is bundled, the `extraResources` filter in `package.json` and the `subPaths` array in `getClaudeExecutablePath` must stay in sync. On Windows, the CLI also requires `bash.exe` from Git for Windows — `claude:setup` IPC autoinstalls it via winget.
+
+### Env sanitization (critical)
+
+`lib/claude.ts#streamClaudeText` deletes empty `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, and any `ANTHROPIC_BASE_URL` from the env passed to the SDK. **Empty (not absent) values flip the SDK into API-key mode and cause 401s** even when the user is logged in via OAuth. Don't reintroduce these vars without similar guarding in `electron/main.js` (which does the same scrub before spawning the Next server).
+
+### Streaming pipeline
+
+`POST /api/agent/[step]` (`app/api/agent/[step]/route.ts`) is the single entrypoint:
+
+1. Looks up the agent by `step` from `lib/agents/index.ts`.
+2. Calls `agent.buildUserMessage({ previousOutputs, userInput, referenceImage })` to assemble the prompt.
+3. Resolves `effectiveModel` — if `body.fastMode === true` and the agent has a `fallbackModel`, use that; otherwise `agent.model`. Models are passed as the SDK shorthand strings `"opus" | "sonnet" | "haiku"` (see `lib/anthropic.ts`), not full IDs — let the SDK resolve them.
+4. If `agent.acceptsReferenceImage === true` and a `referenceImage` is present, decodes the data URL and sends a multimodal `[image, text]` user message; otherwise plain text.
+5. Streams `content_block_delta.text_delta` chunks back as `text/plain`. The frontend (`components/wizard/StepShell.tsx`) reads with `ReadableStreamDefaultReader` and either updates the buffer live or, for the Escrita step, parses the structured output post-stream via `lib/parse-escrita-output.ts`.
+
+If the SDK throws an auth-shaped error, the route injects a Portuguese-language `[LOGIN NECESSÁRIO NO CLAUDE]` block into the stream with recovery instructions.
+
+### Agent shape
+
+Each step in `lib/agents/` exports an `Agent` (`lib/agents/types.ts`) with: `model`, optional `fallbackModel` (used by Modo Rápido), `systemPrompt`, `buildUserMessage`, `thinking` (default `disabled` for speed), `effort` (default `low`), and `acceptsReferenceImage`. The Premissa step is intentionally manual in the UI — the user pastes text — but the agent definition exists for future use.
+
+The Escrita agent runs in **2-em-2 mode**: the frontend loop in `components/wizard/StepShell.tsx` dispatches sequential batches of 2 chapters each (`[P1:1,2] → [P1:3,4] → ... → [P2:1,2] → ...`), respecting the part boundary. Each batch returns the chapters plus a `═══ SINOPSES ═══` block with a 3-5 sentence summary per chapter — these synopses become context for subsequent batches and act as the bridge from Parte 1 to Parte 2. After each batch parse, a per-chapter word-count check fires `/api/escrita-fix-wordcount` (Opus) for any chapter outside the per-cap target. After the LAST batch of each Part, a part-total check sums the words and dispatches a compensating fix if the total falls outside the PDF range. After all Parts complete, `/api/escrita-revisor` (Opus) does a grammar-only pass over the whole script. The legacy parser `lib/parse-escrita-output.ts` is kept for retro-compat with old all-at-once roteiros in localStorage.
+
+### Escrita word counting — MANDATORY rule
+
+**Always use `countWords` from `@/lib/word-count`.** This is the single source of truth — the same function the UI uses to display word counts in `WordCountBadge`. NEVER write a local `text.split(/\s+/)` counter — naive whitespace splits don't treat `—`, `–`, `-` as separators, which inflates counts by ~3% in romance text full of dialogue (`— Boa tarde.` is 2 words, not 3). Any divergence between backend counter and UI counter creates broken fix-wordcount/balance calls that ask for the wrong expansion.
+
+The structure-prompt rule (which `partTotalRange` in `lib/parse-estrutura-targets.ts` encodes) is:
+- **Parte 1: 11.300–11.700 palavras totais** (alvo 11.500) — see `lib/agents/estrutura1-prompt.ts`
+- **Parte 2: 13.000–13.500 palavras totais** (rigoroso, jamais fora) — see `lib/agents/estrutura2-prompt.ts`
+
+The per-chapter target lives in the structure header itself: `## Capítulo N — [Título] (~X.XXX palavras — ritmo Y)`. The `extractChapterTargets` parser in `lib/parse-estrutura-targets.ts` reads these per-cap targets directly from the headers — that's why `splitChapterBlocks` includes the header line in each block (the `(~X.XXX palavras)` is on the header, not in the body).
+
+Per-chapter target margin is **±3%** (with a 30-word minimum) — see `targetRange`. After the last batch of each Part, a part-total compensating fix fires if the total falls outside the range.
+
+### State and persistence
+
+- Wizard state lives in Zustand (`store/wizard.ts`) and is mirrored to `localStorage` under key `veludo:roteiros` via `lib/storage.ts` on every mutation.
+- There is no server-side DB — the app is single-user, single-machine.
+- Each step keeps a per-step history stack (max 20 snapshots) so regenerating preserves the previous version.
+
+### Electron ↔ renderer bridge
+
+`electron/preload.js` exposes `window.mystorieslena` with: `getRuntimeInfo`, `checkForUpdates` / `downloadUpdate` / `quitAndInstall` (electron-updater), `exportRoteiroPdf` (uses Chromium `printToPDF` in a hidden BrowserWindow), `getClaudeStatus` / `setupClaude` (checks `~/.claude/.credentials.json` and opens a terminal running the bundled CLI for `/login`).
+
+## Conventions and gotchas
+
+- **Next.js 16 + React 19** with App Router, `output: "standalone"`. The bundled `node_modules/next/dist/docs/` is the source of truth for any framework API — see `AGENTS.md`.
+- **Path alias `@/*`** maps to project root (see `tsconfig.json`).
+- shadcn/ui components live in `components/ui/`; do not edit by hand if you can regenerate.
+- All user-facing strings are **Brazilian Portuguese**. Match the existing tone when adding UI copy.
+- The reference-image data URL is stored inline in the Roteiro (and thus in localStorage) — keep image size limits in mind when changing `ReferenceImageUpload`.
+- Auto-updater is wired only when `app.isPackaged && runtimeMode === "packaged"`. Don't expect it to fire in dev or LIVE mode.
+- When publishing (`npm run release`) the GitHub repo is hardcoded in `package.json#build.publish` (`lucasbaziliocomercial-crypto/mystorieslena`).

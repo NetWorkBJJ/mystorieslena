@@ -73,19 +73,31 @@ export interface RevisorError {
   appliedAt?: string;
 }
 
+/**
+ * Sinopse curta de um capítulo gerado em batch — vira contexto pro próximo
+ * batch (continuidade) e ponte Parte 1 → Parte 2.
+ */
+export interface EscritaSynopsis {
+  number: number;
+  part: "Parte 1" | "Parte 2";
+  synopsis: string;
+}
+
 export interface StepOutputMetadata {
-  /** Relatório de auto-revisão. */
+  /** [Legacy all-at-once] Relatório de auto-revisão. */
   report?: string;
-  /** Memória Viva em JSON (string). */
+  /** [Legacy all-at-once] Memória Viva em JSON (string). */
   memory?: string;
-  /** Detalhes da validação bloqueante (texto livre). */
+  /** [Legacy all-at-once] Detalhes da validação bloqueante (texto livre). */
   validation?: string;
-  /** Status resumido da validação. */
+  /** [Legacy all-at-once] Status resumido da validação. */
   validationStatus?: "APROVADO" | "BLOQUEADO";
-  /** Capítulos extraídos do roteiro completo (Escrita all-at-once). */
+  /** Capítulos do roteiro Escrita (formato 2-em-2 vai acumulando aqui). */
   chapters?: EscritaChapter[];
   /** Erros estruturados parseados do bloco <erros_detalhados> do Revisor. */
   errors?: RevisorError[];
+  /** Sinopses por capítulo do fluxo 2-em-2 (continuidade entre batches). */
+  synopses?: EscritaSynopsis[];
 }
 
 export interface StepOutput {

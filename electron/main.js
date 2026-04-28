@@ -169,14 +169,19 @@ async function startServerFromSource(sourceDir) {
 
   console.log(`[live] iniciando Next dev a partir de ${sourceDir} na porta ${port}`);
 
+  // detached:true + windowsHide:true juntos garantem que NEM os workers
+  // do Turbopack (que rodam em sub-processos) abram console no Windows.
+  // Sem detached, o grandchild herda a falta de console do parent mas
+  // pode forçar um novo — que é o que estava acontecendo.
   serverProc = spawn(
     process.execPath,
     [nextBin, "dev", "--port", String(port), "--hostname", "127.0.0.1"],
     {
       cwd: sourceDir,
       env,
-      stdio: "pipe",
+      stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
+      detached: true,
     },
   );
 
@@ -774,7 +779,19 @@ app.on("activate", () => {
 app.on("before-quit", () => {
   if (serverProc && !serverProc.killed) {
     try {
-      serverProc.kill();
+      // Em modo detached:true, kill() só mata o processo direto — os
+      // workers do Turbopack ficariam orfãos. taskkill /T mata a árvore
+      // toda. Em outros OSes usa kill no process group.
+      if (process.platform === "win32") {
+        const { execSync } = require("child_process");
+        execSync(`taskkill /pid ${serverProc.pid} /T /F`, { windowsHide: true });
+      } else {
+        try {
+          process.kill(-serverProc.pid, "SIGTERM");
+        } catch {
+          serverProc.kill();
+        }
+      }
     } catch {
       // ignore
     }

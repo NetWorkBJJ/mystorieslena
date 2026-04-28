@@ -1,8 +1,14 @@
 import { NextRequest } from "next/server";
 import { streamClaudeText, type ClaudeImageInput, type ClaudeImageMime } from "@/lib/claude";
 import { getAgent } from "@/lib/agents";
-import type { RoteiroReferenceImage, StepId, StepOutput } from "@/types/roteiro";
+import type {
+  EscritaSynopsis,
+  RoteiroReferenceImage,
+  StepId,
+  StepOutput,
+} from "@/types/roteiro";
 import { STEP_ORDER } from "@/types/roteiro";
+import type { AgentBatchContext } from "@/lib/agents/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,8 +17,6 @@ export const maxDuration = 300;
 interface Body {
   previousOutputs?: Partial<Record<StepId, StepOutput>>;
   userInput?: string;
-  /** Quando true, usa o fallbackModel (Haiku) — mais rápido, qualidade um pouco menor. */
-  fastMode?: boolean;
   /** Imagem de referência anexada na Premissa (passada por todos steps; só
    *  agentes com acceptsReferenceImage=true recebem como input multimodal). */
   referenceImage?: RoteiroReferenceImage;
@@ -21,6 +25,10 @@ interface Body {
   refineMode?: boolean;
   /** Versão atual do output desse step (base do modo correção). */
   currentOutput?: string;
+  /** Modo 2-em-2 do Escrita — descreve qual par o agente deve gerar agora. */
+  batch?: AgentBatchContext;
+  /** Sinopses dos capítulos já gerados em batches anteriores. */
+  previousSynopses?: EscritaSynopsis[];
 }
 
 const ACCEPTED_IMAGE_MIMES: ClaudeImageMime[] = [
@@ -67,12 +75,11 @@ export async function POST(
     referenceImage: body.referenceImage,
     refineMode: body.refineMode,
     currentOutput: body.currentOutput,
+    ...(body.batch ? { batch: body.batch } : {}),
+    ...(body.previousSynopses
+      ? { previousSynopses: body.previousSynopses }
+      : {}),
   });
-
-  // Modo rápido: troca pro fallbackModel (geralmente Haiku) — bem mais
-  // rápido na geração, com perda de nuance aceitável pra rodadas de teste.
-  const effectiveModel =
-    body.fastMode && agent.fallbackModel ? agent.fallbackModel : agent.model;
 
   // Image multimodal — só vai pro modelo se o agente declarou acceptsReferenceImage.
   // Steps que não aceitam imagem ignoram (mantém prompt mais barato/leve).
@@ -92,8 +99,7 @@ export async function POST(
         for await (const chunk of streamClaudeText({
           systemPrompt: agent.systemPrompt,
           userMessage,
-          model: effectiveModel,
-          fallbackModel: agent.fallbackModel,
+          model: agent.model,
           thinking: agent.thinking,
           effort: agent.effort,
           ...(imageInput ? { image: imageInput } : {}),
