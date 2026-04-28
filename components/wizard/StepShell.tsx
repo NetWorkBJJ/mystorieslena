@@ -75,6 +75,10 @@ type WizardProgress =
       chapters: number[];
     }
   | {
+      kind: "preparing";
+      chaptersCount: number;
+    }
+  | {
       kind: "extending-chapter";
       chapterNumber: number;
       part: "Parte 1" | "Parte 2";
@@ -476,6 +480,14 @@ export function StepShell({ step }: Props) {
         setIsGenerating(false);
         return;
       }
+
+      // Feedback visual imediato — sem isso a UI mostra "Clique em Gerar"
+      // enquanto a pré-fase decide qual cap (se algum) precisa estender.
+      setBatchProgress({
+        kind: "preparing",
+        chaptersCount: accChapters.length,
+      });
+      setLiveStream("");
 
       // Snapshot da Escrita no histórico antes da extensão re-escrever caps.
       pushOutputToHistory("escrita", "Antes da extensão pelo Revisor");
@@ -1188,11 +1200,20 @@ export function StepShell({ step }: Props) {
               </div>
             )}
           </div>
-        ) : step === "revisor" &&
-          isGenerating &&
-          batchProgress &&
-          batchProgress.kind !== "writing" ? (
-          <BatchProgressPanel progress={batchProgress} liveStream={liveStream} />
+        ) : step === "revisor" && isGenerating ? (
+          batchProgress && batchProgress.kind !== "writing" ? (
+            <BatchProgressPanel
+              progress={batchProgress}
+              liveStream={liveStream}
+            />
+          ) : (
+            <div className="rounded-lg border-2 border-primary/40 bg-primary/[0.03] px-4 sm:px-5 py-6 flex items-center gap-3">
+              <Loader2 className="size-4 animate-spin text-primary" />
+              <span className="text-sm font-semibold text-primary">
+                Iniciando revisão…
+              </span>
+            </div>
+          )
         ) : hasContent ? (
           <div className="rounded-lg border bg-card p-4 sm:p-5 max-h-[50vh] overflow-auto">
             <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed">
@@ -1646,6 +1667,10 @@ function BatchProgressPanel({
     title = `Par ${progress.batchIndex} de ${progress.totalBatches}`;
     subtitle = `· ${chapsLabel} da ${progress.part}`;
     placeholder = "Conectando ao agente…";
+  } else if (progress.kind === "preparing") {
+    title = "Preparando revisão";
+    subtitle = `· verificando ${progress.chaptersCount} capítulos`;
+    placeholder = "Calculando contagens e detectando capítulos fora do alvo…";
   } else if (progress.kind === "extending-chapter") {
     const verb = progress.direction === "expand" ? "Expandindo" : "Encurtando";
     title = `Ajustando contagem do Cap ${progress.chapterNumber}`;
