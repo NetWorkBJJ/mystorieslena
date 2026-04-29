@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +48,7 @@ import {
 import {
   countMarkdownErrorNumbers,
   hashEscritaContent,
+  parseMarkdownErrorList,
   parseRevisorErrors,
   serializeRevisorErrors,
   stripErrosDetalhados,
@@ -202,19 +210,12 @@ export function StepShell({ step }: Props) {
   const [batchProgress, setBatchProgress] = useState<WizardProgress | null>(
     null,
   );
-  // Ajuste/correção é "draft" local — só vira o userInput do roteiro quando
-  // o usuário clica "Aplicar correção". Sem isso, qualquer caractere digitado
-  // entra na próxima geração mesmo sem confirmação. Sync com store quando
-  // o roteiro muda (carregar outro / restaurar histórico) OU o step muda.
-  // Cada step tem seu próprio input — input em Estrutura 1 NÃO vaza pra
-  // Escrita ou Revisor. Pra roteiros antigos (campo legado `userInput`
-  // único), só faz fallback se ainda não houver nada salvo no step atual.
-  const savedStepInput =
-    roteiro?.userInputs?.[step] ?? (roteiro?.userInputs ? "" : roteiro?.userInput ?? "");
-  const [pendingInput, setPendingInput] = useState<string>(savedStepInput);
-  useEffect(() => {
-    setPendingInput(savedStepInput);
-  }, [roteiro?.id, step, savedStepInput]);
+  // Input/correção salvo desse step específico — input de outro step NÃO
+  // vaza pra cá. Roteiros antigos (campo legado `userInput` único, global
+  // pro roteiro) começam com input vazio em todos os steps; o legado é
+  // ignorado pra evitar exatamente o problema de "o texto aparece em todos
+  // os steps".
+  const savedStepInput = roteiro?.userInputs?.[step] ?? "";
   // Limpa progresso local quando o usuário troca de step. Sem isso, um
   // batchProgress da Escrita (kind:"writing") fica visível no Revisor se
   // o usuário navegar durante uma geração — a UI mostraria "Par X de Y"
@@ -277,11 +278,8 @@ export function StepShell({ step }: Props) {
     // ex.: botão "Aplicar correção" da caixa, que comita+dispara num clique).
     // Lê só o input desse step específico — input de outro step NÃO vaza
     // pra essa chamada.
-    const stepSavedInput =
-      roteiro.userInputs?.[step] ??
-      (roteiro.userInputs ? "" : roteiro.userInput ?? "");
     const effectiveUserInput =
-      (userInputOverride ?? stepSavedInput).trim();
+      (userInputOverride ?? roteiro.userInputs?.[step] ?? "").trim();
 
     // Modo correção precisa de output existente + instrução escrita.
     if (mode === "refine") {
@@ -863,6 +861,29 @@ export function StepShell({ step }: Props) {
           }
         }
 
+        // Defesa final: se ainda há erros listados em PRINCIPAIS ERROS que
+        // não viraram <erro> XML (nem o LLM principal nem o fallback do
+        // servidor pegaram), gera cards informativos sintéticos parseando
+        // o markdown direto. Garante que a roteirista vê TODOS os erros.
+        const markdownErrors = parseMarkdownErrorList(cleanContent);
+        const xmlNumbers = new Set(errors.map((e) => e.numero.toLowerCase()));
+        const missingFromXml = markdownErrors.filter(
+          (m) => !xmlNumbers.has(m.numero.toLowerCase()),
+        );
+        if (missingFromXml.length > 0) {
+          console.info(
+            `[revisor] ${missingFromXml.length} erro(s) listado(s) em PRINCIPAIS ERROS não viraram XML — adicionando como cards informativos`,
+          );
+          errors = [...errors, ...missingFromXml].sort((a, b) => {
+            const na = parseInt(a.numero, 10);
+            const nb = parseInt(b.numero, 10);
+            if (Number.isNaN(na) || Number.isNaN(nb)) {
+              return a.numero.localeCompare(b.numero);
+            }
+            return na - nb;
+          });
+        }
+
         setOutput(step, {
           content: cleanContent,
           metadata: {
@@ -1259,6 +1280,20 @@ export function StepShell({ step }: Props) {
     await navigator.clipboard.writeText(text);
   }, []);
 
+  // Callback estável pro sub-componente isolado da caixa de input. O
+  // sub-componente é memo'd e tem estado próprio do textarea, então cada
+  // tecla NÃO re-renderiza o StepShell inteiro (que tem EscritaOutputView,
+  // chapters[], etc — tudo pesado). Aplica a correção: comita o input
+  // escopado nesse step + dispara generate("refine") com override pra
+  // evitar race com o re-render do Zustand.
+  const handleApplyCorrection = useCallback(
+    (text: string) => {
+      setUserInput(step, text);
+      void generate("refine", text);
+    },
+    [step, setUserInput, generate],
+  );
+
   if (!roteiro) return null;
 
   return (
@@ -1343,91 +1378,15 @@ export function StepShell({ step }: Props) {
           }
         />
       ) : (
-      <section className="flex flex-col gap-2">
-        <div className="flex items-baseline justify-between gap-2 flex-wrap">
-          <Label htmlFor="user-input" className="text-sm">
-            {step === "escrita"
-              ? "Ajustes opcionais para o roteiro"
-              : "Instruções adicionais (opcional)"}
-          </Label>
-          {step === "escrita" && (
-            <span className="text-[11px] text-muted-foreground">
-              {chapterCount === 0
-                ? "O agente derivará tudo das estruturas aprovadas"
-                : `${chapterCount} capítulo${chapterCount === 1 ? "" : "s"} no roteiro atual · regenerar substitui tudo`}
-            </span>
-          )}
-        </div>
-        <Textarea
-          id="user-input"
-          placeholder={
-            step === "escrita"
-              ? "Ex.: deixe o tom mais intenso na Parte 2 · enfatize o conflito interno do MMC · adicione mais humor nos primeiros capítulos\n\n(Deixe vazio para o agente derivar 100% das estruturas aprovadas)"
-              : idx === 0
-                ? "Ex.: romance com executiva herdeira que retorna pra cidade natal..."
-                : "Ex.: deixe o tom mais intenso, foco no conflito interno..."
-          }
-          value={pendingInput}
-          onChange={(e) => setPendingInput(e.target.value)}
-          rows={step === "escrita" ? 4 : 3}
-          className="resize-none"
+        <StepUserInputBox
+          step={step}
+          idx={idx}
+          chapterCount={chapterCount}
+          savedInput={savedStepInput}
+          hasOutput={!!output?.content?.trim()}
+          isGenerating={isGenerating}
+          onApply={handleApplyCorrection}
         />
-        {/* Botão "Aplicar correção" — UM ÚNICO CLIQUE.
-            Comita o texto da caixa em `roteiro.userInputs[step]` (escopado
-            por step) E dispara uma correção pontual no step atual (refineMode).
-            O agente recebe o output corrente + a correção pedida e devolve
-            o output completo só com a correção aplicada — sem regerar do
-            zero, sem cascatear pra outros steps.
-            Pré-requisito: já existe um output gerado pra esse step (a
-            correção é "em cima" de algo). Sem output, o botão fica
-            desabilitado com hint pedindo Gerar primeiro. */}
-        {(() => {
-          // savedStepInput já é escopado por step — ver inicialização do
-          // pendingInput acima. Comparamos apenas com o input desse step.
-          const trimmedPending = pendingInput.trim();
-          const isDirty = pendingInput !== savedStepInput;
-          const hasInputContent = trimmedPending.length > 0;
-          const hasOutputContent = !!output?.content?.trim();
-          const canApply =
-            hasInputContent && hasOutputContent && !isGenerating;
-          return (
-            <div className="flex items-center justify-end gap-2 flex-wrap">
-              {!isDirty && hasInputContent && (
-                <Badge
-                  variant="outline"
-                  className="font-normal gap-1 border-emerald-300 bg-emerald-50 text-emerald-800"
-                >
-                  <CheckCircle2 className="size-3" />
-                  Correção aplicada
-                </Badge>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!canApply}
-                onClick={() => {
-                  // Comita o input no store (escopado nesse step) pra a
-                  // UI/badge refletirem, e dispara a correção passando o
-                  // input via override (evita race com re-render do Zustand).
-                  setUserInput(step, pendingInput);
-                  void generate("refine", pendingInput);
-                }}
-                className="gap-2"
-                title={
-                  !hasInputContent
-                    ? "Digite a correção primeiro"
-                    : !hasOutputContent
-                      ? "Gere o conteúdo desse step antes de aplicar uma correção"
-                      : "Aplica essa correção pontual no step atual sem regerar do zero"
-                }
-              >
-                <Send className="size-3.5" />
-                Aplicar correção
-              </Button>
-            </div>
-          );
-        })()}
-      </section>
       )}
 
       {step !== "premissa" && (
@@ -1701,6 +1660,114 @@ export function StepShell({ step }: Props) {
     </div>
   );
 }
+
+// ─── Caixa de "Instruções adicionais" / "Aplicar correção" ─────────────
+//
+// Componente isolado E memo'd: estado do textarea fica AQUI dentro, então
+// cada tecla digitada só re-renderiza esta caixa, NÃO o StepShell inteiro
+// (que tem EscritaOutputView, lista de chapters, MetadataPanel, etc — tudo
+// pesado). Sem essa separação, digitar 1 letra disparava re-render de tudo
+// e a roteirista percebia lag visível em roteiros grandes.
+//
+// O pai injeta `savedInput` (escopado por step) e `onApply` (estável via
+// useCallback). O sub-componente sincroniza pendingInput → savedInput
+// quando o roteiro/step troca.
+interface StepUserInputBoxProps {
+  step: StepId;
+  idx: number;
+  chapterCount: number;
+  savedInput: string;
+  hasOutput: boolean;
+  isGenerating: boolean;
+  onApply: (text: string) => void;
+}
+
+const StepUserInputBox = memo(function StepUserInputBox({
+  step,
+  idx,
+  chapterCount,
+  savedInput,
+  hasOutput,
+  isGenerating,
+  onApply,
+}: StepUserInputBoxProps) {
+  const [pendingInput, setPendingInput] = useState<string>(savedInput);
+
+  // Sincroniza com o saved quando o usuário troca de step ou roteiro.
+  // Não sincroniza durante digitação (o saved só muda em setUserInput,
+  // que acontece no clique do botão — depois disso pendingInput === saved
+  // e o useEffect é no-op).
+  useEffect(() => {
+    setPendingInput(savedInput);
+  }, [savedInput, step]);
+
+  const trimmedPending = pendingInput.trim();
+  const isDirty = pendingInput !== savedInput;
+  const hasInputContent = trimmedPending.length > 0;
+  const canApply = hasInputContent && hasOutput && !isGenerating;
+
+  const placeholder =
+    step === "escrita"
+      ? "Ex.: deixe o tom mais intenso na Parte 2 · enfatize o conflito interno do MMC · adicione mais humor nos primeiros capítulos\n\n(Deixe vazio para o agente derivar 100% das estruturas aprovadas)"
+      : idx === 0
+        ? "Ex.: romance com executiva herdeira que retorna pra cidade natal..."
+        : "Ex.: deixe o tom mais intenso, foco no conflito interno...";
+
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+        <Label htmlFor="user-input" className="text-sm">
+          {step === "escrita"
+            ? "Ajustes opcionais para o roteiro"
+            : "Instruções adicionais (opcional)"}
+        </Label>
+        {step === "escrita" && (
+          <span className="text-[11px] text-muted-foreground">
+            {chapterCount === 0
+              ? "O agente derivará tudo das estruturas aprovadas"
+              : `${chapterCount} capítulo${chapterCount === 1 ? "" : "s"} no roteiro atual · regenerar substitui tudo`}
+          </span>
+        )}
+      </div>
+      <Textarea
+        id="user-input"
+        placeholder={placeholder}
+        value={pendingInput}
+        onChange={(e) => setPendingInput(e.target.value)}
+        rows={step === "escrita" ? 4 : 3}
+        className="resize-none"
+      />
+      <div className="flex items-center justify-end gap-2 flex-wrap">
+        {!isDirty && hasInputContent && (
+          <Badge
+            variant="outline"
+            className="font-normal gap-1 border-emerald-300 bg-emerald-50 text-emerald-800"
+          >
+            <CheckCircle2 className="size-3" />
+            Correção aplicada
+          </Badge>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!canApply}
+          onClick={() => onApply(pendingInput)}
+          className="gap-2"
+          title={
+            !hasInputContent
+              ? "Digite a correção primeiro"
+              : !hasOutput
+                ? "Gere o conteúdo desse step antes de aplicar uma correção"
+                : "Aplica essa correção pontual no step atual sem regerar do zero"
+          }
+        >
+          <Send className="size-3.5" />
+          Aplicar correção
+        </Button>
+      </div>
+    </section>
+  );
+});
 
 interface PremissaEditorProps {
   value: string;

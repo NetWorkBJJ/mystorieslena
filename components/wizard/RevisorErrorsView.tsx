@@ -414,23 +414,23 @@ function Section({
   tone: "original" | "fixed" | "reason";
 }) {
   const toneClasses: Record<typeof tone, string> = {
-    original: "border-l-amber-400 bg-amber-50/40",
-    fixed: "border-l-emerald-400 bg-emerald-50/40",
-    reason: "border-l-primary/40 bg-primary/5",
+    original: "border-l-amber-400 bg-amber-50/60 text-amber-950",
+    fixed: "border-l-emerald-500 bg-emerald-50/60 text-emerald-950",
+    reason: "border-l-primary/40 bg-primary/5 text-foreground",
   };
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
         {label}
       </span>
-      <pre
+      <div
         className={cn(
-          "whitespace-pre-wrap font-sans text-[14px] leading-relaxed border-l-2 pl-3 py-1",
+          "whitespace-pre-wrap break-words font-sans text-[14px] leading-relaxed border-l-2 pl-4 pr-3 py-2.5 rounded-r-md",
           toneClasses[tone],
         )}
       >
         {content}
-      </pre>
+      </div>
     </div>
   );
 }

@@ -125,6 +125,74 @@ export function parseRevisorErrors(content: string): RevisorError[] {
 }
 
 /**
+ * Parser de defesa final: extrai a lista de erros DIRETO da seção
+ * PRINCIPAIS ERROS do markdown da revisão, gerando cards informativos
+ * pra erros que NÃO viraram <erro> no XML (nem no fallback).
+ *
+ * Cada item esperado: "🟢/🟡/🟠/🔴 Erro #N [grau] — descrição..."
+ *
+ * Os erros gerados aqui são SEMPRE informativos (trecho_original vazio) —
+ * a UI mostra como cards "ação manual" sem botão de aplicar. Garante que
+ * a roteirista vê TODOS os erros mesmo se o LLM falhou em emitir XML pra
+ * todos.
+ */
+export function parseMarkdownErrorList(content: string): RevisorError[] {
+  if (!content) return [];
+  const principaisRe =
+    /(?:^|\n)#+\s*[^\n]*PRINCIPAIS\s+ERROS[^\n]*\n([\s\S]*?)(?=\n#+\s|\n\s*<erros_detalhados|$)/i;
+  const principaisMatch = principaisRe.exec(content);
+  if (!principaisMatch) return [];
+  const scope = principaisMatch[1] ?? "";
+
+  // Captura cada bloco "🟢|🟡|🟠|🔴 Erro #N [grau] — descrição (com ou sem
+  // emoji, com sufixo letra opcional)". O bloco vai até o próximo emoji
+  // de erro ou fim do escopo.
+  const errorRe =
+    /(🟢|🟡|🟠|🔴)\s*\*{0,2}\s*Erro\s*#?\s*(\d+[a-z]?)\s*(?:\[([^\]]+)\])?\s*\*{0,2}\s*[—–-]\s*([\s\S]*?)(?=\n\s*(?:🟢|🟡|🟠|🔴)\s*\*{0,2}\s*Erro|\n\s*#+\s|$)/gi;
+
+  const out: RevisorError[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = errorRe.exec(scope)) !== null) {
+    const emoji = m[1]!;
+    const numero = m[2]!.toLowerCase();
+    const description = (m[4] ?? "").trim().replace(/\s+/g, " ");
+    if (!description) continue;
+
+    const gravidade: RevisorErrorGravity =
+      emoji === "🟢"
+        ? "naoInterfere"
+        : emoji === "🟡"
+        ? "atencao"
+        : emoji === "🟠"
+        ? "interfere"
+        : "gravissimo";
+
+    // Título = primeira frase ou primeiros ~100 chars; resto = porqueAlterado.
+    const sentenceMatch = /^([^.!?]+[.!?])\s*([\s\S]*)$/.exec(description);
+    const titulo = sentenceMatch
+      ? sentenceMatch[1]!.trim()
+      : description.slice(0, 120).trim();
+    const porqueAlterado = sentenceMatch
+      ? sentenceMatch[2]!.trim()
+      : description.length > 120
+      ? description.slice(120).trim()
+      : "";
+
+    out.push({
+      id: numero,
+      numero,
+      gravidade,
+      titulo,
+      trechoOriginal: "",
+      trechoCorrigido: "",
+      porqueAlterado,
+    });
+  }
+
+  return out;
+}
+
+/**
  * Conta quantos números de erro únicos (Erro #1, #2, #3a, etc.) o markdown
  * da revisão lista. Útil pra detectar mismatch entre o XML estruturado e a
  * lista do markdown — quando o modelo emite só alguns <erro> no XML mas
