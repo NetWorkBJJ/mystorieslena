@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,6 +15,10 @@ import {
   hashEscritaContent,
   inferPartFromContent,
 } from "@/lib/parse-revisor-output";
+import {
+  applySuggestionToScope,
+  isInformativoError,
+} from "@/lib/apply-suggestion";
 import { useWizard } from "@/store/wizard";
 import { cn } from "@/lib/utils";
 
@@ -41,9 +45,11 @@ const GRAVITY_PILL: Record<RevisorError["gravidade"], string> = {
 export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
   const applyOne = useWizard((s) => s.applyRevisorCorrection);
   const applyMany = useWizard((s) => s.applyRevisorCorrections);
-  const escritaContent = useWizard(
-    (s) => s.roteiro?.outputs.escrita?.content ?? "",
-  );
+  const setOutput = useWizard((s) => s.setOutput);
+  const pushOutputToHistory = useWizard((s) => s.pushOutputToHistory);
+  const escritaOutput = useWizard((s) => s.roteiro?.outputs.escrita);
+  const revisorOutput = useWizard((s) => s.roteiro?.outputs.revisor);
+  const escritaContent = escritaOutput?.content ?? "";
 
   const pendingErrors = useMemo(
     () => errors.filter((e) => !e.applied),
@@ -54,21 +60,75 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
     [errors],
   );
   // Erros aplicáveis automaticamente — têm trecho_original/trecho_corrigido.
-  // Erros transversais (sem trecho) são informativos e ficam fora do "aplicar
-  // todas pendentes".
+  // Erros transversais (sem trecho) viram "sugestão da IA" — também aplicáveis,
+  // mas via reescrita LLM em vez de find+replace.
   const pendingApplicable = useMemo(
-    () =>
-      pendingErrors.filter(
-        (e) => e.trechoOriginal?.trim() && e.trechoCorrigido?.trim(),
-      ),
+    () => pendingErrors.filter((e) => !isInformativoError(e)),
     [pendingErrors],
   );
   const informativeCount = useMemo(
-    () =>
-      errors.filter(
-        (e) => !e.trechoOriginal?.trim() || !e.trechoCorrigido?.trim(),
-      ).length,
+    () => errors.filter(isInformativoError).length,
     [errors],
+  );
+
+  /**
+   * Aplica uma sugestão de erro transversal manualmente (botão "Aplicar
+   * sugestão" — fallback caso a aplicação automática durante a geração
+   * tenha falhado). Usa o mesmo helper compartilhado que o fluxo automático.
+   */
+  const applySuggestion = useCallback(
+    async (errorId: string): Promise<{ applied: boolean }> => {
+      const err = errors.find((e) => e.id === errorId);
+      if (!err || !escritaOutput?.content || !revisorOutput) {
+        return { applied: false };
+      }
+
+      pushOutputToHistory(
+        "escrita",
+        `Antes da sugestão IA do Erro #${err.numero}`,
+      );
+
+      const result = await applySuggestionToScope({
+        error: err,
+        escritaContent: escritaOutput.content,
+        chapters: escritaOutput.metadata?.chapters ?? [],
+      });
+
+      if (
+        !result.applied ||
+        !result.newContent ||
+        !result.newChapters
+      ) {
+        return { applied: false };
+      }
+
+      const now = new Date().toISOString();
+
+      setOutput("escrita", {
+        ...escritaOutput,
+        content: result.newContent,
+        metadata: {
+          ...escritaOutput.metadata,
+          chapters: result.newChapters,
+        },
+        edited: true,
+        editedAt: now,
+      });
+
+      const updatedErrors = errors.map((e) =>
+        e.id === errorId ? { ...e, applied: true, appliedAt: now } : e,
+      );
+      setOutput("revisor", {
+        ...revisorOutput,
+        metadata: {
+          ...revisorOutput.metadata,
+          errors: updatedErrors,
+        },
+      });
+
+      return { applied: true };
+    },
+    [errors, escritaOutput, revisorOutput, setOutput, pushOutputToHistory],
   );
 
   // Detecta se a Escrita foi editada depois da revisão.
@@ -109,15 +169,6 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
             <Badge variant="outline" className="font-normal">
               {pendingErrors.length} pendente
               {pendingErrors.length === 1 ? "" : "s"}
-            </Badge>
-          )}
-          {informativeCount > 0 && (
-            <Badge
-              variant="outline"
-              className="font-normal text-muted-foreground italic"
-              title="Erros sem trecho específico — precisam de ação manual da roteirista"
-            >
-              {informativeCount} de ação manual
             </Badge>
           )}
         </div>
@@ -167,6 +218,7 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
               error={enrichedErr}
               disabled={!escritaContent}
               onApply={() => applyOne(err.id)}
+              onApplySuggestion={() => applySuggestion(err.id)}
             />
           );
         })}
@@ -230,19 +282,24 @@ interface CardProps {
   error: RevisorError;
   disabled: boolean;
   onApply: () => { applied: boolean; found: boolean };
+  onApplySuggestion: () => Promise<{ applied: boolean }>;
 }
 
-function ErrorCard({ error, disabled, onApply }: CardProps) {
+function ErrorCard({
+  error,
+  disabled,
+  onApply,
+  onApplySuggestion,
+}: CardProps) {
   const { emoji, label } = gravityLabel(error.gravidade);
   const [pending, startTransition] = useTransition();
+  const [suggestionPending, setSuggestionPending] = useState(false);
   const [localFailed, setLocalFailed] = useState(false);
 
   // Erro "transversal" — sem trecho_original literal pra fazer find+replace.
-  // Ex: discrepância entre premissa e roteiro, conteúdo AUSENTE (epílogo
-  // faltando), inconsistência documental. UI mostra como card informativo
-  // (sem botão "Aplicar"), pra que a roteirista resolva manualmente.
-  const isInformativo =
-    !error.trechoOriginal?.trim() || !error.trechoCorrigido?.trim();
+  // O botão de aplicar dispara o Opus pra reescrever o roteiro com a
+  // sugestão da IA (e o card visualmente enfatiza que é uma SUGESTÃO).
+  const isInformativo = isInformativoError(error);
 
   const handleApply = () => {
     setLocalFailed(false);
@@ -250,6 +307,17 @@ function ErrorCard({ error, disabled, onApply }: CardProps) {
       const result = onApply();
       if (!result.applied) setLocalFailed(true);
     });
+  };
+
+  const handleApplySuggestion = async () => {
+    setLocalFailed(false);
+    setSuggestionPending(true);
+    try {
+      const result = await onApplySuggestion();
+      if (!result.applied) setLocalFailed(true);
+    } finally {
+      setSuggestionPending(false);
+    }
   };
 
   // Append "(Parte N)" no título se a parte é conhecida E o agente ainda
@@ -299,22 +367,16 @@ function ErrorCard({ error, disabled, onApply }: CardProps) {
                 Cap. {error.capitulo}
               </span>
             )}
-            {isInformativo && (
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wide italic">
-                ação manual
-              </span>
-            )}
             {error.applied && (
-              <span className="text-[10px] text-emerald-700 uppercase tracking-wide flex items-center gap-1">
-                <CheckCircle2 className="size-3" />
-                aplicado
+              <Badge className="bg-emerald-100 text-emerald-900 border-emerald-400 font-semibold gap-1.5 text-[11px] px-2 py-0.5">
+                <CheckCircle2 className="size-3.5" />
+                APLICADO
                 {error.appliedAt && (
-                  <>
-                    {" em "}
-                    {new Date(error.appliedAt).toLocaleString("pt-BR")}
-                  </>
+                  <span className="font-normal normal-case opacity-80">
+                    em {new Date(error.appliedAt).toLocaleString("pt-BR")}
+                  </span>
                 )}
-              </span>
+              </Badge>
             )}
             {localFailed && !error.applied && (
               <span className="text-[10px] text-amber-700 uppercase tracking-wide">
@@ -355,13 +417,7 @@ function ErrorCard({ error, disabled, onApply }: CardProps) {
         )}
 
         <div className="flex items-center gap-2 flex-wrap pt-1">
-          {isInformativo ? (
-            <span className="text-xs text-muted-foreground italic leading-relaxed">
-              Este erro precisa de ação manual — não pode ser corrigido por
-              substituição automática (ex: conteúdo ausente, inconsistência
-              documental, problema estrutural).
-            </span>
-          ) : error.applied ? (
+          {error.applied ? (
             <Button
               variant="ghost"
               size="sm"
@@ -374,28 +430,44 @@ function ErrorCard({ error, disabled, onApply }: CardProps) {
           ) : (
             <Button
               size="sm"
-              onClick={handleApply}
-              disabled={disabled || pending}
+              onClick={isInformativo ? handleApplySuggestion : handleApply}
+              disabled={disabled || pending || suggestionPending}
               className="gap-2"
               title={
                 disabled
                   ? "Gere o roteiro no Step 4 primeiro"
+                  : isInformativo &&
+                    error.parte &&
+                    typeof error.capitulo === "number"
+                  ? `Opus reescreve só o Cap. ${error.capitulo} da Parte ${error.parte} aplicando a sugestão`
+                  : isInformativo && error.parte
+                  ? `Opus reescreve só a Parte ${error.parte} aplicando a sugestão`
+                  : isInformativo
+                  ? "Opus reescreve o roteiro inteiro aplicando a sugestão"
                   : "Substitui o trecho original pelo corrigido no roteiro do Step 4"
               }
             >
-              {pending ? (
+              {pending || suggestionPending ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <Wand2 className="size-4" />
               )}
-              {pending ? "Aplicando…" : "Aplicar essa correção"}
+              {pending || suggestionPending
+                ? "Aplicando…"
+                : "Aplicar essa correção"}
             </Button>
           )}
-          {localFailed && !error.applied && (
+          {localFailed && !error.applied && !isInformativo && (
             <span className="text-xs text-amber-800 leading-relaxed">
               O trecho original não foi encontrado no roteiro (mesmo com match
               tolerante). Pode ter sido editado depois da revisão — aplique
               manualmente ou regere a revisão.
+            </span>
+          )}
+          {localFailed && !error.applied && isInformativo && (
+            <span className="text-xs text-amber-800 leading-relaxed">
+              Falha ao aplicar a correção — verifique o console e tente
+              novamente, ou aplique manualmente no Step 4.
             </span>
           )}
         </div>

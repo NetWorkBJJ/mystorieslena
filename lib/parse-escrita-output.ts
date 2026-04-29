@@ -221,6 +221,30 @@ export function parseEscritaChaptersDirect(
   return parseChaptersFromRoteiro(text, memoryJson);
 }
 
+/**
+ * Reconstrói o conteúdo do roteiro a partir de um array de capítulos,
+ * inserindo banners de Parte (═══ PARTE N ═══) na transição. Inverso do
+ * parseEscritaChaptersDirect — usado depois de mexer em chapters[]
+ * individualmente (ex: aplicar correção em um cap só).
+ */
+export function concatenateChapters(chapters: EscritaChapter[]): string {
+  const blocks: string[] = [];
+  let currentPart: string | undefined;
+  for (const c of chapters) {
+    if (c.part && c.part !== currentPart) {
+      blocks.push(
+        `═══════════════════════════════════════\n${c.part.toUpperCase()}\n═══════════════════════════════════════`,
+      );
+      currentPart = c.part;
+    }
+    const header = c.title
+      ? `# Capítulo ${c.number} — ${c.title}`
+      : `# Capítulo ${c.number}`;
+    blocks.push(`${header}\n\n${c.content.trim()}`);
+  }
+  return blocks.join("\n\n");
+}
+
 function parseChaptersFromRoteiro(
   roteiroText: string,
   memoryJson?: string,
