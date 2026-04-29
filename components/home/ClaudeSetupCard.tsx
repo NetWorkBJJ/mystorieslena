@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ExternalLink, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
+import { CheckCircle2, ExternalLink, Loader2, LogOut, RefreshCw, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClaudeStatus } from "@/types/electron-bridge";
 
@@ -80,6 +80,33 @@ export function ClaudeSetupCard() {
     await refreshStatus();
   }, [refreshStatus]);
 
+  const handleSwitchAccount = useCallback(async () => {
+    const bridge = window.mystorieslena;
+    if (!bridge) return;
+    const ok = window.confirm(
+      "Trocar de conta Claude?\n\nIsso vai deslogar a conta atual e abrir o terminal pra você logar com outra. Os roteiros salvos não são afetados.",
+    );
+    if (!ok) return;
+    setState({ kind: "opening-terminal" });
+    const logout = await bridge.logoutClaude();
+    if (!logout.ok) {
+      setState({
+        kind: "error",
+        message: logout.reason ?? "Não consegui apagar as credenciais atuais.",
+      });
+      return;
+    }
+    const setup = await bridge.setupClaude();
+    if (!setup.ok) {
+      setState({
+        kind: "error",
+        message: setup.reason ?? "Falha ao abrir o terminal de configuração.",
+      });
+      return;
+    }
+    setState({ kind: "waiting-login" });
+  }, []);
+
   // No navegador (sem bridge), esconde o card pra não confundir.
   if (state.kind === "no-bridge" || state.kind === "loading") {
     return null;
@@ -87,9 +114,20 @@ export function ClaudeSetupCard() {
 
   if (state.kind === "connected") {
     return (
-      <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-        <CheckCircle2 className="size-4" />
-        <span>Conta Claude conectada — tudo pronto pra gerar roteiros.</span>
+      <div className="flex flex-wrap items-center gap-3 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <CheckCircle2 className="size-4 shrink-0" />
+          <span>Conta Claude conectada — tudo pronto pra gerar roteiros.</span>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleSwitchAccount}
+          className="gap-1.5 h-7 px-2 text-xs text-emerald-800 hover:text-emerald-900 hover:bg-emerald-100"
+        >
+          <LogOut className="size-3.5" />
+          Trocar de conta
+        </Button>
       </div>
     );
   }

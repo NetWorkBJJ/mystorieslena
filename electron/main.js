@@ -766,6 +766,32 @@ end tell`;
   }
 });
 
+/**
+ * Apaga as credenciais do Claude CLI pra trocar de conta. O CLI não tem
+ * comando de logout — a forma oficial é remover ~/.claude/.credentials.json
+ * (e o legado sem ponto). Depois disso, o próximo /login no terminal vai
+ * pedir OAuth de novo e gravar credenciais da nova conta.
+ */
+ipcMain.handle("claude:logout", () => {
+  const home = os.homedir();
+  const candidates = [
+    path.join(home, ".claude", ".credentials.json"),
+    path.join(home, ".claude", "credentials.json"),
+  ];
+  const removed = [];
+  try {
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        fs.unlinkSync(p);
+        removed.push(p);
+      }
+    }
+    return { ok: true, removed };
+  } catch (e) {
+    return { ok: false, reason: String(e?.message || e) };
+  }
+});
+
 app.whenReady().then(boot);
 
 app.on("window-all-closed", () => {

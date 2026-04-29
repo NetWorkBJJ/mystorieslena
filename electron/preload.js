@@ -47,6 +47,14 @@ contextBridge.exposeInMainWorld("mystorieslena", {
   setupClaude: () => ipcRenderer.invoke("claude:setup"),
 
   /**
+   * Apaga as credenciais do Claude CLI (~/.claude/.credentials.json) pra
+   * permitir trocar de conta. Depois disso, getClaudeStatus retorna
+   * loggedIn: false e a usuária pode clicar em "Conectar" pra logar com
+   * outra conta. Retorna { ok, removed?, reason? }.
+   */
+  logoutClaude: () => ipcRenderer.invoke("claude:logout"),
+
+  /**
    * Assina eventos do auto-updater. Retorna função pra remover assinatura.
    *   onUpdateEvent(({ type, payload }) => {})
    * type pode ser: "checking-for-update", "update-available",

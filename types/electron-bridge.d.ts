@@ -61,6 +61,12 @@ export interface ClaudeSetupResult {
   reason?: string;
 }
 
+export interface ClaudeLogoutResult {
+  ok: boolean;
+  removed?: string[];
+  reason?: string;
+}
+
 export interface MyStoriesLenaBridge {
   getRuntimeInfo: () => Promise<RuntimeInfo>;
   checkForUpdates: () => Promise<UpdaterCheckResult>;
@@ -70,6 +76,7 @@ export interface MyStoriesLenaBridge {
   exportRoteiroPdf: (payload: ExportPdfPayload) => Promise<ExportPdfResult>;
   getClaudeStatus: () => Promise<ClaudeStatus>;
   setupClaude: () => Promise<ClaudeSetupResult>;
+  logoutClaude: () => Promise<ClaudeLogoutResult>;
 }
 
 declare global {
