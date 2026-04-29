@@ -14,9 +14,9 @@ NÃO escreva análise. NÃO comente. NÃO peça confirmação. NÃO use markdown
 
 REGRAS PRO BLOCO XML:
 
-Para CADA "Erro #N" listado na seção "PRINCIPAIS ERROS" do markdown da revisão (ignore erros 🟢 não numerados), emita um <erro> com este formato EXATO:
+Para CADA "Erro #N" listado na seção "PRINCIPAIS ERROS" do markdown da revisão (incluindo erros 🟢 não interfere), emita um <erro> com este formato EXATO:
 
-<erro numero="N" gravidade="atencao|interfere|gravissimo" parte="1|2" capitulo="X" titulo="resumo curto sem emoji">
+<erro numero="N" gravidade="naoInterfere|atencao|interfere|gravissimo" parte="1|2" capitulo="X" titulo="resumo curto sem emoji">
 <trecho_original>
 [trecho LITERAL extraído do roteiro original — copia exata, com pontuação, travessões, aspas e quebras de linha originais. NÃO parafraseie, NÃO normalize, NÃO traduza. Pelo menos uma frase completa de contexto.]
 </trecho_original>
@@ -29,9 +29,12 @@ Para CADA "Erro #N" listado na seção "PRINCIPAIS ERROS" do markdown da revisã
 </erro>
 
 Mapeamento de gravidade:
+- 🟢 → "naoInterfere"
 - 🟡 → "atencao"
 - 🟠 → "interfere"
 - 🔴 → "gravissimo"
+
+⚠️ Mesmo erros que o markdown reclassificou como 🟢 (frases tipo "Reclassificando como 🟢", "Removo do bloco de erros graves") DEVEM virar <erro> com gravidade="naoInterfere". A roteirista decide se aplica ou não — não filtre por gravidade aqui.
 
 Identificação de parte e capítulo:
 - O roteiro original é separado por banners ═══ PARTE 1 ═══ e ═══ PARTE 2 ═══. A numeração de capítulos REINICIA em cada Parte. Sem o atributo parte, "Cap. 3" é ambíguo.
@@ -40,7 +43,15 @@ Identificação de parte e capítulo:
 - Se o erro for transversal (sem capítulo único), omita parte E capitulo.
 - Se a numeração de "PRINCIPAIS ERROS" tiver letras (ex: "Erro #3a"), use no atributo numero ("3a").
 
-CRÍTICO: o trecho_original DEVE existir LITERALMENTE no roteiro fornecido. A engine faz find+replace exato. Se o markdown da revisão menciona um trecho de forma vaga ou parafraseada, você deve LOCALIZAR o trecho correspondente no roteiro original e usar a versão LITERAL dele. Se não conseguir localizar com confiança, OMITA esse <erro> em vez de chutar (chute quebra a substituição).
+REGRAS PRO TRECHO ORIGINAL:
+
+1. Se o erro tem trecho específico no roteiro (citação literal mencionada no markdown ou facilmente localizável): trecho_original DEVE ser LITERAL — copia exata. A engine faz find+replace.
+
+2. Se o erro é TRANSVERSAL (não tem trecho específico — ex: "Epílogo ausente", "Inconsistência de nome entre premissa e roteiro", "Capítulo duplicado", "Numeração quebrada", "Discrepância documental"): deixe <trecho_original></trecho_original> VAZIO. Use trecho_corrigido pra descrever a AÇÃO que a roteirista precisa tomar (ex: "Adicionar epílogo conforme estrutura aprovada", "Atualizar a Premissa trocando X por Y"). NÃO INVENTE trecho_original — vazio é o correto.
+
+3. Se você não conseguir localizar trecho_original literal pra um erro que SERIA aplicável, prefira deixar VAZIO em vez de chutar (chute quebra a substituição) — vira card informativo.
+
+⚠️ TODOS os erros listados em PRINCIPAIS ERROS DEVEM virar <erro>, sem exceção — mesmo os transversais. A UI distingue automaticamente entre cards aplicáveis e informativos pelo trecho_original (vazio = informativo).
 
 NÃO use markdown, **, _, # ou emojis dentro de <trecho_*> ou <por_que_alterado>. Só texto puro.
 

@@ -17,6 +17,10 @@ import type { RevisorError, RevisorErrorGravity } from "@/types/roteiro";
  */
 
 const GRAVITY_MAP: Record<string, RevisorErrorGravity> = {
+  naointerfere: "naoInterfere",
+  "nao interfere": "naoInterfere",
+  "não interfere": "naoInterfere",
+  naoInterfere: "naoInterfere",
   atencao: "atencao",
   atenção: "atencao",
   interfere: "interfere",
@@ -80,15 +84,24 @@ export function parseRevisorErrors(content: string): RevisorError[] {
     const capituloRaw = getAttr(attrs, "capitulo");
     const parteRaw = getAttr(attrs, "parte");
     const gravidade = gravidadeRaw
-      ? (GRAVITY_MAP[gravidadeRaw] ?? "interfere")
+      ? (GRAVITY_MAP[gravidadeRaw.replace(/_/g, "")] ??
+        GRAVITY_MAP[gravidadeRaw] ??
+        "interfere")
       : "interfere";
 
     const trechoOriginal = getInner(inner, "trecho_original");
     const trechoCorrigido = getInner(inner, "trecho_corrigido");
     const porqueAlterado = getInner(inner, "por_que_alterado");
 
-    // Skipa erro malformado — sem trechos, não dá pra aplicar.
-    if (!trechoOriginal || !trechoCorrigido) continue;
+    // Aceita erro mesmo sem trecho_original/trecho_corrigido — vira card
+    // INFORMATIVO (sem botão "Aplicar"). Útil pra erros transversais como
+    // discrepância entre premissa e roteiro, conteúdo AUSENTE (epílogo
+    // faltando), ou problemas estruturais que requerem ação manual em vez
+    // de substituição. Só skipa se NEM titulo NEM porque_alterado existem
+    // (aí é mesmo erro malformado, sem informação útil).
+    if (!trechoOriginal && !trechoCorrigido && !titulo && !porqueAlterado) {
+      continue;
+    }
 
     // Parte só aceita 1 ou 2 — qualquer outra coisa fica undefined.
     const parteNum = parteRaw ? Number(parteRaw) : undefined;
@@ -102,13 +115,39 @@ export function parseRevisorErrors(content: string): RevisorError[] {
       capitulo: capituloRaw ? Number(capituloRaw) : undefined,
       ...(parte ? { parte } : {}),
       titulo: titulo ?? "Erro sem título",
-      trechoOriginal,
-      trechoCorrigido,
+      trechoOriginal: trechoOriginal ?? "",
+      trechoCorrigido: trechoCorrigido ?? "",
       porqueAlterado: porqueAlterado ?? "",
     });
   }
 
   return out;
+}
+
+/**
+ * Conta quantos números de erro únicos (Erro #1, #2, #3a, etc.) o markdown
+ * da revisão lista. Útil pra detectar mismatch entre o XML estruturado e a
+ * lista do markdown — quando o modelo emite só alguns <erro> no XML mas
+ * lista mais em PRINCIPAIS ERROS, dispara fallback pra completar.
+ *
+ * Limita o escopo à seção PRINCIPAIS ERROS quando detectável (entre o
+ * heading "PRINCIPAIS ERROS" e o próximo heading ou tag <erros_detalhados>),
+ * pra não contar referências cruzadas em SUGESTÕES, ANÁLISE LEITOR, etc.
+ * Se a seção não for detectável, cai pro texto todo.
+ */
+export function countMarkdownErrorNumbers(content: string): number {
+  if (!content) return 0;
+  const principaisRe =
+    /(?:^|\n)#+\s*[^\n]*PRINCIPAIS\s+ERROS[^\n]*\n([\s\S]*?)(?=\n#+\s|\n\s*<erros_detalhados|$)/i;
+  const principaisMatch = principaisRe.exec(content);
+  const scope = principaisMatch?.[1] ?? content;
+
+  const matches = scope.matchAll(/Erro\s*#?\s*(\d+[a-z]?)\b/gi);
+  const uniqueNumbers = new Set<string>();
+  for (const m of matches) {
+    uniqueNumbers.add(m[1]!.toLowerCase());
+  }
+  return uniqueNumbers.size;
 }
 
 /**
@@ -151,6 +190,8 @@ export function gravityLabel(g: RevisorErrorGravity): {
   label: string;
 } {
   switch (g) {
+    case "naoInterfere":
+      return { emoji: "🟢", label: "Não interfere" };
     case "atencao":
       return { emoji: "🟡", label: "Atenção" };
     case "interfere":

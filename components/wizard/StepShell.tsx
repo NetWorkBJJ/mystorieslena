@@ -39,6 +39,7 @@ import {
   parseEscritaChaptersDirect,
 } from "@/lib/parse-escrita-output";
 import {
+  countMarkdownErrorNumbers,
   hashEscritaContent,
   parseRevisorErrors,
   serializeRevisorErrors,
@@ -68,6 +69,7 @@ import { HistoryPanel } from "@/components/wizard/HistoryPanel";
 import { DownloadEscritaButton } from "@/components/wizard/DownloadEscritaButton";
 import { CopyPartButton } from "@/components/wizard/CopyPartButton";
 import { ReferenceImageUpload } from "@/components/wizard/ReferenceImageUpload";
+import { Prose } from "@/components/ui/prose";
 import { cn } from "@/lib/utils";
 
 type WizardProgress =
@@ -796,12 +798,16 @@ export function StepShell({ step }: Props) {
         let errors = parseRevisorErrors(acc);
         const cleanContent = stripErrosDetalhados(acc);
 
-        // Fallback: se o XML não veio (modelo truncou ou esqueceu) MAS o
-        // markdown lista erros em PRINCIPAIS ERROS, dispara segunda chamada
-        // estruturada que devolve só o XML.
-        if (errors.length === 0 && /Erro\s*#?\s*\d+/i.test(cleanContent)) {
+        // Fallback: dispara extração estruturada quando o XML emitido
+        // tem MENOS erros do que o markdown lista em PRINCIPAIS ERROS.
+        // Casos:
+        //   - errors=0 e markdown lista 5 → modelo esqueceu o XML inteiro
+        //   - errors=1 e markdown lista 5 → modelo truncou o XML após o 1º
+        //   - errors=N e markdown lista N → tudo OK, pula fallback
+        const expectedCount = countMarkdownErrorNumbers(cleanContent);
+        if (expectedCount > 0 && errors.length < expectedCount) {
           console.info(
-            "[revisor] XML <erros_detalhados> ausente — disparando fallback de extração estruturada",
+            `[revisor] XML tem ${errors.length} erro(s), markdown lista ${expectedCount} — disparando fallback de extração estruturada`,
           );
           try {
             const fbRes = await fetch("/api/revisor-extract-errors", {
@@ -823,19 +829,23 @@ export function StepShell({ step }: Props) {
                 fbAcc += fbDecoder.decode(value, { stream: true });
               }
               const fallbackErrors = parseRevisorErrors(fbAcc);
-              if (fallbackErrors.length > 0) {
-                errors = fallbackErrors;
+              if (fallbackErrors.length > errors.length) {
                 console.info(
-                  `[revisor] fallback extraiu ${fallbackErrors.length} erro(s) estruturado(s)`,
+                  `[revisor] fallback extraiu ${fallbackErrors.length} erro(s) (vs ${errors.length} originais) — usando fallback`,
+                );
+                errors = fallbackErrors;
+              } else if (fallbackErrors.length > 0) {
+                console.info(
+                  `[revisor] fallback extraiu ${fallbackErrors.length} erro(s) — não supera os ${errors.length} originais, mantendo originais`,
                 );
               } else {
                 console.warn(
-                  "[revisor] fallback rodou mas não devolveu erros parseáveis",
+                  "[revisor] fallback rodou mas não devolveu erros parseáveis — mantendo originais",
                 );
               }
             } else {
               console.warn(
-                `[revisor] fallback HTTP ${fbRes.status} — cards vão ficar vazios`,
+                `[revisor] fallback HTTP ${fbRes.status} — mantendo ${errors.length} erro(s) originais`,
               );
             }
           } catch (fbErr) {
@@ -1304,9 +1314,9 @@ export function StepShell({ step }: Props) {
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     {p.label}
                   </span>
-                  <pre className="text-xs whitespace-pre-wrap font-sans bg-background border rounded-md p-3 max-h-40 overflow-auto">
-                    {p.content}
-                  </pre>
+                  <div className="bg-background border rounded-md p-3 max-h-40 overflow-auto">
+                    <Prose size="sm">{p.content}</Prose>
+                  </div>
                 </div>
               ) : null,
             )}
@@ -1448,26 +1458,23 @@ export function StepShell({ step }: Props) {
           <div className="flex items-center gap-2">
             {hasContent && !isEditing && (
               <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (
-                      step === "escrita" &&
-                      chapters.length > 0
-                    ) {
-                      setDraft(chapters[chapters.length - 1]!.content);
-                    } else {
+                {/* No Escrita com chapters[], cada ChapterCard tem seu próprio
+                    botão Editar — então não exibimos o "Editar global" aqui
+                    pra evitar dois caminhos de edição. Demais steps mantêm o
+                    Editar global que abre a Textarea com o markdown completo. */}
+                {!(step === "escrita" && chapters.length > 0) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
                       setDraft(output?.content ?? "");
-                    }
-                    setIsEditing(true);
-                  }}
-                >
-                  <Pencil className="size-3.5" />
-                  {step === "escrita" && chapters.length > 0
-                    ? `Editar Cap ${chapters[chapters.length - 1]!.number}`
-                    : "Editar"}
-                </Button>
+                      setIsEditing(true);
+                    }}
+                  >
+                    <Pencil className="size-3.5" />
+                    Editar
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={copyOutput}>
                   <Copy className="size-3.5" /> Copiar
                 </Button>
@@ -1504,10 +1511,8 @@ export function StepShell({ step }: Props) {
                     <span>{output.metadata.parseWarning}</span>
                   </div>
                 )}
-                <div className="rounded-lg border bg-card p-4 sm:p-5 max-h-[50vh] overflow-auto">
-                  <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed">
-                    {output?.content}
-                  </pre>
+                <div className="rounded-lg border bg-card p-4 sm:p-6 max-h-[50vh] overflow-auto">
+                  <Prose>{output?.content ?? ""}</Prose>
                 </div>
               </>
             )}
@@ -1559,10 +1564,8 @@ export function StepShell({ step }: Props) {
             </div>
           )
         ) : hasContent ? (
-          <div className="rounded-lg border bg-card p-4 sm:p-5 max-h-[50vh] overflow-auto">
-            <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed">
-              {output?.content}
-            </pre>
+          <div className="rounded-lg border bg-card p-4 sm:p-6 max-h-[50vh] overflow-auto">
+            <Prose>{output?.content ?? ""}</Prose>
             {output?.edited && (
               <p className="text-[11px] text-muted-foreground mt-3">
                 Editado manualmente em{" "}
@@ -1696,19 +1699,43 @@ interface PremissaEditorProps {
 }
 
 function PremissaEditor({ value, onChange }: PremissaEditorProps) {
+  const hasContent = value.trim().length > 0;
   const wordCount = value
     .trim()
     .split(/\s+/)
     .filter(Boolean).length;
-  const hasContent = value.trim().length > 0;
   const tooLong = wordCount > 1000;
+
+  // Em modo View quando já tem conteúdo; modo Edit por padrão quando vazio.
+  const [isEditing, setIsEditing] = useState(!hasContent);
+  const [draft, setDraft] = useState(value);
+
+  // Quando o conteúdo muda (ex: usuário trocou de roteiro), sincroniza o draft.
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  const startEdit = useCallback(() => {
+    setDraft(value);
+    setIsEditing(true);
+  }, [value]);
+
+  const saveEdit = useCallback(() => {
+    onChange(draft);
+    setIsEditing(false);
+  }, [draft, onChange]);
+
+  const cancelEdit = useCallback(() => {
+    setDraft(value);
+    setIsEditing(hasContent ? false : true);
+  }, [value, hasContent]);
 
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <div className="flex flex-col gap-0.5">
           <Label htmlFor="premissa-text" className="text-sm font-semibold">
-            Cole a premissa pronta
+            {isEditing ? "Cole a premissa pronta" : "Premissa"}
           </Label>
           <span className="text-[11px] text-muted-foreground">
             Parte 1 + Parte 2 (até 500 palavras cada). Salva automaticamente.
@@ -1725,10 +1752,26 @@ function PremissaEditor({ value, onChange }: PremissaEditorProps) {
               )}
             >
               <CheckCircle2 className="size-3" />
-              Salvo · {wordCount.toLocaleString("pt-BR")} palavra
+              {wordCount.toLocaleString("pt-BR")} palavra
               {wordCount === 1 ? "" : "s"}
               {tooLong ? " (acima do limite)" : ""}
             </Badge>
+          )}
+          {!isEditing && hasContent && (
+            <Button variant="ghost" size="sm" onClick={startEdit}>
+              <Pencil className="size-3.5" />
+              Editar
+            </Button>
+          )}
+          {isEditing && hasContent && (
+            <>
+              <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                Cancelar
+              </Button>
+              <Button size="sm" onClick={saveEdit}>
+                Salvar
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -1750,14 +1793,27 @@ function PremissaEditor({ value, onChange }: PremissaEditorProps) {
         </div>
       </div>
 
-      <Textarea
-        id="premissa-text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={`Cole aqui a premissa completa.\n\nFormato sugerido:\n\n# PARTE 1\n[texto corrido — até 500 palavras]\n\n# PARTE 2\n[texto corrido — até 500 palavras]`}
-        rows={20}
-        className="font-sans text-[14px] leading-relaxed resize-y min-h-[400px]"
-      />
+      {isEditing ? (
+        <Textarea
+          id="premissa-text"
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            // Mantém o auto-save no fluxo "primeira vez" (quando ainda não
+            // existe conteúdo): cada tecla persiste no store. Quando o
+            // usuário entra em edit-mode tendo conteúdo prévio, salva só
+            // ao clicar em Salvar (botão acima).
+            if (!hasContent) onChange(e.target.value);
+          }}
+          placeholder={`Cole aqui a premissa completa.\n\nFormato sugerido:\n\n# PARTE 1\n[texto corrido — até 500 palavras]\n\n# PARTE 2\n[texto corrido — até 500 palavras]`}
+          rows={20}
+          className="font-sans text-[14px] leading-relaxed resize-y min-h-[400px]"
+        />
+      ) : (
+        <div className="rounded-lg border bg-card p-4 sm:p-6 max-h-[60vh] overflow-auto">
+          <Prose>{value}</Prose>
+        </div>
+      )}
 
       <ReferenceImageUpload />
 
@@ -1777,11 +1833,41 @@ function PremissaEditor({ value, onChange }: PremissaEditorProps) {
 }
 
 function EscritaOutputView({ output }: { output: StepOutput }) {
+  const setOutput = useWizard((s) => s.setOutput);
+  const pushOutputToHistory = useWizard((s) => s.pushOutputToHistory);
+
   const chapters = output.metadata?.chapters ?? [];
   const memory = output.metadata?.memory;
   const report = output.metadata?.report;
   const validation = output.metadata?.validation;
   const validationStatus = output.metadata?.validationStatus;
+
+  // Edição inline por capítulo: substitui o conteúdo do capítulo no metadata,
+  // re-concatena `output.content` e empurra um snapshot pro histórico antes
+  // de aplicar (mesmo padrão das demais edições). Sem isso a edição manual de
+  // um capítulo não-último era impossível pelo header (que só editava o último).
+  const saveChapter = useCallback(
+    (idx: number, newContent: string) => {
+      const current = output.metadata?.chapters;
+      if (!current || !current[idx]) return;
+      pushOutputToHistory("escrita", `Antes da edição manual do Cap ${current[idx].number}`);
+      const next = [...current];
+      next[idx] = {
+        ...next[idx]!,
+        content: newContent,
+        edited: true,
+        editedAt: new Date().toISOString(),
+      };
+      setOutput("escrita", {
+        ...output,
+        content: concatenateChapters(next),
+        metadata: { ...output.metadata, chapters: next },
+        edited: true,
+        editedAt: new Date().toISOString(),
+      });
+    },
+    [output, setOutput, pushOutputToHistory],
+  );
 
   // Fallback — output sem chapters[]: renderiza monolítico (output cru).
   if (chapters.length === 0) {
@@ -1789,18 +1875,14 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
       <div className="rounded-lg border bg-card overflow-hidden">
         <div className="flex flex-col divide-y divide-border/60">
           <SectionBanner label="CAPÍTULO" />
-          <div className="px-4 sm:px-5 py-4">
-            <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed">
-              {output.content}
-            </pre>
+          <div className="px-4 sm:px-6 py-5">
+            <Prose>{output.content}</Prose>
           </div>
           {report && (
             <>
               <SectionBanner label="RELATÓRIO DE AUTO-REVISÃO" />
-              <div className="px-4 sm:px-5 py-4">
-                <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-foreground/85">
-                  {report}
-                </pre>
+              <div className="px-4 sm:px-6 py-5">
+                <Prose size="sm">{report}</Prose>
               </div>
             </>
           )}
@@ -1815,10 +1897,8 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
           {validation && (
             <>
               <SectionBanner label="VALIDAÇÃO" />
-              <div className="px-4 sm:px-5 py-4">
-                <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-foreground/85">
-                  {validation}
-                </pre>
+              <div className="px-4 sm:px-6 py-5">
+                <Prose size="sm">{validation}</Prose>
               </div>
             </>
           )}
@@ -1832,17 +1912,22 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
       <div className="flex flex-col gap-3">
         {chapters.map((ch, i) => {
           const isLast = i === chapters.length - 1;
-          return <ChapterCard key={i} chapter={ch} defaultOpen={isLast} />;
+          return (
+            <ChapterCard
+              key={i}
+              chapter={ch}
+              defaultOpen={isLast}
+              onSave={(newContent) => saveChapter(i, newContent)}
+            />
+          );
         })}
       </div>
 
       {report && (
         <div className="rounded-lg border bg-card overflow-hidden">
           <SectionBanner label="RELATÓRIO DE AUTO-REVISÃO" />
-          <div className="px-4 sm:px-5 py-4">
-            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-foreground/85">
-              {report}
-            </pre>
+          <div className="px-4 sm:px-6 py-5">
+            <Prose size="sm">{report}</Prose>
           </div>
         </div>
       )}
@@ -1867,10 +1952,8 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
                   : "VALIDAÇÃO"
             }
           />
-          <div className="px-4 sm:px-5 py-4">
-            <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-foreground/85">
-              {validation}
-            </pre>
+          <div className="px-4 sm:px-6 py-5">
+            <Prose size="sm">{validation}</Prose>
           </div>
         </div>
       )}
@@ -1881,17 +1964,43 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
 function ChapterCard({
   chapter,
   defaultOpen,
+  onSave,
 }: {
   chapter: EscritaChapter;
   defaultOpen: boolean;
+  onSave?: (newContent: string) => void;
 }) {
   const titleLabel = chapter.title
     ? `Capítulo ${chapter.number} — ${chapter.title}`
     : `Capítulo ${chapter.number}`;
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(chapter.content);
+
+  // Se o conteúdo do capítulo mudar (ex: revisor aplicou correção, ou snapshot
+  // restaurado), sincroniza o draft local quando NÃO estiver editando.
+  useEffect(() => {
+    if (!isEditing) setDraft(chapter.content);
+  }, [chapter.content, isEditing]);
+
+  const startEdit = useCallback(() => {
+    setDraft(chapter.content);
+    setIsEditing(true);
+  }, [chapter.content]);
+
+  const cancelEdit = useCallback(() => {
+    setDraft(chapter.content);
+    setIsEditing(false);
+  }, [chapter.content]);
+
+  const saveEdit = useCallback(() => {
+    if (onSave) onSave(draft);
+    setIsEditing(false);
+  }, [draft, onSave]);
+
   return (
     <details
-      open={defaultOpen}
+      open={defaultOpen || isEditing}
       className="group rounded-lg border bg-card overflow-hidden"
     >
       <summary className="list-none cursor-pointer px-4 sm:px-5 py-3 flex items-center gap-3 bg-muted/30 hover:bg-muted/50 transition">
@@ -1909,8 +2018,6 @@ function ChapterCard({
               </span>
             )}
             {(() => {
-              // Conta palavras reais do conteúdo (mais confiável que o número
-              // que o agente diz que escreveu).
               const realCount = countWords(chapter.content);
               const declaredCount = chapter.wordCount;
               const showDeclared =
@@ -1948,11 +2055,39 @@ function ChapterCard({
       </summary>
 
       <div className="flex flex-col divide-y divide-border/60">
-        <div className="px-4 sm:px-5 py-4">
-          <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed">
-            {chapter.content}
-          </pre>
-          {chapter.cliffhanger && (
+        <div className="px-4 sm:px-6 py-5">
+          {onSave && (
+            <div className="flex items-center justify-end gap-2 mb-3">
+              {!isEditing ? (
+                <Button variant="ghost" size="sm" onClick={startEdit}>
+                  <Pencil className="size-3.5" />
+                  Editar
+                </Button>
+              ) : (
+                <>
+                  <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" onClick={saveEdit}>
+                    Salvar
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+
+          {isEditing ? (
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={20}
+              className="font-mono text-sm"
+            />
+          ) : (
+            <Prose>{chapter.content}</Prose>
+          )}
+
+          {chapter.cliffhanger && !isEditing && (
             <p className="text-[12px] text-foreground/70 mt-3 italic border-l-2 border-primary/40 pl-3">
               <span className="font-semibold not-italic text-primary/80">
                 Cliffhanger:
@@ -1960,7 +2095,7 @@ function ChapterCard({
               {chapter.cliffhanger}
             </p>
           )}
-          {chapter.edited && (
+          {chapter.edited && !isEditing && (
             <p className="text-[11px] text-muted-foreground mt-3">
               Editado manualmente em{" "}
               {chapter.editedAt
@@ -2163,14 +2298,15 @@ function MetadataBlock({
             <Copy className="size-3" /> Copiar
           </Button>
         </div>
-        <pre
-          className={cn(
-            "text-xs whitespace-pre-wrap bg-background border rounded-md p-3 max-h-80 overflow-auto",
-            monospace ? "font-mono" : "font-sans leading-relaxed",
-          )}
-        >
-          {content}
-        </pre>
+        {monospace ? (
+          <pre className="text-xs whitespace-pre-wrap bg-background border rounded-md p-3 max-h-80 overflow-auto font-mono">
+            {content}
+          </pre>
+        ) : (
+          <div className="bg-background border rounded-md p-4 max-h-80 overflow-auto">
+            <Prose size="sm">{content}</Prose>
+          </div>
+        )}
       </div>
     </details>
   );

@@ -43,7 +43,11 @@ export interface EscritaChapter {
 }
 
 /** Grau de severidade de um erro apontado pelo Revisor. */
-export type RevisorErrorGravity = "atencao" | "interfere" | "gravissimo";
+export type RevisorErrorGravity =
+  | "naoInterfere"
+  | "atencao"
+  | "interfere"
+  | "gravissimo";
 
 /**
  * Um erro estruturado emitido pelo Revisor (bloco <erros_detalhados>).

@@ -25,12 +25,14 @@ interface Props {
 }
 
 const GRAVITY_CIRCLE: Record<RevisorError["gravidade"], string> = {
+  naoInterfere: "bg-emerald-200 text-emerald-900",
   atencao: "bg-amber-200 text-amber-900",
   interfere: "bg-orange-200 text-orange-900",
   gravissimo: "bg-red-200 text-red-900",
 };
 
 const GRAVITY_PILL: Record<RevisorError["gravidade"], string> = {
+  naoInterfere: "bg-emerald-100 text-emerald-900 border-emerald-300",
   atencao: "bg-amber-100 text-amber-900 border-amber-300",
   interfere: "bg-orange-100 text-orange-900 border-orange-300",
   gravissimo: "bg-red-100 text-red-900 border-red-300",
@@ -49,6 +51,23 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
   );
   const appliedErrors = useMemo(
     () => errors.filter((e) => e.applied),
+    [errors],
+  );
+  // Erros aplicáveis automaticamente — têm trecho_original/trecho_corrigido.
+  // Erros transversais (sem trecho) são informativos e ficam fora do "aplicar
+  // todas pendentes".
+  const pendingApplicable = useMemo(
+    () =>
+      pendingErrors.filter(
+        (e) => e.trechoOriginal?.trim() && e.trechoCorrigido?.trim(),
+      ),
+    [pendingErrors],
+  );
+  const informativeCount = useMemo(
+    () =>
+      errors.filter(
+        (e) => !e.trechoOriginal?.trim() || !e.trechoCorrigido?.trim(),
+      ).length,
     [errors],
   );
 
@@ -92,10 +111,19 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
               {pendingErrors.length === 1 ? "" : "s"}
             </Badge>
           )}
+          {informativeCount > 0 && (
+            <Badge
+              variant="outline"
+              className="font-normal text-muted-foreground italic"
+              title="Erros sem trecho específico — precisam de ação manual da roteirista"
+            >
+              {informativeCount} de ação manual
+            </Badge>
+          )}
         </div>
-        {pendingErrors.length > 1 && escritaContent && (
+        {pendingApplicable.length > 1 && escritaContent && (
           <ApplyAllButton
-            pendingIds={pendingErrors.map((e) => e.id)}
+            pendingIds={pendingApplicable.map((e) => e.id)}
             onApply={(ids) =>
               applyMany(ids, "Antes de aplicar todas as correções pendentes")
             }
@@ -209,6 +237,13 @@ function ErrorCard({ error, disabled, onApply }: CardProps) {
   const [pending, startTransition] = useTransition();
   const [localFailed, setLocalFailed] = useState(false);
 
+  // Erro "transversal" — sem trecho_original literal pra fazer find+replace.
+  // Ex: discrepância entre premissa e roteiro, conteúdo AUSENTE (epílogo
+  // faltando), inconsistência documental. UI mostra como card informativo
+  // (sem botão "Aplicar"), pra que a roteirista resolva manualmente.
+  const isInformativo =
+    !error.trechoOriginal?.trim() || !error.trechoCorrigido?.trim();
+
   const handleApply = () => {
     setLocalFailed(false);
     startTransition(() => {
@@ -264,6 +299,11 @@ function ErrorCard({ error, disabled, onApply }: CardProps) {
                 Cap. {error.capitulo}
               </span>
             )}
+            {isInformativo && (
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wide italic">
+                ação manual
+              </span>
+            )}
             {error.applied && (
               <span className="text-[10px] text-emerald-700 uppercase tracking-wide flex items-center gap-1">
                 <CheckCircle2 className="size-3" />
@@ -292,16 +332,20 @@ function ErrorCard({ error, disabled, onApply }: CardProps) {
       </summary>
 
       <div className="px-4 sm:px-5 py-4 flex flex-col gap-4 border-t">
-        <Section
-          label="📍 Trecho original"
-          content={error.trechoOriginal}
-          tone="original"
-        />
-        <Section
-          label="✏️ Trecho corrigido"
-          content={error.trechoCorrigido}
-          tone="fixed"
-        />
+        {error.trechoOriginal?.trim() && (
+          <Section
+            label="📍 Trecho original"
+            content={error.trechoOriginal}
+            tone="original"
+          />
+        )}
+        {error.trechoCorrigido?.trim() && (
+          <Section
+            label={isInformativo ? "🛠️ Ação sugerida" : "✏️ Trecho corrigido"}
+            content={error.trechoCorrigido}
+            tone="fixed"
+          />
+        )}
         {error.porqueAlterado && (
           <Section
             label="💡 Por que foi alterado"
@@ -311,7 +355,13 @@ function ErrorCard({ error, disabled, onApply }: CardProps) {
         )}
 
         <div className="flex items-center gap-2 flex-wrap pt-1">
-          {error.applied ? (
+          {isInformativo ? (
+            <span className="text-xs text-muted-foreground italic leading-relaxed">
+              Este erro precisa de ação manual — não pode ser corrigido por
+              substituição automática (ex: conteúdo ausente, inconsistência
+              documental, problema estrutural).
+            </span>
+          ) : error.applied ? (
             <Button
               variant="ghost"
               size="sm"
