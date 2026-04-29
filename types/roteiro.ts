@@ -174,6 +174,18 @@ export interface Roteiro {
   updatedAt: string;
   currentStep: StepId;
   outputs: Partial<Record<StepId, StepOutput>>;
+  /**
+   * Ajustes/correções escritos pela roteirista, **escopados por step**.
+   * Cada step tem sua própria caixa "Instruções adicionais" — o que ela
+   * digita em Estrutura 1 não vaza pra Escrita ou Revisor.
+   */
+  userInputs?: Partial<Record<StepId, string>>;
+  /**
+   * @deprecated Campo legado (era um único input global pro roteiro).
+   * Mantido só pra ler roteiros antigos do localStorage; nunca mais
+   * gravamos aqui. Ao carregar um roteiro antigo, o conteúdo daqui é
+   * migrado pra `userInputs[currentStep]` na primeira interação.
+   */
   userInput?: string;
   /** Imagem opcional de referência visual pra Estrutura 1. */
   referenceImage?: RoteiroReferenceImage;

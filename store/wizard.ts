@@ -19,7 +19,12 @@ interface WizardState {
   setCurrentStep: (step: StepId) => void;
   setOutput: (step: StepId, output: StepOutput) => void;
   updateOutputContent: (step: StepId, content: string) => void;
-  setUserInput: (input: string) => void;
+  /**
+   * Salva o input/correção do step indicado. Cada step tem sua própria
+   * caixa de "Instruções adicionais" — input escrito em Estrutura 1 NÃO
+   * é enviado pra Escrita ou Revisor.
+   */
+  setUserInput: (step: StepId, input: string) => void;
   setReferenceImage: (image: RoteiroReferenceImage | null) => void;
   setTitle: (title: string) => void;
   setIsGenerating: (v: boolean) => void;
@@ -131,10 +136,13 @@ export const useWizard = create<WizardState>((set, get) => ({
       };
     }),
 
-  setUserInput: (input) =>
+  setUserInput: (step, input) =>
     set((s) => {
       if (!s.roteiro) return s;
-      return { roteiro: persist({ ...s.roteiro, userInput: input }) };
+      const userInputs = { ...(s.roteiro.userInputs ?? {}), [step]: input };
+      return {
+        roteiro: persist({ ...s.roteiro, userInputs }),
+      };
     }),
 
   setReferenceImage: (image) =>

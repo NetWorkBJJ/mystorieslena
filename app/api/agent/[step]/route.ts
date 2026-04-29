@@ -110,9 +110,17 @@ export async function POST(
         controller.close();
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Erro desconhecido";
+        const isBinaryError =
+          /native binary not found|claude\.exe.*not found|pathToClaudeCodeExecutable/i.test(msg);
         const isAuthError =
           /authentication|401|invalid auth|unauthorized|credentials/i.test(msg);
-        if (isAuthError) {
+        if (isBinaryError) {
+          controller.enqueue(
+            encoder.encode(
+              `\n\n[BINÁRIO CLAUDE NÃO ENCONTRADO]\n\nO binário do Claude Code não está disponível neste pacote do app. Isso costuma acontecer quando a instalação ficou incompleta ou foi corrompida durante uma atualização.\n\n💡 COMO RESOLVER:\n\n1. Baixe o instalador mais recente em:\n   https://github.com/lucasbaziliocomercial-crypto/mystorieslena/releases\n2. Rode o "MyStoriesLena-Setup-x.y.z.exe" — ele substitui a instalação atual sem perder seus roteiros (ficam salvos no localStorage).\n3. Abra o app de novo e tente gerar.\n\nSe persistir mesmo após reinstalar, abra um issue colando os logs do DevTools:\n   • Pressione Ctrl+Shift+I dentro do app pra abrir o DevTools\n   • Vá na aba "Console" e copie as linhas que começam com [claude]\n   • Reporte em https://github.com/lucasbaziliocomercial-crypto/mystorieslena/issues\n\n--- Detalhe técnico ---\n${msg}`,
+            ),
+          );
+        } else if (isAuthError) {
           controller.enqueue(
             encoder.encode(
               `\n\n[LOGIN NECESSÁRIO NO CLAUDE]\n\nVocê precisa estar logado na sua conta Claude Pro/Max pra usar o MyStoriesLena. Pode ser a primeira vez que abre o app, ou o token expirou.\n\n💡 COMO RESOLVER (1 minuto):\n\n1. Abra o PowerShell (Iniciar → digite "PowerShell" → Enter)\n2. Cole este comando e aperte Enter:\n\n       claude\n\n3. Vai abrir o navegador pedindo pra fazer login com sua conta Claude.\n4. Autorize. Quando voltar pro PowerShell, pode fechar.\n5. Volte aqui no MyStoriesLena e clique em "Gerar novamente" — não precisa reiniciar o app.\n\n--- Detalhe técnico ---\n${msg}`,

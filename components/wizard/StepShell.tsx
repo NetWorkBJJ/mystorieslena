@@ -205,13 +205,16 @@ export function StepShell({ step }: Props) {
   // Ajuste/correção é "draft" local — só vira o userInput do roteiro quando
   // o usuário clica "Aplicar correção". Sem isso, qualquer caractere digitado
   // entra na próxima geração mesmo sem confirmação. Sync com store quando
-  // o roteiro muda (carregar outro / restaurar histórico).
-  const [pendingInput, setPendingInput] = useState<string>(
-    roteiro?.userInput ?? "",
-  );
+  // o roteiro muda (carregar outro / restaurar histórico) OU o step muda.
+  // Cada step tem seu próprio input — input em Estrutura 1 NÃO vaza pra
+  // Escrita ou Revisor. Pra roteiros antigos (campo legado `userInput`
+  // único), só faz fallback se ainda não houver nada salvo no step atual.
+  const savedStepInput =
+    roteiro?.userInputs?.[step] ?? (roteiro?.userInputs ? "" : roteiro?.userInput ?? "");
+  const [pendingInput, setPendingInput] = useState<string>(savedStepInput);
   useEffect(() => {
-    setPendingInput(roteiro?.userInput ?? "");
-  }, [roteiro?.id, roteiro?.userInput]);
+    setPendingInput(savedStepInput);
+  }, [roteiro?.id, step, savedStepInput]);
   // Limpa progresso local quando o usuário troca de step. Sem isso, um
   // batchProgress da Escrita (kind:"writing") fica visível no Revisor se
   // o usuário navegar durante uma geração — a UI mostraria "Par X de Y"
@@ -272,8 +275,13 @@ export function StepShell({ step }: Props) {
     // userInput pode vir do store OU de um override (caso o caller acabou
     // de comitar via setUserInput e ainda não viu o re-render do Zustand —
     // ex.: botão "Aplicar correção" da caixa, que comita+dispara num clique).
+    // Lê só o input desse step específico — input de outro step NÃO vaza
+    // pra essa chamada.
+    const stepSavedInput =
+      roteiro.userInputs?.[step] ??
+      (roteiro.userInputs ? "" : roteiro.userInput ?? "");
     const effectiveUserInput =
-      (userInputOverride ?? roteiro.userInput ?? "").trim();
+      (userInputOverride ?? stepSavedInput).trim();
 
     // Modo correção precisa de output existente + instrução escrita.
     if (mode === "refine") {
@@ -1365,8 +1373,8 @@ export function StepShell({ step }: Props) {
           className="resize-none"
         />
         {/* Botão "Aplicar correção" — UM ÚNICO CLIQUE.
-            Comita o texto da caixa em `roteiro.userInput` E dispara
-            imediatamente uma correção pontual no step atual (refineMode).
+            Comita o texto da caixa em `roteiro.userInputs[step]` (escopado
+            por step) E dispara uma correção pontual no step atual (refineMode).
             O agente recebe o output corrente + a correção pedida e devolve
             o output completo só com a correção aplicada — sem regerar do
             zero, sem cascatear pra outros steps.
@@ -1374,9 +1382,10 @@ export function StepShell({ step }: Props) {
             correção é "em cima" de algo). Sem output, o botão fica
             desabilitado com hint pedindo Gerar primeiro. */}
         {(() => {
-          const savedInput = roteiro.userInput ?? "";
+          // savedStepInput já é escopado por step — ver inicialização do
+          // pendingInput acima. Comparamos apenas com o input desse step.
           const trimmedPending = pendingInput.trim();
-          const isDirty = pendingInput !== savedInput;
+          const isDirty = pendingInput !== savedStepInput;
           const hasInputContent = trimmedPending.length > 0;
           const hasOutputContent = !!output?.content?.trim();
           const canApply =
@@ -1397,10 +1406,10 @@ export function StepShell({ step }: Props) {
                 size="sm"
                 disabled={!canApply}
                 onClick={() => {
-                  // Comita o input no store pra a UI/badge refletirem,
-                  // e dispara a correção passando o input via override
-                  // (evita race com o re-render do Zustand).
-                  setUserInput(pendingInput);
+                  // Comita o input no store (escopado nesse step) pra a
+                  // UI/badge refletirem, e dispara a correção passando o
+                  // input via override (evita race com re-render do Zustand).
+                  setUserInput(step, pendingInput);
                   void generate("refine", pendingInput);
                 }}
                 className="gap-2"

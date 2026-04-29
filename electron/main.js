@@ -124,13 +124,25 @@ function getClaudeExecutablePath(sourceDir) {
     roots.push(path.join(__dirname, ".."));
   }
 
+  // NOTA: a lista de subPaths está duplicada em lib/claude.ts (fallback
+  // runtime). Se mexer aqui, mexa lá também. main.js é CommonJS, lib/ é
+  // TS/ESM — bridge custaria mais que duplicar 5 linhas.
+  const candidates = [];
+  let found = null;
   for (const root of roots) {
     for (const sub of subPaths) {
       const full = path.join(root, sub);
-      if (fs.existsSync(full)) return full;
+      const exists = fs.existsSync(full);
+      candidates.push({ full, exists });
+      if (exists && !found) found = full;
     }
   }
-  return null;
+
+  console.log(`[claude] testando ${candidates.length} candidatos do binário native:`);
+  for (const c of candidates) {
+    console.log(`  ${c.exists ? "✓" : "✗"} ${c.full}`);
+  }
+  return found;
 }
 
 /**
