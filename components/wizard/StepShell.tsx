@@ -25,6 +25,7 @@ import {
   Pencil,
   RotateCcw,
   Send,
+  SkipForward,
   Sparkles,
   Wand2,
   Zap,
@@ -191,6 +192,8 @@ export function StepShell({ step }: Props) {
   const isGenerating = useWizard((s) => s.isGenerating);
   const autoAdvance = useWizard((s) => s.autoAdvance);
   const setAutoAdvance = useWizard((s) => s.setAutoAdvance);
+  const skipCalibration = useWizard((s) => s.skipCalibration);
+  const setSkipCalibration = useWizard((s) => s.setSkipCalibration);
   const setIsGenerating = useWizard((s) => s.setIsGenerating);
   const setOutput = useWizard((s) => s.setOutput);
   const updateOutputContent = useWizard((s) => s.updateOutputContent);
@@ -571,6 +574,7 @@ export function StepShell({ step }: Props) {
       };
 
       try {
+        if (!skipCalibration) {
         // ═══ PHASE 1: extensão por capítulo ═══════════════════════════
         for (let i = 0; i < accChapters.length; i++) {
           if (ctrl.signal.aborted) break;
@@ -745,6 +749,9 @@ export function StepShell({ step }: Props) {
           setBatchProgress(null);
           setIsGenerating(false);
           return;
+        }
+        } else {
+          console.info("[revisor] calibragem desativada pelo usuário — pulando Phase 1+2");
         }
 
         // ═══ PHASE 3: revisão estruturada (XML) ═══════════════════════
@@ -1232,6 +1239,7 @@ export function StepShell({ step }: Props) {
     step,
     next,
     autoAdvance,
+    skipCalibration,
     output,
     setOutput,
     setIsGenerating,
@@ -1338,6 +1346,25 @@ export function StepShell({ step }: Props) {
             <Zap className="size-3.5" />
             Avançar auto
           </label>
+          {step === "revisor" && (
+            <label
+              className={cn(
+                "flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-md border cursor-pointer transition",
+                skipCalibration
+                  ? "bg-primary/10 border-primary/40 text-primary"
+                  : "bg-background border-border text-muted-foreground hover:bg-muted",
+              )}
+            >
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={skipCalibration}
+                onChange={(e) => setSkipCalibration(e.target.checked)}
+              />
+              <SkipForward className="size-3.5" />
+              Pular calibragem
+            </label>
+          )}
         </div>
         )}
       </header>
