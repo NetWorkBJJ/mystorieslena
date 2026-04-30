@@ -34,10 +34,9 @@ interface Props {
 export function CategoryPicker({ open, onOpenChange, onConfirm }: Props) {
   const [selected, setSelected] = useState<RoteiroCategory>("milionario-1p");
 
-  const isDisabled = (id: RoteiroCategory): boolean => {
-    // Romance de Milionário em 3ª pessoa ainda não tem prompts próprios —
-    // mostrar visualmente, mas desabilitar a seleção.
-    return id === "milionario-3p";
+  const isDisabled = (_id: RoteiroCategory): boolean => {
+    // Todas as categorias atualmente disponíveis.
+    return false;
   };
 
   return (

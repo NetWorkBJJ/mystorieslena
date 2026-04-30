@@ -25,6 +25,11 @@ import {
   mafiaEscritaSystemPrompt,
   mafiaRevisorExtract,
 } from "@/lib/agents/mafia";
+import {
+  milionario3pAgents,
+  milionario3pEscritaSystemPrompt,
+  milionario3pRevisorExtract,
+} from "@/lib/agents/milionario3p";
 import type { StepId } from "@/types/roteiro";
 import type { Agent } from "@/lib/agents/types";
 import type { CategoryConfig, RoteiroCategory } from "./types";
@@ -44,15 +49,13 @@ export const CATEGORIES: Record<RoteiroCategory, CategoryConfig> = {
     },
   },
   "milionario-3p": {
-    // Placeholder — prompts em 3ª pessoa virão depois.
-    // Reaproveita os agentes de 1p até a autora enviar a versão 3p.
     id: "milionario-3p",
     label: "Romance de Milionário (3ª pessoa)",
-    channels: "Rowan v1 e v2",
+    channels: "Rowan",
     description:
-      "[Em breve] Mesmo gênero, com narração em 3ª pessoa. Os prompts específicos serão adicionados depois.",
-    agents: milionario1pAgents,
-    escritaSystemPrompt: milionario1pEscritaSystemPrompt,
+      "Duologia em 3ª pessoa onisciente, estilo Helô Stories™. Mesmo universo do 1p, com narrador externo invisível alternando foco entre FMC e MMC. Premissa em manual-paste enquanto o prompt mestre M3P não chega; estruturas, escrita e revisor já com prompts próprios.",
+    agents: milionario3pAgents,
+    escritaSystemPrompt: milionario3pEscritaSystemPrompt,
     wordCount: {
       parte1: { min: 11300, max: 11700, target: 11500 },
       parte2: { min: 13000, max: 13500, target: 13250 },
@@ -115,6 +118,7 @@ export function getCategoryRevisorExtract(category: RoteiroCategory): {
   }) => string;
 } {
   if (category === "mafia") return mafiaRevisorExtract;
+  if (category === "milionario-3p") return milionario3pRevisorExtract;
   return milionario1pRevisorExtract;
 }
 
