@@ -15,13 +15,17 @@
 import { NextRequest } from "next/server";
 import { streamClaudeText } from "@/lib/claude";
 import { MODELS } from "@/lib/anthropic";
-import { ESCRITA_SYSTEM_PROMPT } from "@/lib/agents/escrita-prompt";
+import { getCategoryEscritaSystemPrompt } from "@/lib/categories";
+import type { RoteiroCategory } from "@/types/roteiro";
+import { DEFAULT_CATEGORY } from "@/types/roteiro";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 interface Body {
+  /** Sub-nicho do roteiro — escolhe qual ESCRITA_SYSTEM_PROMPT usar. */
+  category?: RoteiroCategory;
   chapter: {
     number: number;
     title?: string;
@@ -101,13 +105,16 @@ export async function POST(req: NextRequest) {
   );
 
   const userMessage = sections.join("\n\n");
+  const escritaSystemPrompt = getCategoryEscritaSystemPrompt(
+    body.category ?? DEFAULT_CATEGORY,
+  );
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       try {
         for await (const chunk of streamClaudeText({
-          systemPrompt: ESCRITA_SYSTEM_PROMPT,
+          systemPrompt: escritaSystemPrompt,
           userMessage,
           model: MODELS.opus,
           thinking: "disabled",

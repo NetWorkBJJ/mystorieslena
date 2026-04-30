@@ -1,9 +1,23 @@
 import type { Roteiro } from "@/types/roteiro";
+import { DEFAULT_CATEGORY } from "@/types/roteiro";
 
 const KEY = "veludo:roteiros";
 
 function isBrowser() {
   return typeof window !== "undefined";
+}
+
+/**
+ * Backfill: roteiros antigos no localStorage não têm `category`. Como o app
+ * sempre rodou só para Romance de Milionário (1ª pessoa), todo roteiro
+ * legado vira dessa categoria. Sem esse fallback, qualquer lookup de
+ * `category` em roteiros antigos quebraria silenciosamente.
+ */
+function migrateLegacy(r: Roteiro): Roteiro {
+  if (!r.category) {
+    return { ...r, category: DEFAULT_CATEGORY };
+  }
+  return r;
 }
 
 export function listRoteiros(): Roteiro[] {
@@ -12,7 +26,9 @@ export function listRoteiros(): Roteiro[] {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Roteiro[];
-    return parsed.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return parsed
+      .map(migrateLegacy)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   } catch {
     return [];
   }

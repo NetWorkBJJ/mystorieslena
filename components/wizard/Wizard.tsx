@@ -9,6 +9,8 @@ import { StepIndicator } from "./StepIndicator";
 import { StepShell } from "./StepShell";
 import { UpdateButton } from "./UpdateButton";
 import { STEP_ORDER } from "@/types/roteiro";
+import { CATEGORIES } from "@/lib/categories";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Pencil } from "lucide-react";
@@ -111,6 +113,9 @@ export function Wizard({ id }: Props) {
               <Pencil className="size-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition" />
             </button>
           )}
+          <Badge variant="outline" className="font-normal shrink-0">
+            {CATEGORIES[roteiro.category].label}
+          </Badge>
         </div>
 
         <UpdateButton />

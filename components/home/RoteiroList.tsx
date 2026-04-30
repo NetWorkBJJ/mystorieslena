@@ -11,6 +11,8 @@ import {
 } from "@/lib/storage";
 import type { Roteiro } from "@/types/roteiro";
 import { STEP_ORDER } from "@/types/roteiro";
+import { CATEGORIES } from "@/lib/categories";
+import type { RoteiroCategory } from "@/lib/categories/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +20,7 @@ import {
   AlertDialogRoot,
   AlertDialog,
 } from "./AlertDialog";
+import { CategoryPicker } from "./CategoryPicker";
 import { ArrowRight, FileText, Plus, Trash2 } from "lucide-react";
 
 export function RoteiroList() {
@@ -25,6 +28,7 @@ export function RoteiroList() {
   const [roteiros, setRoteiros] = useState<Roteiro[]>([]);
   const [ready, setReady] = useState(false);
   const [toDelete, setToDelete] = useState<Roteiro | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const refresh = useCallback(() => {
     setRoteiros(listRoteiros());
@@ -35,20 +39,26 @@ export function RoteiroList() {
     setReady(true);
   }, [refresh]);
 
-  const createNew = useCallback(() => {
-    const id = newRoteiroId();
-    const now = new Date().toISOString();
-    const r: Roteiro = {
-      id,
-      title: `Novo roteiro — ${new Date().toLocaleString("pt-BR")}`,
-      createdAt: now,
-      updatedAt: now,
-      currentStep: "premissa",
-      outputs: {},
-    };
-    saveRoteiro(r);
-    router.push(`/roteiro/${id}`);
-  }, [router]);
+  const handlePickCategory = useCallback(
+    (category: RoteiroCategory) => {
+      const id = newRoteiroId();
+      const now = new Date().toISOString();
+      const r: Roteiro = {
+        id,
+        title: `Novo roteiro — ${new Date().toLocaleString("pt-BR")}`,
+        category,
+        createdAt: now,
+        updatedAt: now,
+        currentStep: "premissa",
+        outputs: {},
+      };
+      saveRoteiro(r);
+      router.push(`/roteiro/${id}`);
+    },
+    [router],
+  );
+
+  const openPicker = useCallback(() => setPickerOpen(true), []);
 
   const confirmDelete = useCallback(() => {
     if (!toDelete) return;
@@ -69,7 +79,7 @@ export function RoteiroList() {
     <>
       <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         <h2 className="text-xl font-serif">Seus roteiros</h2>
-        <Button onClick={createNew} className="gap-2" size="lg">
+        <Button onClick={openPicker} className="gap-2" size="lg">
           <Plus className="size-4" />
           Novo roteiro
         </Button>
@@ -83,7 +93,7 @@ export function RoteiroList() {
             Clique em <span className="font-semibold">Novo roteiro</span> para
             começar. As 5 etapas guiam você da premissa até o roteiro final.
           </p>
-          <Button onClick={createNew} className="mt-2 gap-2">
+          <Button onClick={openPicker} className="mt-2 gap-2">
             <Plus className="size-4" />
             Criar primeiro roteiro
           </Button>
@@ -109,6 +119,9 @@ export function RoteiroList() {
                     </h3>
                   </Link>
                   <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-muted-foreground">
+                    <Badge variant="outline" className="font-normal">
+                      {CATEGORIES[r.category].label}
+                    </Badge>
                     <Badge variant="secondary" className="font-normal">
                       {completed} de {STEP_ORDER.length} etapas
                     </Badge>
@@ -143,6 +156,12 @@ export function RoteiroList() {
           })}
         </div>
       )}
+
+      <CategoryPicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onConfirm={handlePickCategory}
+      />
 
       <AlertDialogRoot open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialog

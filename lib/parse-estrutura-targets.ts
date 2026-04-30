@@ -14,7 +14,9 @@
  * pra ele — a chamada que pediu pode fazer fallback.
  */
 
-const CHAPTER_HEADER_REGEX = /^#{1,4}\s*Cap[ií]tulo\s+(\d+)/im;
+// Markdown opcional + bold opcional — tolerante aos formatos que o modelo
+// pode emitir (`## Capítulo 1`, `Capítulo 1`, `**Capítulo 1**`).
+const CHAPTER_HEADER_REGEX = /^#{0,4}\s*\*{0,2}\s*Cap[ií]tulo\s+(\d+)/im;
 
 /**
  * Quebra a estrutura em blocos de capítulo. Cada bloco vai do header
@@ -29,7 +31,7 @@ function splitChapterBlocks(
 ): Array<{ number: number; body: string }> {
   type Hit = { number: number; index: number };
   const hits: Hit[] = [];
-  const re = /^#{1,4}\s*Cap[ií]tulo\s+(\d+)\b[^\n]*$/gim;
+  const re = /^#{0,4}\s*\*{0,2}\s*Cap[ií]tulo\s+(\d+)\b[^\n]*$/gim;
   let m: RegExpExecArray | null;
   while ((m = re.exec(estrutura)) !== null) {
     hits.push({
@@ -129,20 +131,27 @@ export function isWithinTarget(actual: number, target: number): boolean {
 }
 
 /**
- * Range obrigatório de palavras TOTAIS de uma Parte, conforme regra do PDF
- * mestre EXATA do prompt das estruturas (lib/agents/estrutura1-prompt.ts e
- * estrutura2-prompt.ts). Esses números não são negociáveis — diferente do
- * alvo per cap (que tem margem ±3%), o total da Parte tem que cair aqui.
+ * Range obrigatório de palavras TOTAIS de uma Parte, agora category-aware.
+ *
+ * Cada sub-nicho tem alvos próprios (milionário 1p: 11.500/13.250 |
+ * máfia: 12.500/13.500). A configuração vive em `lib/categories/index.ts`
+ * e é lida por categoria — esta função passa a delegar a lookup.
+ *
+ * O parâmetro `category` é opcional pra preservar chamadas legadas; quando
+ * omitido, usa o DEFAULT_CATEGORY (milionário 1p).
  */
-export function partTotalRange(part: "Parte 1" | "Parte 2"): {
+import { CATEGORIES } from "@/lib/categories";
+import type { RoteiroCategory } from "@/lib/categories/types";
+import { DEFAULT_CATEGORY } from "@/types/roteiro";
+
+export function partTotalRange(
+  part: "Parte 1" | "Parte 2",
+  category: RoteiroCategory = DEFAULT_CATEGORY,
+): {
   min: number;
   max: number;
   target: number;
 } {
-  if (part === "Parte 1") {
-    // estrutura1-prompt.ts: "Total de palavras: 11.500 (faixa 11.300–11.700) — RIGOROSO"
-    return { min: 11300, max: 11700, target: 11500 };
-  }
-  // estrutura2-prompt.ts: "Mínimo 13.000 — Máximo 13.500. Rigoroso."
-  return { min: 13000, max: 13500, target: 13250 };
+  const cfg = CATEGORIES[category].wordCount;
+  return part === "Parte 1" ? cfg.parte1 : cfg.parte2;
 }

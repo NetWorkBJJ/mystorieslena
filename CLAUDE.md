@@ -49,7 +49,7 @@ If you change anything about how the binary is bundled, the `extraResources` fil
 
 `POST /api/agent/[step]` (`app/api/agent/[step]/route.ts`) is the single entrypoint:
 
-1. Looks up the agent by `step` from `lib/agents/index.ts`.
+1. Reads `category` from the body (default `"milionario-1p"` for legacy clients) and looks up the agent via `getAgent(category, step)` (`lib/agents/index.ts` → `lib/categories/index.ts`).
 2. Calls `agent.buildUserMessage({ previousOutputs, userInput, referenceImage })` to assemble the prompt.
 3. Uses `agent.model` directly. Models are passed as the SDK shorthand strings `"opus" | "sonnet" | "haiku"` (see `lib/anthropic.ts`), not full IDs — let the SDK resolve them.
 4. If `agent.acceptsReferenceImage === true` and a `referenceImage` is present, decodes the data URL and sends a multimodal `[image, text]` user message; otherwise plain text.
@@ -57,13 +57,25 @@ If you change anything about how the binary is bundled, the `extraResources` fil
 
 If the SDK throws an auth-shaped error, the route injects a Portuguese-language `[LOGIN NECESSÁRIO NO CLAUDE]` block into the stream with recovery instructions.
 
+### Categorias / sub-nichos
+
+O app suporta múltiplos sub-nichos de romance, registrados em `lib/categories/index.ts`. Cada `Roteiro` tem um campo `category: RoteiroCategory` travado na criação (escolhido no `CategoryPicker` antes do roteiro existir):
+
+- `milionario-1p` — Romance de Milionário em 1ª pessoa (default; default histórico para roteiros legados sem `category` — backfill em `lib/storage.ts`).
+- `milionario-3p` — Placeholder; reaproveita prompts de 1p até a versão 3p chegar.
+- `mafia` — Dark Romance de Máfia (prompts próprios, totais 12.500/13.500 em vez de 11.500/13.250, símbolos 🟢🟡🔴💀 no Revisor).
+
+Cada categoria tem seu próprio diretório `lib/agents/<id>/` com 5 agentes + prompts. O dispatcher `getAgent(category, step)` em `lib/agents/index.ts` puxa do registry. `partTotalRange(part, category)` e `planBatches(..., category)` são category-aware. Os endpoints `/api/agent/[step]`, `/api/escrita-fix-wordcount` e `/api/revisor-extract-errors` recebem `category` no body — sem isso, caem no default `milionario-1p`.
+
+Para adicionar um sub-nicho: crie `lib/agents/<id>/` (5 agentes + prompts), registre em `lib/categories/index.ts`, e estenda `RoteiroCategory` em `types/roteiro.ts`.
+
 ### Agent shape
 
-Each step in `lib/agents/` exports an `Agent` (`lib/agents/types.ts`) with: `model`, `systemPrompt`, `buildUserMessage`, `thinking` (default `disabled` for speed), `effort` (default `low`), and `acceptsReferenceImage`. The Premissa step is intentionally manual in the UI — the user pastes text — but the agent definition exists for future use.
+Each step in `lib/agents/<categoria>/` exports an `Agent` (`lib/agents/types.ts`) with: `model`, `systemPrompt`, `buildUserMessage`, `thinking` (default `disabled` for speed), `effort` (default `low`), and `acceptsReferenceImage`. The Premissa step is intentionally manual in the UI — the user pastes text — but the agent definition exists for future use.
 
 The Escrita agent runs in **2-em-2 mode**: the frontend loop in `components/wizard/StepShell.tsx` dispatches sequential batches of 2 chapters each (`[P1:1,2] → [P1:3,4] → ... → [P2:1,2] → ...`), respecting the part boundary. Each batch returns the chapters plus a `═══ SINOPSES ═══` block with a 3-5 sentence summary per chapter — these synopses become context for subsequent batches and act as the bridge from Parte 1 to Parte 2. The Escrita step itself does no word-count calibration — capítulos saem com a contagem que sair. The legacy parser `lib/parse-escrita-output.ts` is kept for retro-compat with old all-at-once roteiros in localStorage.
 
-The **Revisor step** runs three phases when the user clicks Gerar: (1) per-chapter extension via `/api/escrita-fix-wordcount` (Opus) for any chapter outside the per-cap target ±3%, updating `outputs.escrita` in place; (2) part-total balance via the same endpoint if the Parte total falls outside `partTotalRange` (P1 11.300-11.700, P2 13.000-13.500); (3) structured review via `/api/agent/revisor` that streams the markdown report plus an `<erros_detalhados>` XML block parsed into `metadata.errors` for one-click `find+replace` fixes. The escritaSnapshotHash is taken AFTER extension so the UI can detect post-revision edits to the calibrated text. Re-clicking Gerar re-runs all three phases — phase 1/2 are idempotent (chapters already within target are skipped).
+The **Revisor step** runs three phases when the user clicks Gerar: (1) per-chapter extension via `/api/escrita-fix-wordcount` (Opus) for any chapter outside the per-cap target ±3%, updating `outputs.escrita` in place; (2) part-total balance via the same endpoint if the Parte total falls outside `partTotalRange(part, category)` (varia por categoria — milionário 11.300-11.700/13.000-13.500, máfia 12.300-12.700/13.300-13.700); (3) structured review via `/api/agent/revisor` that streams the markdown report plus an `<erros_detalhados>` XML block parsed into `metadata.errors` for one-click `find+replace` fixes. The escritaSnapshotHash is taken AFTER extension so the UI can detect post-revision edits to the calibrated text. Re-clicking Gerar re-runs all three phases — phase 1/2 are idempotent (chapters already within target are skipped).
 
 ### Escrita word counting — MANDATORY rule
 

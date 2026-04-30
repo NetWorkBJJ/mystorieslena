@@ -27,10 +27,12 @@ export interface ParsedBatch {
 
 const SYNOPSES_BANNER_REGEX =
   /═{3,}\s*\n?\s*SINOPSES?\s*\n?\s*═{3,}/i;
+// Markdown opcional + bold opcional — tolera `## Capítulo N — Título`,
+// `Capítulo N — Título` puro e `**Capítulo N — Título**`.
 const CHAPTER_HEADER_REGEX =
-  /^#{1,4}\s*Cap[ií]tulo\s+(\d+)\s*(?:—|–|-)\s*(.+?)\s*$/gim;
+  /^#{0,4}\s*\*{0,2}\s*Cap[ií]tulo\s+(\d+)\s*(?:—|–|-)\s*(.+?)\s*\*{0,2}\s*$/gim;
 const CHAPTER_HEADER_NO_TITLE_REGEX =
-  /^#{1,4}\s*Cap[ií]tulo\s+(\d+)\s*$/gim;
+  /^#{0,4}\s*\*{0,2}\s*Cap[ií]tulo\s+(\d+)\s*\*{0,2}\s*$/gim;
 
 export function parseEscritaBatch(
   raw: string,

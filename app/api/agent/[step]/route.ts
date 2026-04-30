@@ -3,11 +3,12 @@ import { streamClaudeText, type ClaudeImageInput, type ClaudeImageMime } from "@
 import { getAgent } from "@/lib/agents";
 import type {
   EscritaSynopsis,
+  RoteiroCategory,
   RoteiroReferenceImage,
   StepId,
   StepOutput,
 } from "@/types/roteiro";
-import { STEP_ORDER } from "@/types/roteiro";
+import { DEFAULT_CATEGORY, STEP_ORDER } from "@/types/roteiro";
 import type { AgentBatchContext } from "@/lib/agents/types";
 
 export const runtime = "nodejs";
@@ -15,6 +16,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 interface Body {
+  /**
+   * Sub-nicho do roteiro — define qual conjunto de prompts/agentes este step
+   * usa. Se ausente, default "milionario-1p" (compatibilidade com legado).
+   */
+  category?: RoteiroCategory;
   previousOutputs?: Partial<Record<StepId, StepOutput>>;
   userInput?: string;
   /** Imagem de referência anexada na Premissa (passada por todos steps; só
@@ -83,7 +89,7 @@ export async function POST(
     );
   }
 
-  const agent = getAgent(step as StepId);
+  const agent = getAgent(body.category ?? DEFAULT_CATEGORY, step as StepId);
   const userMessage = agent.buildUserMessage({
     previousOutputs: body.previousOutputs ?? {},
     userInput: body.userInput,

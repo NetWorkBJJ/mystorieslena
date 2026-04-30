@@ -1,5 +1,5 @@
 import { MODELS } from "@/lib/anthropic";
-import type { Agent } from "./types";
+import type { Agent } from "../types";
 import { ESTRUTURA_MASTER_PROMPT } from "./estrutura-master-prompt";
 import { ESTRUTURA2_PROMPT } from "./estrutura2-prompt";
 

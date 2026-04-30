@@ -11,7 +11,7 @@ export default function Home() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Sparkles className="size-4 text-primary" />
-              <span>Gerador de roteiros · Romance de milionário</span>
+              <span>Gerador de roteiros · Romance</span>
             </div>
             <UpdateButton />
           </div>

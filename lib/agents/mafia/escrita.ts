@@ -1,0 +1,174 @@
+import { MODELS } from "@/lib/anthropic";
+import type { Agent } from "../types";
+import { ESCRITA_SYSTEM_PROMPT } from "./escrita-prompt";
+
+/**
+ * Etapa 4 — Escrita (Romance de Máfia, Helô Stories™).
+ *
+ * Fluxo 2-em-2: cada request gera UM par de capítulos. Iteração comandada
+ * pelo frontend, com sinopses dos capítulos anteriores como contexto.
+ * O system prompt já inclui o conteúdo do START MAFIA (regras de execução
+ * baked).
+ *
+ * Diferenças vs Milionário:
+ *  • Parte 1: 12.300-12.700 palavras totais (alvo 12.500).
+ *  • Parte 2: 13.300-13.700 palavras totais (alvo 13.500 — RIGOROSO).
+ */
+export const escritaAgent: Agent = {
+  id: "escrita",
+  label: "Escrita",
+  description:
+    "Escreve o roteiro em pares de capítulos (2-em-2) seguindo as estruturas aprovadas; produz sinopses curtas para continuidade entre os pares e ponte Parte 1 → Parte 2",
+  model: MODELS.opus,
+  thinking: "disabled",
+  effort: "low",
+  systemPrompt: ESCRITA_SYSTEM_PROMPT,
+  acceptsReferenceImage: true,
+  buildUserMessage: (ctx) => {
+    const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
+    const estrutura1 = ctx.previousOutputs.estrutura1?.content?.trim() ?? "";
+    const estrutura2 = ctx.previousOutputs.estrutura2?.content?.trim() ?? "";
+    const ajustes = ctx.userInput?.trim() ?? "";
+    const batch = ctx.batch;
+    const previousSynopses = ctx.previousSynopses ?? [];
+
+    if (ctx.refineMode && ctx.currentOutput?.trim() && ajustes) {
+      const refine: string[] = [];
+      refine.push(
+        "Você JÁ escreveu o ROTEIRO COMPLETO. A roteirista pediu uma CORREÇÃO PONTUAL — devolva APENAS os capítulos que precisam mudar pra atender o pedido. NÃO devolva capítulos não impactados. NÃO devolva o roteiro inteiro. NÃO inclua RELATÓRIO, MEMÓRIA VIVA, VALIDAÇÃO, nem banner ═══ ROTEIRO ═══.",
+      );
+      refine.push(
+        `━━━ ROTEIRO ATUAL COMPLETO (apenas referência — você verá o que NÃO precisa mudar) ━━━\n\n${ctx.currentOutput.trim()}`,
+      );
+      refine.push(
+        `━━━ CORREÇÃO PEDIDA PELA ROTEIRISTA ━━━\n\n${ajustes}`,
+      );
+      if (estrutura1) {
+        refine.push(
+          `━━━ ESTRUTURA DA PARTE 1 (referência) ━━━\n\n${estrutura1}`,
+        );
+      }
+      if (estrutura2) {
+        refine.push(
+          `━━━ ESTRUTURA DA PARTE 2 (referência) ━━━\n\n${estrutura2}`,
+        );
+      }
+      refine.push(
+        [
+          "━━━ AÇÃO ━━━",
+          "",
+          "1) Identifique qual(is) capítulo(s) precisa(m) mudar pra atender a correção. Se a roteirista citou cap específico, mexa SÓ nele. Se a correção é difusa (ex: \"deixe o tom mais íntimo\"), mexa só onde realmente precisa mudar.",
+          "",
+          "2) Pra cada capítulo que vai mudar, escreva-o INTEIRO no formato exato:",
+          "",
+          "═══ PARTE 1 ═══   (banner antes do primeiro cap da Parte 1, se houver)",
+          "## Capítulo N — [Título]",
+          "",
+          "[texto completo do capítulo, já corrigido]",
+          "",
+          "═══ PARTE 2 ═══   (banner antes do primeiro cap da Parte 2, se houver)",
+          "## Capítulo N — [Título]",
+          "",
+          "[texto completo do capítulo, já corrigido]",
+          "",
+          "REGRAS RIGOROSAS:",
+          "• SÓ inclua os capítulos que mudaram. Nada de listar capítulos intactos \"por contexto\".",
+          "• Se mexer apenas em capítulos da Parte 2, inclua só o banner ═══ PARTE 2 ═══ — não inclua a Parte 1.",
+          "• Cada capítulo precisa vir COMPLETO (não só o trecho mudado).",
+          "• Mantenha a contagem de palavras dentro de ±3% do alvo declarado na ESTRUTURA correspondente.",
+          "• NÃO inclua ═══ ROTEIRO ═══, ═══ RELATÓRIO ═══, ═══ MEMÓRIA ═══, ═══ VALIDAÇÃO ═══.",
+          "• NÃO peça confirmação. NÃO comente o que mudou. Comece direto pelo banner.",
+          "",
+          "3) Se a correção pedida não exigir alteração em capítulo nenhum, devolva apenas a string `[NENHUMA_ALTERACAO_NECESSARIA]` e nada mais.",
+        ].join("\n"),
+      );
+      return refine.join("\n\n");
+    }
+
+    const sections: string[] = [];
+
+    if (batch) {
+      const chapsLabel =
+        batch.chapters.length === 2
+          ? `Capítulos ${batch.chapters[0]} e ${batch.chapters[1]}`
+          : `Capítulo ${batch.chapters[0]}`;
+      sections.push(
+        `Você vai escrever AGORA apenas o(s) ${chapsLabel} da ${batch.part} (de ${batch.totalInPart} capítulos no total dessa Parte). Este é o batch ${batch.batchIndex} de ${batch.totalBatches}. As estruturas abaixo são FONTE DE VERDADE — eventos, ordem, cenas, gancho e CONTAGEM DE PALAVRAS de cada capítulo precisam bater com elas.`,
+      );
+    } else {
+      sections.push(
+        "Você vai escrever um capítulo do roteiro. As estruturas abaixo são FONTE DE VERDADE — siga FIELMENTE.",
+      );
+    }
+
+    if (ctx.referenceImage) {
+      sections.push(
+        "━━━ IMAGEM DE REFERÊNCIA ANEXADA ━━━\n\nUSE pra calibrar descrições físicas dos personagens (rosto, corpo, cabelo, traços, tatuagens), cenário/ambientação, mood/atmosfera (paleta, peso emocional, iluminação), pequenos detalhes sensoriais. Integre de forma natural, sem ficar descrevendo a imagem. ESTRUTURAS aprovadas e PREMISSA TEXTUAL prevalecem em conflito.",
+      );
+    }
+
+    if (premissa) {
+      sections.push(`━━━ PREMISSA APROVADA (Step 1) ━━━\n\n${premissa}`);
+    } else {
+      sections.push(
+        "━━━ PREMISSA ━━━\n\n⚠️ Não fornecida. Siga gerando com base nas estruturas.",
+      );
+    }
+
+    if (estrutura1) {
+      sections.push(
+        `━━━ ESTRUTURA DA PARTE 1 APROVADA (Step 2 — siga FIELMENTE) ━━━\n\n${estrutura1}`,
+      );
+    } else {
+      sections.push(
+        "━━━ ESTRUTURA DA PARTE 1 ━━━\n\n⚠️ Não fornecida — improviso baseado na premissa.",
+      );
+    }
+
+    if (estrutura2) {
+      sections.push(
+        `━━━ ESTRUTURA DA PARTE 2 APROVADA (Step 3 — siga FIELMENTE) ━━━\n\n${estrutura2}`,
+      );
+    } else {
+      sections.push(
+        "━━━ ESTRUTURA DA PARTE 2 ━━━\n\n⚠️ Não fornecida — improviso quando chegar a Parte 2.",
+      );
+    }
+
+    if (previousSynopses.length > 0) {
+      const lines = previousSynopses
+        .map((s) => `• [${s.part} · Cap ${s.number}] ${s.synopsis}`)
+        .join("\n");
+      sections.push(
+        `━━━ SINOPSES DOS CAPÍTULOS JÁ ESCRITOS (continuidade obrigatória) ━━━\n\n${lines}\n\nUSE essas sinopses pra manter coerência de personagens, eventos, ganchos pendentes e tom. NUNCA contradiga o que já aconteceu. Se algum cliffhanger anterior precisa pagar agora, pague.`,
+      );
+    } else if (batch && batch.batchIndex > 1) {
+      sections.push(
+        "━━━ SINOPSES DOS CAPÍTULOS JÁ ESCRITOS ━━━\n\n(Nenhuma sinopse anterior recebida — gere com base só nas estruturas.)",
+      );
+    }
+
+    if (ajustes) {
+      sections.push(
+        `━━━ INSTRUÇÕES ADICIONAIS DA ROTEIRISTA (ajustes opcionais) ━━━\n\n${ajustes}`,
+      );
+    }
+
+    if (batch) {
+      const chapsList = batch.chapters
+        .map((n) => `Capítulo ${n}`)
+        .join(" e ");
+      const partTotalLabel =
+        batch.part === "Parte 1"
+          ? "12.300 a 12.700 palavras totais (alvo 12.500 — RIGOROSO)"
+          : "13.300 a 13.700 palavras totais (alvo 13.500 — RIGOROSO, jamais cair fora dessa faixa)";
+      sections.push(
+        `━━━ AÇÃO ━━━\n\n1) Escreva APENAS ${chapsList} da ${batch.part}. Não escreva HOOK. Não escreva nenhum outro capítulo. Não inclua banners ═══ ROTEIRO ═══ / ═══ PARTE X ═══ / ═══ RELATÓRIO ═══ / ═══ MEMÓRIA ═══ / ═══ VALIDAÇÃO ═══ — esses ficam por conta do app.\n\n2) Cada capítulo começa com cabeçalho exatamente neste formato:\n\n## Capítulo N — [Título do capítulo conforme a estrutura]\n\n[texto do capítulo]\n\n3) CONTAGEM DE PALAVRAS — REGRA INEGOCIÁVEL DA ESTRUTURA APROVADA:\n   • Margem por capítulo: ±3% do alvo declarado na estrutura.\n   • Total da ${batch.part}: ${partTotalLabel}. O somatório dos capítulos dessa Parte (depois de todos os pares) precisa cair nesse intervalo.\n   • Antes de fechar cada capítulo, conte palavra-por-palavra. Se ficar abaixo, EXPANDA cenas existentes (não invente novas) com mais detalhe sensorial e diálogo. Se ficar acima, ENCURTE redundâncias.\n   • Não tente "salvar palavras pra próximo cap" nem "compensar capítulo anterior" — cada cap fecha dentro do seu alvo individual.\n\n4) Não mencione "parte 1", "parte 2", "capítulo X" no corpo da narrativa — só nos cabeçalhos estruturais.\n\n5) AO FINAL DOS CAPÍTULOS, gere um bloco de sinopses no formato exato:\n\n═══ SINOPSES ═══\n- Cap N: [3-5 frases. O que aconteceu, tom predominante, cliffhanger, contagem real de palavras escrita.]\n- Cap N+1: [idem]\n\nAs sinopses entram como contexto pro próximo par de capítulos — sejam precisas sobre eventos, mudanças de status entre personagens, ganchos abertos. Foco em CONTINUIDADE.`,
+      );
+    }
+
+    return sections.join("\n\n");
+  },
+  maxTokens: 12000,
+  temperature: 0.85,
+};

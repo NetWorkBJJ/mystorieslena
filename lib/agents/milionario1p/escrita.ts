@@ -1,5 +1,5 @@
 import { MODELS } from "@/lib/anthropic";
-import type { Agent } from "./types";
+import type { Agent } from "../types";
 import { ESCRITA_SYSTEM_PROMPT } from "./escrita-prompt";
 
 /**

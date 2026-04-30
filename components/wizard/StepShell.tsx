@@ -41,7 +41,9 @@ import {
   type StepOutput,
 } from "@/types/roteiro";
 import { useWizard } from "@/store/wizard";
-import { AGENTS } from "@/lib/agents";
+import { getAgent } from "@/lib/agents";
+import { CATEGORIES } from "@/lib/categories";
+import { DEFAULT_CATEGORY } from "@/types/roteiro";
 import {
   filterMemoryBlockForDisplay,
   parseEscritaChaptersDirect,
@@ -128,8 +130,9 @@ function parseRevisedChapters(
   if (!trimmed) return [];
   type Hit = { number: number; title?: string; index: number; headerEnd: number };
   const hits: Hit[] = [];
-  const titledRe = /^#{1,4}\s*Cap[ií]tulo\s+(\d+)\s*(?:—|–|-)\s*(.+?)\s*$/gim;
-  const noTitleRe = /^#{1,4}\s*Cap[ií]tulo\s+(\d+)\s*$/gim;
+  // Markdown opcional + bold opcional — tolera variações que o modelo emite.
+  const titledRe = /^#{0,4}\s*\*{0,2}\s*Cap[ií]tulo\s+(\d+)\s*(?:—|–|-)\s*(.+?)\s*\*{0,2}\s*$/gim;
+  const noTitleRe = /^#{0,4}\s*\*{0,2}\s*Cap[ií]tulo\s+(\d+)\s*\*{0,2}\s*$/gim;
   let m: RegExpExecArray | null;
   while ((m = titledRe.exec(trimmed)) !== null) {
     hits.push({
@@ -201,7 +204,8 @@ export function StepShell({ step }: Props) {
   const setCurrentStep = useWizard((s) => s.setCurrentStep);
   const pushOutputToHistory = useWizard((s) => s.pushOutputToHistory);
 
-  const agent = AGENTS[step];
+  const category = roteiro?.category ?? DEFAULT_CATEGORY;
+  const agent = getAgent(category, step);
   const output = roteiro?.outputs[step];
   const idx = STEP_ORDER.indexOf(step);
   const prev = prevStep(step);
@@ -257,18 +261,23 @@ export function StepShell({ step }: Props) {
 
   const historyStack = roteiro?.history?.[step] ?? [];
 
-  // Faixa-alvo de palavras por step pro WordCountBadge
+  // Faixa-alvo de palavras por step pro WordCountBadge — agora category-aware:
+  // soma os totais de P1+P2 da categoria atual (milionário ≠ máfia).
   const wordCountTarget = useMemo<{
     min?: number;
     max?: number;
     label?: string;
   }>(() => {
     if (step === "escrita") {
-      // Total prompt mestre: P1 (11.300-11.700) + P2 (13.000-13.500) = 24.300-25.200
-      return { min: 24300, max: 25200, label: "Total" };
+      const wc = CATEGORIES[category].wordCount;
+      return {
+        min: wc.parte1.min + wc.parte2.min,
+        max: wc.parte1.max + wc.parte2.max,
+        label: "Total",
+      };
     }
     return {};
-  }, [step]);
+  }, [step, category]);
 
   const generate = useCallback(async (
     mode: "regenerate" | "refine" = "regenerate",
@@ -345,8 +354,28 @@ export function StepShell({ step }: Props) {
       const totalP2 = countChaptersInEstrutura(estrutura2);
 
       if (totalP1 === 0 || totalP2 === 0) {
+        // Quando a detecção falha, mostra um snippet da estrutura faltante pra
+        // a roteirista entender o que está na estrutura — facilita decidir se
+        // edita à mão ou regenera.
+        const failingPart =
+          totalP1 === 0 && totalP2 === 0
+            ? "Partes 1 e 2"
+            : totalP1 === 0
+              ? "Parte 1"
+              : "Parte 2";
+        const failingContent =
+          totalP1 === 0
+            ? estrutura1
+            : estrutura2;
+        const snippet = (failingContent ?? "")
+          .trim()
+          .slice(0, 600)
+          .trim();
+        const snippetBlock = snippet
+          ? `\n\n━━━ Trecho atual da ${totalP1 === 0 ? "Estrutura da Parte 1" : "Estrutura da Parte 2"} (primeiros 600 caracteres) ━━━\n\n${snippet}${snippet.length >= 600 ? "\n[...]" : ""}`
+          : `\n\n⚠️ A ${failingPart} está vazia — gere a estrutura no step anterior antes de tentar a Escrita.`;
         setOutput(step, {
-          content: `[ERRO] As Estruturas das Partes 1 e 2 precisam ter capítulos detectáveis (cabeçalhos como "# Capítulo 1 — Título"). Detectei Parte 1 = ${totalP1} capítulos, Parte 2 = ${totalP2} capítulos. Volte aos Steps 2 e 3 e regenere.`,
+          content: `[ERRO] Não consegui detectar capítulos na ${failingPart}. Detectei: Parte 1 = ${totalP1} capítulos, Parte 2 = ${totalP2} capítulos.\n\nO parser aceita várias formas de cabeçalho ("## Capítulo 1 — Título", "Capítulo 1 — Título", "**Capítulo 1**", "Cap. 1") desde que comecem no início da linha. Se o seu modelo gerou os capítulos com outra palavra (ex.: "Etapa", "Cena") ou dentro de uma tabela, a Escrita não consegue planejar os batches.\n\n💡 Como resolver:\n• Volte ao Step ${totalP1 === 0 ? "2" : "3"}, clique em "Editar" na estrutura e renomeie cada cabeçalho pro padrão "## Capítulo N — Título"\n• Ou clique em "Gerar novamente" no Step ${totalP1 === 0 ? "2" : "3"} pra regenerar a estrutura no formato correto${snippetBlock}`,
           generatedAt: startedAt,
         });
         setIsGenerating(false);
@@ -355,19 +384,21 @@ export function StepShell({ step }: Props) {
 
       // planBatches ainda usa targets pra dar contexto ao agente, mas a UI
       // não mais checa programaticamente o output — a calibração é feita
-      // pelo step Revisor.
+      // pelo step Revisor. Targets de fallback respeitam a categoria atual.
       const targetsP1Raw = extractChapterTargets(estrutura1);
       const targetsP2Raw = extractChapterTargets(estrutura2);
+      const targetP1Total = CATEGORIES[category].wordCount.parte1.target;
+      const targetP2Total = CATEGORIES[category].wordCount.parte2.target;
       const targetsP1 = Array.from({ length: totalP1 }, (_, i) =>
         targetsP1Raw.find((t) => t.number === i + 1)?.target ??
-        Math.round(11500 / totalP1),
+        Math.round(targetP1Total / totalP1),
       );
       const targetsP2 = Array.from({ length: totalP2 }, (_, i) =>
         targetsP2Raw.find((t) => t.number === i + 1)?.target ??
-        Math.round(13250 / totalP2),
+        Math.round(targetP2Total / totalP2),
       );
 
-      const plan = planBatches(totalP1, totalP2, targetsP1, targetsP2);
+      const plan = planBatches(totalP1, totalP2, targetsP1, targetsP2, category);
       const accChapters: EscritaChapter[] = [];
       const accSynopses: EscritaSynopsis[] = [];
 
@@ -427,6 +458,7 @@ export function StepShell({ step }: Props) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              category,
               previousOutputs: roteiro.outputs,
               userInput: effectiveUserInput,
               referenceImage: roteiro.referenceImage,
@@ -607,6 +639,7 @@ export function StepShell({ step }: Props) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              category,
               chapter: {
                 number: ch.number,
                 title: ch.title,
@@ -665,7 +698,7 @@ export function StepShell({ step }: Props) {
             (s, c) => s + countWords(c.content),
             0,
           );
-          const range = partTotalRange(part);
+          const range = partTotalRange(part, category);
           if (partTotal >= range.min && partTotal <= range.max) continue;
 
           const direction: "expand" | "shrink" =
@@ -699,6 +732,7 @@ export function StepShell({ step }: Props) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              category,
               chapter: {
                 number: pickedCap.number,
                 title: pickedCap.title,
@@ -768,6 +802,7 @@ export function StepShell({ step }: Props) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            category,
             previousOutputs: roteiro.outputs,
             userInput: effectiveUserInput,
             referenceImage: roteiro.referenceImage,
@@ -827,6 +862,7 @@ export function StepShell({ step }: Props) {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
+                category,
                 revisaoMarkdown: cleanContent,
                 escritaContent,
               }),
@@ -938,6 +974,7 @@ export function StepShell({ step }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          category,
           previousOutputs: roteiro.outputs,
           userInput: effectiveUserInput,
           referenceImage: roteiro.referenceImage,
@@ -1017,6 +1054,7 @@ export function StepShell({ step }: Props) {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
+                category,
                 revisaoMarkdown: cleanContent,
                 escritaContent,
               }),
@@ -1802,9 +1840,14 @@ const StepUserInputBox = memo(function StepUserInputBox({
 function PremissaWizard() {
   const roteiro = useWizard((s) => s.roteiro);
   const setOutput = useWizard((s) => s.setOutput);
+  const setUserInput = useWizard((s) => s.setUserInput);
   const setIsGenerating = useWizard((s) => s.setIsGenerating);
   const pushOutputToHistory = useWizard((s) => s.pushOutputToHistory);
   const isGenerating = useWizard((s) => s.isGenerating);
+
+  // Categoria do roteiro — propagada para os fetches do fluxo automático
+  // da Premissa para que o backend escolha o conjunto correto de prompts.
+  const category = roteiro?.category ?? DEFAULT_CATEGORY;
 
   const output = roteiro?.outputs.premissa;
   const meta = output?.metadata ?? {};
@@ -1813,10 +1856,15 @@ function PremissaWizard() {
   const approved = !!meta.premissaResumoApproved;
   const manual = !!meta.premissaManualPaste;
   const content = output?.content ?? "";
+  // Instruções adicionais escopadas só pra Premissa — não vazam pros outros
+  // steps. Salvas em `userInputs.premissa` e injetadas como contexto extra
+  // em qualquer regeneração (resumo ou estrutura).
+  const savedInstruction = roteiro?.userInputs?.premissa ?? "";
 
   const [briefingDraft, setBriefingDraft] = useState(briefing);
   const [resumoDraft, setResumoDraft] = useState(resumo);
   const [contentDraft, setContentDraft] = useState(content);
+  const [pendingInstruction, setPendingInstruction] = useState(savedInstruction);
   const [liveStream, setLiveStream] = useState("");
   const [streamingPhase, setStreamingPhase] = useState<
     null | "resumo" | "estrutura"
@@ -1836,6 +1884,9 @@ function PremissaWizard() {
   useEffect(() => {
     if (!isEditingContent && !isEditingManual) setContentDraft(content);
   }, [content, isEditingContent, isEditingManual]);
+  useEffect(() => {
+    setPendingInstruction(savedInstruction);
+  }, [savedInstruction]);
 
   // Aborta stream quando o componente desmonta (usuário trocou de step).
   useEffect(() => {
@@ -1875,13 +1926,20 @@ function PremissaWizard() {
   };
 
   // ─── Fase 1: gerar resumo (Bloco 0) ─────────────────────────────────
-  const generateResumo = useCallback(async () => {
+  const generateResumo = useCallback(async (instructionOverride?: string) => {
     const briefingTrim = briefingDraft.trim();
     if (!briefingTrim || isGenerating) return;
 
     if (resumo) {
       pushOutputToHistory("premissa", "Antes de regenerar resumo");
     }
+
+    // Instrução adicional vem ou do override (caller acabou de salvar) ou
+    // do que está persistido em userInputs.premissa.
+    const instruction = (instructionOverride ?? savedInstruction).trim();
+    const fullUserInput = instruction
+      ? `${briefingTrim}\n\n━━━ INSTRUÇÕES ADICIONAIS DA AUTORA ━━━\n${instruction}`
+      : briefingTrim;
 
     abortRef.current?.abort();
     const ctrl = new AbortController();
@@ -1905,7 +1963,8 @@ function PremissaWizard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userInput: briefingTrim,
+          category,
+          userInput: fullUserInput,
           referenceImage: roteiro?.referenceImage,
           premissaPhase: "resumo",
         }),
@@ -1948,6 +2007,7 @@ function PremissaWizard() {
     briefingDraft,
     isGenerating,
     resumo,
+    savedInstruction,
     pushOutputToHistory,
     setIsGenerating,
     setOutput,
@@ -1957,8 +2017,8 @@ function PremissaWizard() {
     roteiro?.referenceImage,
   ]);
 
-  // ─── Fase 2: aprovar resumo + gerar Blocos 1-8 ──────────────────────
-  const approveAndGenerateEstrutura = useCallback(async () => {
+  // ─── Fase 2: aprovar resumo + gerar Blocos 1-7 ──────────────────────
+  const approveAndGenerateEstrutura = useCallback(async (instructionOverride?: string) => {
     const resumoTrim = resumoDraft.trim();
     const briefingTrim = briefingDraft.trim() || briefing;
     if (!resumoTrim || isGenerating) return;
@@ -1966,6 +2026,11 @@ function PremissaWizard() {
     if (content) {
       pushOutputToHistory("premissa", "Antes de regenerar estrutura");
     }
+
+    const instruction = (instructionOverride ?? savedInstruction).trim();
+    const fullUserInput = instruction
+      ? `${briefingTrim}\n\n━━━ INSTRUÇÕES ADICIONAIS DA AUTORA ━━━\n${instruction}`
+      : briefingTrim;
 
     abortRef.current?.abort();
     const ctrl = new AbortController();
@@ -1979,7 +2044,8 @@ function PremissaWizard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userInput: briefingTrim,
+          category,
+          userInput: fullUserInput,
           referenceImage: roteiro?.referenceImage,
           premissaPhase: "estrutura",
           approvedResumo: resumoTrim,
@@ -2025,6 +2091,7 @@ function PremissaWizard() {
     briefing,
     isGenerating,
     content,
+    savedInstruction,
     pushOutputToHistory,
     setIsGenerating,
     setOutput,
@@ -2038,6 +2105,31 @@ function PremissaWizard() {
     setStreamingPhase(null);
     setLiveStream("");
   }, [setIsGenerating]);
+
+  // ─── Aplicar instrução adicional (caixa de "chat") ─────────────────
+  // Comportamento por fase:
+  //   • briefing  → só salva (usado quando clicar em "Gerar resumo")
+  //   • approving → regenera o resumo já injetando a instrução
+  //   • done      → regenera a estrutura mantendo o resumo, com a
+  //                 instrução baked no prompt
+  const applyInstruction = useCallback(async () => {
+    const trimmed = pendingInstruction.trim();
+    if (!trimmed || isGenerating) return;
+    setUserInput("premissa", trimmed);
+    if (phase === "approving") {
+      await generateResumo(trimmed);
+    } else if (phase === "done") {
+      await approveAndGenerateEstrutura(trimmed);
+    }
+    // briefing phase: instrução fica salva; será aplicada no próximo "Gerar resumo".
+  }, [
+    pendingInstruction,
+    isGenerating,
+    phase,
+    setUserInput,
+    generateResumo,
+    approveAndGenerateEstrutura,
+  ]);
 
   // ─── Manual paste ───────────────────────────────────────────────────
   const switchToManual = useCallback(() => {
@@ -2101,7 +2193,7 @@ function PremissaWizard() {
               <span className="text-sm font-semibold text-primary">
                 {streamingPhase === "resumo"
                   ? "Gerando resumo (Bloco 0)…"
-                  : "Construindo universo da história (Blocos 1-8)…"}
+                  : "Construindo estrutura completa da história (Blocos 1-7)…"}
               </span>
             </div>
             <Button
@@ -2347,9 +2439,80 @@ function PremissaWizard() {
         </div>
       )}
 
+      {/* ─── Caixa de instruções adicionais (chat de refinamento) ─── */}
+      {(() => {
+        const trimmedInstruction = pendingInstruction.trim();
+        const instructionDirty = pendingInstruction !== savedInstruction;
+        const hasInstructionContent = trimmedInstruction.length > 0;
+        const canApply = hasInstructionContent && !isGenerating;
+        const placeholder =
+          phase === "briefing"
+            ? "Ex.: tom mais intenso, foco no conflito interno do MMC, troque a cidade pra Paris..."
+            : phase === "approving"
+              ? "Ex.: deixe a Parte 2 mais intensa · faça a FMC ser sommelier em vez de jornalista · troque o vilão pra ex-noiva..."
+              : "Ex.: ajuste a Etapa 5 pra incluir uma viagem · troque o nome do antagonista · adicione um POV do MMC na Etapa 12...";
+        const buttonLabel =
+          phase === "briefing" ? "Salvar instrução" : "Aplicar correção";
+        const buttonTitle = !hasInstructionContent
+          ? "Digite a instrução primeiro"
+          : phase === "briefing"
+            ? "Salva a instrução pra ser aplicada quando você clicar em Gerar resumo"
+            : phase === "approving"
+              ? "Regenera o resumo aplicando essa instrução"
+              : "Regenera a estrutura aplicando essa instrução (mantém o resumo aprovado)";
+        return (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-baseline justify-between gap-2 flex-wrap">
+              <Label htmlFor="premissa-instructions" className="text-sm font-semibold">
+                Instruções adicionais (opcional)
+              </Label>
+              <span className="text-[11px] text-muted-foreground">
+                {phase === "briefing"
+                  ? "Salvas e aplicadas no próximo Gerar resumo"
+                  : phase === "approving"
+                    ? "Aplicar regenera o resumo já com essa instrução"
+                    : "Aplicar regenera a estrutura mantendo o resumo aprovado"}
+              </span>
+            </div>
+            <Textarea
+              id="premissa-instructions"
+              placeholder={placeholder}
+              value={pendingInstruction}
+              onChange={(e) => setPendingInstruction(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+            <div className="flex items-center justify-end gap-2 flex-wrap">
+              {!instructionDirty && hasInstructionContent && (
+                <Badge
+                  variant="outline"
+                  className="font-normal gap-1 border-emerald-300 bg-emerald-50 text-emerald-800"
+                >
+                  <CheckCircle2 className="size-3" />
+                  {phase === "briefing"
+                    ? "Será aplicado ao gerar"
+                    : "Correção aplicada"}
+                </Badge>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!canApply}
+                onClick={applyInstruction}
+                className="gap-2"
+                title={buttonTitle}
+              >
+                <Send className="size-3.5" />
+                {buttonLabel}
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
+
       <ReferenceImageUpload />
 
-      {/* ─── Conteúdo final (Blocos 1-8) ─── */}
+      {/* ─── Conteúdo final (Blocos 1-7) ─── */}
       {phase === "done" && (
         <div className="flex flex-col gap-2">
           <div className="flex items-baseline justify-between gap-2 flex-wrap">
@@ -2358,7 +2521,7 @@ function PremissaWizard() {
                 Universo completo da história
               </Label>
               <span className="text-[11px] text-muted-foreground">
-                Resumo aprovado + Blocos 1 a 8. Vai alimentar Estrutura 1, 2 e Escrita.
+                Resumo aprovado + Blocos 1 a 7. Vai alimentar Estrutura 1, 2 e Escrita.
               </span>
             </div>
             <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-normal gap-1">
@@ -2416,7 +2579,7 @@ function PremissaWizard() {
       <div className="flex items-center gap-2 flex-wrap pt-1">
         {phase === "briefing" && (
           <Button
-            onClick={generateResumo}
+            onClick={() => generateResumo()}
             disabled={!briefingDraft.trim() || isGenerating}
             size="lg"
             className="gap-2"
@@ -2427,15 +2590,15 @@ function PremissaWizard() {
         {phase === "approving" && (
           <>
             <Button
-              onClick={approveAndGenerateEstrutura}
+              onClick={() => approveAndGenerateEstrutura()}
               disabled={!resumoDraft.trim() || isGenerating}
               size="lg"
               className="gap-2"
             >
-              <CheckCircle2 className="size-4" /> Aprovar e gerar universo
+              <CheckCircle2 className="size-4" /> Aprovar e gerar estrutura
             </Button>
             <Button
-              onClick={generateResumo}
+              onClick={() => generateResumo()}
               disabled={!briefingDraft.trim() || isGenerating}
               variant="outline"
               size="lg"
@@ -2447,13 +2610,13 @@ function PremissaWizard() {
         )}
         {phase === "done" && (
           <Button
-            onClick={approveAndGenerateEstrutura}
+            onClick={() => approveAndGenerateEstrutura()}
             disabled={!resumoDraft.trim() || isGenerating}
             variant="outline"
             size="sm"
             className="gap-2"
           >
-            <RotateCcw className="size-3.5" /> Regenerar universo
+            <RotateCcw className="size-3.5" /> Regenerar estrutura
           </Button>
         )}
         <div className="ml-auto">

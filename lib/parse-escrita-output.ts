@@ -280,10 +280,11 @@ function parseChaptersFromRoteiro(
     return current;
   }
 
-  // Localiza cabeçalhos de capítulo. Aceita 1 a 4 #s (## é o novo padrão; #
-  // é tolerado pra retro-compat com roteiros gerados na versão anterior).
-  const chapterRegex = /^#{1,4}\s*Cap[ií]tulo\s+(\d+)\s*(?:—|-|–)\s*(.+?)\s*$/gim;
-  const chapterRegexNoTitle = /^#{1,4}\s*Cap[ií]tulo\s+(\d+)\s*$/gim;
+  // Localiza cabeçalhos de capítulo. `#{0,4}` torna o markdown opcional
+  // (modelo às vezes emite `Capítulo 1 — Título` sem `##`); `\*{0,2}` aceita
+  // bold (`**Capítulo 1**`). O `^` âncora previne falso positivo em narrativa.
+  const chapterRegex = /^#{0,4}\s*\*{0,2}\s*Cap[ií]tulo\s+(\d+)\s*(?:—|-|–)\s*(.+?)\s*\*{0,2}\s*$/gim;
+  const chapterRegexNoTitle = /^#{0,4}\s*\*{0,2}\s*Cap[ií]tulo\s+(\d+)\s*\*{0,2}\s*$/gim;
 
   type Hit = { number: number; title?: string; index: number; headerEnd: number };
   const hits: Hit[] = [];

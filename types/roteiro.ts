@@ -189,9 +189,29 @@ export interface RoteiroReferenceImage {
   uploadedAt: string;
 }
 
+/**
+ * Sub-nicho de romance — define qual conjunto de prompts cada step usa.
+ * Imutável depois que o roteiro é criado: trocar de categoria invalidaria os
+ * outputs já gerados (a Premissa de Máfia não bate com a Estrutura de
+ * Milionário). Roteiros sem esse campo no localStorage (legados) recebem
+ * `"milionario-1p"` por backfill em `lib/storage.ts`.
+ */
+export type RoteiroCategory =
+  | "milionario-1p"
+  | "milionario-3p"
+  | "mafia";
+
+/** Default usado pra roteiros legados (sem `category` no localStorage). */
+export const DEFAULT_CATEGORY: RoteiroCategory = "milionario-1p";
+
 export interface Roteiro {
   id: string;
   title: string;
+  /**
+   * Sub-nicho do roteiro (escolhido na criação). Travado depois disso —
+   * cada categoria tem seu próprio jogo de prompts pros 5 steps.
+   */
+  category: RoteiroCategory;
   createdAt: string;
   updatedAt: string;
   currentStep: StepId;

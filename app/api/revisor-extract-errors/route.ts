@@ -11,16 +11,18 @@
 import { NextRequest } from "next/server";
 import { streamClaudeText } from "@/lib/claude";
 import { MODELS } from "@/lib/anthropic";
-import {
-  REVISOR_EXTRACT_SYSTEM_PROMPT,
-  buildRevisorExtractUserMessage,
-} from "@/lib/agents/revisor-extract-prompt";
+import { getCategoryRevisorExtract } from "@/lib/categories";
+import type { RoteiroCategory } from "@/types/roteiro";
+import { DEFAULT_CATEGORY } from "@/types/roteiro";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 interface Body {
+  /** Sub-nicho do roteiro — escolhe o mapeamento de gravidade correto
+   *  (milionário usa 🟠/🔴, máfia usa 🔴/💀). */
+  category?: RoteiroCategory;
   revisaoMarkdown: string;
   escritaContent: string;
 }
@@ -39,7 +41,8 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const userMessage = buildRevisorExtractUserMessage({
+  const extract = getCategoryRevisorExtract(body.category ?? DEFAULT_CATEGORY);
+  const userMessage = extract.buildUserMessage({
     revisaoMarkdown: body.revisaoMarkdown,
     escritaContent: body.escritaContent,
   });
@@ -49,7 +52,7 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       try {
         for await (const chunk of streamClaudeText({
-          systemPrompt: REVISOR_EXTRACT_SYSTEM_PROMPT,
+          systemPrompt: extract.systemPrompt,
           userMessage,
           model: MODELS.opus,
           thinking: "disabled",

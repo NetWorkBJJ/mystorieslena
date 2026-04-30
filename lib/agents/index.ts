@@ -1,21 +1,23 @@
+/**
+ * Dispatcher de agentes por categoria.
+ *
+ * Antes era um Record<StepId, Agent> único — agora cada categoria registra
+ * o próprio jogo de 5 agentes. Os call sites ganharam um parâmetro
+ * `category` que casa com `Roteiro.category` (default "milionario-1p"
+ * para roteiros legados, backfill em lib/storage.ts).
+ */
+
 import type { StepId } from "@/types/roteiro";
+import { DEFAULT_CATEGORY } from "@/types/roteiro";
+import type { RoteiroCategory } from "@/lib/categories/types";
+import { getCategoryAgent } from "@/lib/categories";
 import type { Agent } from "./types";
-import { premissaAgent } from "./premissa";
-import { estrutura1Agent } from "./estrutura1";
-import { estrutura2Agent } from "./estrutura2";
-import { escritaAgent } from "./escrita";
-import { revisorAgent } from "./revisor";
 
-export const AGENTS: Record<StepId, Agent> = {
-  premissa: premissaAgent,
-  estrutura1: estrutura1Agent,
-  estrutura2: estrutura2Agent,
-  escrita: escritaAgent,
-  revisor: revisorAgent,
-};
-
-export function getAgent(id: StepId): Agent {
-  return AGENTS[id];
+export function getAgent(
+  category: RoteiroCategory | undefined,
+  step: StepId,
+): Agent {
+  return getCategoryAgent(category ?? DEFAULT_CATEGORY, step);
 }
 
 export type { Agent } from "./types";
