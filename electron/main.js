@@ -27,6 +27,26 @@ try {
   autoUpdater = null;
 }
 
+// Logger persistente. Escreve em:
+//   Windows: %USERPROFILE%\AppData\Roaming\MyStoriesLena\logs\main.log
+//   macOS:   ~/Library/Logs/MyStoriesLena/main.log
+// Sem isso, tela branca em prod era impossivel de debugar — usuaria nao
+// tinha nada pra mandar.
+let log;
+try {
+  log = require("electron-log/main");
+  log.initialize();
+  log.transports.file.level = "info";
+  log.transports.file.maxSize = 5 * 1024 * 1024;
+  // Faz console.log/error/warn no main escrever no arquivo tambem.
+  Object.assign(console, log.functions);
+} catch (e) {
+  // Fallback: se electron-log nao existe (dev sem npm install), usa console
+  // padrao. App ainda funciona, so nao tem logs persistentes.
+  log = { info: console.log, warn: console.warn, error: console.error };
+  console.warn("[boot] electron-log indisponivel:", e?.message || e);
+}
+
 const isDev = !!process.env.NEXT_DEV_URL;
 const DEV_URL = process.env.NEXT_DEV_URL || "";
 
@@ -34,6 +54,12 @@ let mainWindow = null;
 let serverProc = null;
 let appUrl = null;
 let runtimeMode = "packaged";
+// Watchdog do server packaged: se o `node server.js` morrer durante uso normal
+// (OOM, exception nao tratada), tentamos respawnar antes de mostrar erro.
+let serverRestartCount = 0;
+let serverIsRespawning = false;
+const MAX_SERVER_RESTARTS = 3;
+const SERVER_RESTART_BACKOFF_MS = [1000, 3000, 7000];
 
 function findFreePort(start = 17310) {
   return new Promise((resolve) => {
@@ -146,6 +172,40 @@ function getClaudeExecutablePath(sourceDir) {
 }
 
 /**
+ * Restaura permissao de execucao + remove quarentena do binario claude no Mac/Linux.
+ *
+ * Por que: arquivos copiados via extraResources pra .app/Contents/Resources/ no
+ * Mac as vezes saem sem flag de execucao apos extract do .dmg, ou ficam com
+ * atributo com.apple.quarantine herdado do download. O resultado e EACCES ao
+ * spawnar — afeta tanto o fluxo de "Conectar conta Claude" quanto a geracao de
+ * roteiro (que tambem spawna o binario). Antes, esse reparo so rodava DENTRO do
+ * shell script de setup; agora roda no boot, garantindo que qualquer caminho
+ * que tente executar o binario funcione.
+ *
+ * No Windows nao precisa — claude.exe roda sem flag especial.
+ */
+function prepareNativeBinary(claudeExe) {
+  if (!claudeExe || process.platform === "win32") return;
+  try {
+    fs.chmodSync(claudeExe, 0o755);
+    console.log(`[claude] chmod +x aplicado em ${claudeExe}`);
+  } catch (e) {
+    console.warn(`[claude] chmod falhou (best-effort): ${e?.message || e}`);
+  }
+  if (process.platform === "darwin") {
+    try {
+      const { execFileSync } = require("child_process");
+      execFileSync("xattr", ["-d", "com.apple.quarantine", claudeExe], {
+        stdio: "ignore",
+      });
+      console.log(`[claude] xattr quarantine removido de ${claudeExe}`);
+    } catch {
+      // E esperado falhar quando o atributo nao existe — silencioso.
+    }
+  }
+}
+
+/**
  * Modo LIVE: spawn `next dev` a partir da pasta-fonte. Mudanças no código
  * aparecem na próxima abertura do app — basta fechar e abrir.
  */
@@ -175,6 +235,7 @@ async function startServerFromSource(sourceDir) {
 
   const claudeExe = getClaudeExecutablePath(sourceDir);
   if (claudeExe) {
+    prepareNativeBinary(claudeExe);
     env.MYSTORIESLENA_CLAUDE_EXEC = claudeExe;
     console.log(`[claude] usando binário em: ${claudeExe}`);
   }
@@ -234,6 +295,7 @@ async function startServerPackaged() {
 
   const claudeExe = getClaudeExecutablePath(null);
   if (claudeExe) {
+    prepareNativeBinary(claudeExe);
     env.MYSTORIESLENA_CLAUDE_EXEC = claudeExe;
     console.log(`[claude] usando binário em: ${claudeExe}`);
   } else {
@@ -254,9 +316,68 @@ async function startServerPackaged() {
   serverProc.on("exit", (code) => {
     console.log(`[next] exited code=${code}`);
     serverProc = null;
+    // Watchdog: se a janela ainda esta aberta e o exit foi anormal, tenta
+    // respawnar. Sem isso, qualquer crash do server (OOM, exception nao
+    // tratada) deixa a UI em tela branca permanente porque http://localhost:port
+    // para de responder.
+    if (
+      code !== 0 &&
+      mainWindow &&
+      !mainWindow.isDestroyed() &&
+      !app.isQuitting &&
+      !serverIsRespawning
+    ) {
+      void respawnServer();
+    }
   });
 
   return `http://127.0.0.1:${port}`;
+}
+
+/**
+ * Restart do server packaged apos crash. Tenta ate MAX_SERVER_RESTARTS vezes
+ * com backoff exponencial. Quando consegue subir, recarrega a janela.
+ * Se esgotar tentativas, mostra dialog pedindo pra reabrir o app.
+ */
+async function respawnServer() {
+  if (serverIsRespawning) return;
+  serverIsRespawning = true;
+  try {
+    while (serverRestartCount < MAX_SERVER_RESTARTS) {
+      const attempt = serverRestartCount + 1;
+      const backoff = SERVER_RESTART_BACKOFF_MS[serverRestartCount] ?? 7000;
+      console.warn(`[watchdog] tentativa ${attempt}/${MAX_SERVER_RESTARTS} de respawn em ${backoff}ms`);
+      await new Promise((r) => setTimeout(r, backoff));
+      serverRestartCount += 1;
+      try {
+        appUrl = await startServerPackaged();
+        await waitForHealth(appUrl, 30000);
+        console.log(`[watchdog] server respondeu em ${appUrl}, recarregando janela`);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.loadURL(appUrl);
+        }
+        // Sucesso — reseta contador pra que um proximo crash tenha 3 chances de novo.
+        serverRestartCount = 0;
+        return;
+      } catch (e) {
+        console.error(`[watchdog] tentativa ${attempt} falhou:`, e?.message || e);
+      }
+    }
+    // Esgotou as tentativas.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const r = await dialog.showMessageBox(mainWindow, {
+        type: "error",
+        title: "MyStoriesLena travou",
+        message: "Não consegui recuperar o servidor interno após várias tentativas.",
+        detail:
+          "Reabra o aplicativo. Se o problema persistir, abra a pasta de logs (menu Ajuda) e mande pra gente.",
+        buttons: ["Sair"],
+      });
+      if (r.response === 0) app.quit();
+    }
+  } finally {
+    serverIsRespawning = false;
+  }
 }
 
 function waitForHealth(baseUrl, timeoutMs = 60000) {
@@ -315,6 +436,58 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
+  });
+
+  // Crash handlers: sem isso, quando o renderer morre (OOM, exception fatal)
+  // ou o load falha (server caiu), a janela fica branca silenciosamente.
+  // Agora logamos, abrimos DevTools (em packaged) e damos opcao de recarregar.
+  mainWindow.webContents.on("render-process-gone", (_e, details) => {
+    console.error("[crash] render-process-gone:", JSON.stringify(details));
+    if (app.isPackaged && mainWindow && !mainWindow.isDestroyed()) {
+      try {
+        mainWindow.webContents.openDevTools({ mode: "detach" });
+      } catch {
+        // ignore
+      }
+    }
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    dialog
+      .showMessageBox(mainWindow, {
+        type: "error",
+        title: "MyStoriesLena travou",
+        message: "Ocorreu um erro interno na interface.",
+        detail: `Motivo: ${details?.reason ?? "desconhecido"} (exit ${details?.exitCode ?? "?"}).\n\nPosso recarregar a janela.`,
+        buttons: ["Recarregar", "Sair"],
+        defaultId: 0,
+        cancelId: 1,
+      })
+      .then((r) => {
+        if (r.response === 0 && appUrl && mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.loadURL(appUrl);
+        } else {
+          app.quit();
+        }
+      })
+      .catch(() => {
+        // Dialog falhou — best effort.
+      });
+  });
+
+  mainWindow.webContents.on("did-fail-load", (_e, code, desc, url) => {
+    // Ignora canceled (usuario navegou pra outra coisa antes da load terminar)
+    // e o load inicial do loading.html (file:// pode falhar em alguns cenarios).
+    if (code === -3) return; // ABORTED
+    console.warn(`[load] did-fail-load code=${code} desc=${desc} url=${url}`);
+    // -102 = CONNECTION_REFUSED — server pode estar reinicializando. Tenta de novo.
+    if (code === -102 && appUrl && mainWindow && !mainWindow.isDestroyed()) {
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadURL(appUrl);
+      }, 1500);
+    }
+  });
+
+  mainWindow.on("unresponsive", () => {
+    console.warn("[window] janela unresponsive");
   });
 
   mainWindow.on("closed", () => {
@@ -487,6 +660,26 @@ ipcMain.handle("updater:install", () => {
   // isSilent=false (mostra wizard NSIS), isForceRunAfter=true (reabre depois).
   autoUpdater.quitAndInstall(false, true);
   return { ok: true };
+});
+
+/**
+ * Abre a pasta de logs no explorer/finder. Usado pelo botao "Abrir pasta de
+ * logs" no app, pra usuaria conseguir mandar o log quando reportar bug.
+ */
+ipcMain.handle("log:open-folder", () => {
+  try {
+    const logFile = log?.transports?.file?.getFile?.()?.path;
+    if (logFile) {
+      shell.showItemInFolder(logFile);
+      return { ok: true, path: logFile };
+    }
+    // Fallback: abre o diretorio userData direto.
+    const userData = app.getPath("logs");
+    shell.openPath(userData);
+    return { ok: true, path: userData };
+  } catch (e) {
+    return { ok: false, reason: String(e?.message || e) };
+  }
 });
 
 /**
@@ -742,6 +935,14 @@ pause
         // .app, ou se o usuario nao rodou xattr antes de abrir).
         'chmod +x "$CLAUDE_BIN" 2>/dev/null || true',
         'xattr -d com.apple.quarantine "$CLAUDE_BIN" 2>/dev/null || true',
+        // Falha ruidosa se o binario nao ficou executavel — sem isso, o claude
+        // dava erro EACCES enigmatico e a usuaria nao sabia o que fazer.
+        'if [ ! -x "$CLAUDE_BIN" ]; then',
+        '  echo "ERRO: binario claude sem permissao de execucao em $CLAUDE_BIN"',
+        '  echo "Tente reinstalar o MyStoriesLena."',
+        "  read -p 'Pressione Enter pra fechar...'",
+        "  exit 1",
+        "fi",
         "echo 'AGORA:'",
         "echo '  1. Digite /login e aperte Enter'",
         "echo '  2. Faca login no navegador que vai abrir'",
@@ -757,14 +958,17 @@ pause
         "",
       ].join("\n");
       fs.writeFileSync(shPath, shContent, { mode: 0o755 });
-      const script = `tell application "Terminal"
-  activate
-  do script "bash ${shPath}"
-end tell`;
-      spawn("osascript", ["-e", script], {
+      // `open -a Terminal <script>` abre Terminal.app executando o script.
+      // Trocado de osascript pra evitar prompt de permissao de Automation
+      // (que algumas usuarias negam, deixando o setup silenciosamente quebrado).
+      const child = spawn("open", ["-a", "Terminal", shPath], {
         detached: true,
         stdio: "ignore",
-      }).unref();
+      });
+      child.on("error", (err) => {
+        console.error("[claude:setup] open -a Terminal falhou:", err);
+      });
+      child.unref();
     } else {
       // Linux best-effort.
       spawn("x-terminal-emulator", ["-e", claudeExe], {
@@ -815,6 +1019,9 @@ app.on("activate", () => {
 });
 
 app.on("before-quit", () => {
+  // Sinaliza pro watchdog NAO tentar respawnar quando o server morrer durante
+  // shutdown (kill abaixo dispara `exit` com code != 0).
+  app.isQuitting = true;
   if (serverProc && !serverProc.killed) {
     try {
       // Em modo detached:true, kill() só mata o processo direto — os

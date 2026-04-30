@@ -55,6 +55,13 @@ contextBridge.exposeInMainWorld("mystorieslena", {
   logoutClaude: () => ipcRenderer.invoke("claude:logout"),
 
   /**
+   * Abre a pasta de logs no explorer/finder (Windows: %APPDATA%\MyStoriesLena\logs;
+   * Mac: ~/Library/Logs/MyStoriesLena). Útil pra usuária mandar log quando
+   * reportar bug.
+   */
+  openLogsFolder: () => ipcRenderer.invoke("log:open-folder"),
+
+  /**
    * Assina eventos do auto-updater. Retorna função pra remover assinatura.
    *   onUpdateEvent(({ type, payload }) => {})
    * type pode ser: "checking-for-update", "update-available",

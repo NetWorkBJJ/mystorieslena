@@ -21,14 +21,23 @@ jobs:
       # CRITICO: max-parallel=1 evita race condition na criacao da release no
       # GitHub. Os dois jobs antes rodavam em paralelo e ambos tentavam fazer
       # POST /releases com a mesma tag -> 422 already_exists. Agora rodam
-      # serializados: o primeiro cria a release, o segundo so anexa assets.
+      # serializados: o primeiro garante que a release existe, o segundo
+      # apenas anexa assets.
       max-parallel: 1
       matrix:
         include:
-          - os: macos-latest
-            artifact: MyStoriesLena-*.dmg
+          # Windows roda PRIMEIRO: cria a release no GitHub se nao existir
+          # ainda (`gh release create` idempotente) e anexa os assets do .exe
+          # + latest.yml.
           - os: windows-latest
             artifact: MyStoriesLena-Setup-*.exe
+          # macOS roda DEPOIS: a release ja existe (criada pelo Windows),
+          # entao basta anexar os assets do .dmg/.zip + latest-mac.yml.
+          # Antes usavamos `--publish always` no electron-builder, mas com
+          # multi-arch (arm64+x64) ele tem race conditions e as vezes nao
+          # publica `latest-mac.yml`, deixando o auto-updater Mac quebrado.
+          - os: macos-latest
+            artifact: MyStoriesLena-*.dmg
 
     steps:
       - name: Checkout código
@@ -59,27 +68,26 @@ jobs:
       - name: Build Next.js standalone
         run: npm run build
 
-      # macOS roda PRIMEIRO (max-parallel=1 + ordem na matrix) e cria a
-      # release no GitHub via electron-builder.
-      - name: Empacotar e publicar (macOS)
-        if: matrix.os == 'macos-latest'
-        run: npx electron-builder --mac dmg zip --publish always
+      # Garante que a release existe antes de qualquer upload manual. Idempotente:
+      # se a release ja foi criada (por outro job ou por uma re-execucao), o
+      # `gh release view` passa e o `gh release create` e pulado.
+      - name: Garantir release no GitHub
+        shell: bash
+        run: |
+          if ! gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "${GITHUB_REF_NAME}" \
+              --notes "Release ${GITHUB_REF_NAME}"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Sem assinatura — app vai mostrar Gatekeeper warning na primeira execução.
-          # Adicione APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID e
-          # CSC_LINK/CSC_KEY_PASSWORD se for assinar e notarizar.
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      # Windows roda DEPOIS. Antes era 'electron-builder --publish always'
-      # mas isso bate em 422 already_exists tentando criar release que já
-      # existe (criada pelo job do macOS). Agora builda só localmente
-      # (--publish never) e usa gh CLI pra anexar os assets na release.
       - name: Empacotar (Windows)
         if: matrix.os == 'windows-latest'
         run: npx electron-builder --win nsis --publish never
 
-      - name: Anexar assets do Windows na release (Windows)
+      - name: Anexar assets do Windows na release
         if: matrix.os == 'windows-latest'
         shell: bash
         run: |
@@ -87,6 +95,38 @@ jobs:
             dist-electron/MyStoriesLena-Setup-*.exe \
             dist-electron/MyStoriesLena-Setup-*.exe.blockmap \
             dist-electron/latest.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Empacotar (macOS)
+        if: matrix.os == 'macos-latest'
+        run: npx electron-builder --mac dmg zip --publish never
+        env:
+          # Sem assinatura — app vai mostrar Gatekeeper warning na primeira execução.
+          # Adicione APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID e
+          # CSC_LINK/CSC_KEY_PASSWORD se for assinar e notarizar.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      # latest-mac.yml é o arquivo CRITICO que electron-updater procura no Mac.
+      # Antes confiavamos no `--publish always` do electron-builder pra anexa-lo,
+      # mas em build multi-arch (arm64+x64) ele as vezes falha silenciosamente,
+      # e o auto-updater Mac retorna "no update available" mesmo com release nova.
+      - name: Anexar assets do macOS na release
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            dist-electron/MyStoriesLena-*-arm64.dmg \
+            dist-electron/MyStoriesLena-*-arm64.dmg.blockmap \
+            dist-electron/MyStoriesLena-*-x64.dmg \
+            dist-electron/MyStoriesLena-*-x64.dmg.blockmap \
+            dist-electron/MyStoriesLena-*-arm64-mac.zip \
+            dist-electron/MyStoriesLena-*-arm64-mac.zip.blockmap \
+            dist-electron/MyStoriesLena-*-x64-mac.zip \
+            dist-electron/MyStoriesLena-*-x64-mac.zip.blockmap \
+            dist-electron/latest-mac.yml \
             --repo "${GITHUB_REPOSITORY}" \
             --clobber
         env:

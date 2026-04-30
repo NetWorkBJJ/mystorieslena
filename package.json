@@ -1,7 +1,7 @@
 {
   "name": "mystorieslena",
   "productName": "MyStoriesLena",
-  "version": "1.0.37",
+  "version": "1.0.38",
   "description": "MyStoriesLena — Gerador de Roteiros de Romance",
   "private": true,
   "main": "electron/main.js",
@@ -24,6 +24,7 @@
     "@tailwindcss/typography": "^0.5.19",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "electron-log": "^5.4.3",
     "electron-updater": "^6.3.9",
     "lucide-react": "^1.11.0",
     "next": "16.2.4",
