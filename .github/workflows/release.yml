@@ -111,8 +111,12 @@ jobs:
 
       # latest-mac.yml é o arquivo CRITICO que electron-updater procura no Mac.
       # Antes confiavamos no `--publish always` do electron-builder pra anexa-lo,
-      # mas em build multi-arch (arm64+x64) ele as vezes falha silenciosamente,
-      # e o auto-updater Mac retorna "no update available" mesmo com release nova.
+      # mas as vezes ele falha silenciosamente e o auto-updater Mac retorna
+      # "no update available" mesmo com release nova.
+      #
+      # NOTA: o runner macos-latest e arm64. O electron-builder cross-compila
+      # so o arm64 por default mesmo com `arch: ["arm64", "x64"]` no
+      # package.json — assets x64 nao saem do build, entao nao tentamos subir.
       - name: Anexar assets do macOS na release
         if: matrix.os == 'macos-latest'
         shell: bash
@@ -120,12 +124,8 @@ jobs:
           gh release upload "${GITHUB_REF_NAME}" \
             dist-electron/MyStoriesLena-*-arm64.dmg \
             dist-electron/MyStoriesLena-*-arm64.dmg.blockmap \
-            dist-electron/MyStoriesLena-*-x64.dmg \
-            dist-electron/MyStoriesLena-*-x64.dmg.blockmap \
             dist-electron/MyStoriesLena-*-arm64-mac.zip \
             dist-electron/MyStoriesLena-*-arm64-mac.zip.blockmap \
-            dist-electron/MyStoriesLena-*-x64-mac.zip \
-            dist-electron/MyStoriesLena-*-x64-mac.zip.blockmap \
             dist-electron/latest-mac.yml \
             --repo "${GITHUB_REPOSITORY}" \
             --clobber
