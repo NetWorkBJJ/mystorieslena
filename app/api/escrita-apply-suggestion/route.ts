@@ -3,11 +3,15 @@
  * num trecho do roteiro.
  *
  * Otimização chave: vários erros que afetam o MESMO ESCOPO (ex: 3 erros
- * no Cap 4 da Parte 2) são enviados juntos numa única chamada Opus.
+ * no Cap 4 da Parte 2) são enviados juntos numa única chamada ao modelo.
  * Reduz drasticamente o tempo total quando há muitos erros transversais
  * — em vez de N chamadas seriais, faz 1 chamada por escopo único.
  *
- * Modelo: Opus (precisão na reescrita preservando voz e estrutura).
+ * Modelo: Opus (qualidade máxima na reescrita preservando voz e estrutura).
+ * Já configurado pro máximo de velocidade possível dentro do Opus
+ * (thinking=disabled, effort=low) — qualquer ganho adicional vem do UI:
+ * preview ao vivo no card mostra os chunks chegando, e o usuário pode
+ * cancelar antes de terminar.
  */
 
 import { NextRequest } from "next/server";

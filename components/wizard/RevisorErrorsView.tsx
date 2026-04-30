@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -77,7 +84,10 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
    * tenha falhado). Usa o mesmo helper compartilhado que o fluxo automático.
    */
   const applySuggestion = useCallback(
-    async (errorId: string): Promise<{ applied: boolean }> => {
+    async (
+      errorId: string,
+      opts: { signal?: AbortSignal; onChunk?: (acc: string) => void } = {},
+    ): Promise<{ applied: boolean }> => {
       const err = errors.find((e) => e.id === errorId);
       if (!err || !escritaOutput?.content || !revisorOutput) {
         return { applied: false };
@@ -92,6 +102,8 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
         error: err,
         escritaContent: escritaOutput.content,
         chapters: escritaOutput.metadata?.chapters ?? [],
+        signal: opts.signal,
+        onChunk: opts.onChunk,
       });
 
       if (
@@ -218,7 +230,7 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
               error={enrichedErr}
               disabled={!escritaContent}
               onApply={() => applyOne(err.id)}
-              onApplySuggestion={() => applySuggestion(err.id)}
+              onApplySuggestion={(opts) => applySuggestion(err.id, opts)}
             />
           );
         })}
@@ -282,7 +294,10 @@ interface CardProps {
   error: RevisorError;
   disabled: boolean;
   onApply: () => { applied: boolean; found: boolean };
-  onApplySuggestion: () => Promise<{ applied: boolean }>;
+  onApplySuggestion: (opts: {
+    signal: AbortSignal;
+    onChunk: (acc: string) => void;
+  }) => Promise<{ applied: boolean }>;
 }
 
 function ErrorCard({
@@ -295,10 +310,13 @@ function ErrorCard({
   const [pending, startTransition] = useTransition();
   const [suggestionPending, setSuggestionPending] = useState(false);
   const [localFailed, setLocalFailed] = useState(false);
+  const [livePreview, setLivePreview] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
 
   // Erro "transversal" — sem trecho_original literal pra fazer find+replace.
-  // O botão de aplicar dispara o Opus pra reescrever o roteiro com a
-  // sugestão da IA (e o card visualmente enfatiza que é uma SUGESTÃO).
+  // O botão de aplicar dispara a reescrita LLM com a sugestão da IA (e o
+  // card visualmente enfatiza que é uma SUGESTÃO). Pode demorar — por isso
+  // o botão vira "Cancelar correção" enquanto a chamada está em curso.
   const isInformativo = isInformativoError(error);
 
   const handleApply = () => {
@@ -311,13 +329,27 @@ function ErrorCard({
 
   const handleApplySuggestion = async () => {
     setLocalFailed(false);
+    setLivePreview("");
     setSuggestionPending(true);
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
     try {
-      const result = await onApplySuggestion();
-      if (!result.applied) setLocalFailed(true);
+      const result = await onApplySuggestion({
+        signal: ctrl.signal,
+        onChunk: (acc) => {
+          if (!ctrl.signal.aborted) setLivePreview(acc);
+        },
+      });
+      if (!result.applied && !ctrl.signal.aborted) setLocalFailed(true);
     } finally {
+      abortRef.current = null;
       setSuggestionPending(false);
+      setLivePreview("");
     }
+  };
+
+  const handleCancelSuggestion = () => {
+    abortRef.current?.abort();
   };
 
   // Append "(Parte N)" no título se a parte é conhecida E o agente ainda
@@ -427,11 +459,22 @@ function ErrorCard({
               <CheckCircle2 className="size-4" />
               Correção aplicada no roteiro
             </Button>
+          ) : suggestionPending ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCancelSuggestion}
+              className="gap-2 border-amber-400 text-amber-900 hover:bg-amber-50"
+              title="Cancela a reescrita em andamento — o roteiro do Step 4 não é alterado"
+            >
+              <Loader2 className="size-4 animate-spin" />
+              Cancelar correção
+            </Button>
           ) : (
             <Button
               size="sm"
               onClick={isInformativo ? handleApplySuggestion : handleApply}
-              disabled={disabled || pending || suggestionPending}
+              disabled={disabled || pending}
               className="gap-2"
               title={
                 disabled
@@ -439,22 +482,20 @@ function ErrorCard({
                   : isInformativo &&
                     error.parte &&
                     typeof error.capitulo === "number"
-                  ? `Opus reescreve só o Cap. ${error.capitulo} da Parte ${error.parte} aplicando a sugestão`
+                  ? `Opus reescreve só o Cap. ${error.capitulo} da Parte ${error.parte} aplicando a sugestão (preview ao vivo no card)`
                   : isInformativo && error.parte
-                  ? `Opus reescreve só a Parte ${error.parte} aplicando a sugestão`
+                  ? `Opus reescreve só a Parte ${error.parte} aplicando a sugestão (preview ao vivo no card)`
                   : isInformativo
-                  ? "Opus reescreve o roteiro inteiro aplicando a sugestão"
+                  ? "Opus reescreve o roteiro inteiro aplicando a sugestão (preview ao vivo no card)"
                   : "Substitui o trecho original pelo corrigido no roteiro do Step 4"
               }
             >
-              {pending || suggestionPending ? (
+              {pending ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <Wand2 className="size-4" />
               )}
-              {pending || suggestionPending
-                ? "Aplicando…"
-                : "Aplicar essa correção"}
+              {pending ? "Aplicando…" : "Aplicar essa correção"}
             </Button>
           )}
           {localFailed && !error.applied && !isInformativo && (
@@ -471,8 +512,46 @@ function ErrorCard({
             </span>
           )}
         </div>
+
+        {suggestionPending && (
+          <LivePreviewBox text={livePreview} />
+        )}
       </div>
     </details>
+  );
+}
+
+function LivePreviewBox({ text }: { text: string }) {
+  // Mantém a última linha visível conforme Opus escreve. Sem auto-scroll
+  // o usuário fica olhando o início travado enquanto o texto cresce.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const charCount = text.length;
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [text]);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
+          ✨ Opus reescrevendo ao vivo
+        </span>
+        <span className="text-[10px] text-muted-foreground tabular-nums">
+          {charCount.toLocaleString("pt-BR")} caracteres
+        </span>
+      </div>
+      <div
+        ref={scrollRef}
+        className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words font-sans text-[12px] leading-relaxed border-l-2 border-l-primary/40 bg-primary/5 text-foreground/80 pl-4 pr-3 py-2.5 rounded-r-md"
+      >
+        {text || (
+          <span className="italic text-muted-foreground">
+            Aguardando primeiro chunk do Opus…
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
