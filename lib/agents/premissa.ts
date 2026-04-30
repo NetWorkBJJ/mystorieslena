@@ -3,7 +3,7 @@ import type { Agent } from "./types";
 import { PREMISSA_SYSTEM_PROMPT } from "./premissa-prompt";
 
 /**
- * Etapa 1 — Premissa (Dark Romance de Máfia, duologia).
+ * Etapa 1 — Premissa (Romance de Bilionário, duologia).
  *
  * Funciona em duas fases orquestradas pelo frontend:
  *
@@ -12,11 +12,11 @@ import { PREMISSA_SYSTEM_PROMPT } from "./premissa-prompt";
  *     A partir do briefing do usuário (ctx.userInput), gera APENAS os dois
  *     resumos longos (Parte 1 + Parte 2, ~600-900 palavras cada).
  *
- *   FASE 2 — UNIVERSO (Blocos 1-8):
+ *   FASE 2 — ESTRUTURA COMPLETA (Blocos 1-7):
  *     ctx.premissaPhase === "estrutura"
  *     Recebe o resumo já aprovado pelo usuário (ctx.approvedResumo) e
- *     gera os Blocos 1-8 completos (cabeçalho, elenco fixo, cenários,
- *     regras do mundo, contexto histórico, 6+14 etapas, regras globais).
+ *     gera os Blocos 1-7 completos (cabeçalho, elenco fixo, cenários,
+ *     contexto histórico, 6+14 etapas, regras globais).
  *
  * Modo legado (sem premissaPhase): comportamento de fallback que pede o
  * Bloco 0 — funciona se o frontend chamar sem flag.
@@ -25,7 +25,7 @@ export const premissaAgent: Agent = {
   id: "premissa",
   label: "Premissa",
   description:
-    "Premissa de Dark Romance de Máfia (duologia). Fluxo em duas fases: gera resumo, espera aprovação, gera universo Blocos 1-8",
+    "Premissa de Romance de Bilionário (duologia). Fluxo em duas fases: gera resumo, espera aprovação, gera estrutura completa Blocos 1-7",
   model: MODELS.opus,
   thinking: "disabled",
   effort: "low",
@@ -36,7 +36,7 @@ export const premissaAgent: Agent = {
     const briefing = ctx.userInput?.trim() || "";
     const briefingBlock = briefing
       ? `IDEIA BASE DO USUÁRIO:\n\n${briefing}`
-      : "IDEIA BASE DO USUÁRIO: nenhuma ideia específica foi enviada — escolha cidade, organização, MMC, FMC, gatilho e segredo central seguindo as regras do prompt mestre.";
+      : "IDEIA BASE DO USUÁRIO: nenhuma ideia específica foi enviada — escolha cidade, tipo de fortuna do MMC, profissão da FMC, gatilho inicial e segredo central seguindo as regras do prompt mestre.";
 
     if (phase === "estrutura") {
       const resumo = ctx.approvedResumo?.trim() || "";
@@ -49,21 +49,20 @@ export const premissaAgent: Agent = {
         resumoBlock,
         `TAREFA NESTE TURNO:
 
-Entregue APENAS os Blocos 1 ao 8, na ordem exata definida na PARTE I do prompt mestre:
+Entregue APENAS os Blocos 1 ao 7, na ordem exata definida na PARTE G do prompt mestre:
 - BLOCO 1: CABEÇALHO
 - BLOCO 2: ELENCO FIXO
 - BLOCO 3: CENÁRIOS FIXOS
-- BLOCO 4: REGRAS DO MUNDO MAFIOSO
-- BLOCO 5: CONTEXTO HISTÓRICO TRAVADO
-- BLOCO 6: PARTE 1 — ETAPAS 1 ATÉ 6
-- BLOCO 7: PARTE 2 — ETAPAS 7 ATÉ 20
-- BLOCO 8: REGRAS GLOBAIS DE ESCRITA
+- BLOCO 4: CONTEXTO HISTÓRICO TRAVADO
+- BLOCO 5: PARTE 1 — ETAPAS 1 ATÉ 6
+- BLOCO 6: PARTE 2 — ETAPAS 7 ATÉ 20
+- BLOCO 7: REGRAS GLOBAIS DE ESCRITA
 
 NÃO repita o Bloco 0 (resumo). Comece direto pelo Bloco 1.
 
-Mantenha coerência total com o resumo aprovado: nomes, cidade, organização mafiosa, gatilho, segredo central, antagonista e final feliz precisam ser exatamente os mesmos. Os Blocos 1-8 detalham e expandem o que o resumo já estabeleceu — não introduzem mudanças de rumo.
+Mantenha coerência total com o resumo aprovado: nomes, cidade, tipo de fortuna do MMC, gatilho, segredo central, antagonista e final feliz precisam ser exatamente os mesmos. Os Blocos 1-7 detalham e expandem o que o resumo já estabeleceu — não introduzem mudanças de rumo.
 
-Aplique TODAS as regras das Partes A-P (foco no romance, FMC ativa em todos os pontos de virada, cidade da lista permitida, nomes fora da lista proibida, elemento dark e elemento de ritmo em cada etapa, construção gradual do romance, até 4 POVs masculinos na Parte 2, mapa de plantio e pagamento, timeline coerente).`,
+Aplique TODAS as regras das Partes A-N (foco no romance, FMC ativa em todos os pontos de virada, cidade da lista permitida, nomes fora da lista proibida, elemento de ritmo em cada etapa, construção gradual do romance, até 4 POVs masculinos na Parte 2, mapa de plantio e pagamento, timeline coerente).`,
       ].join("\n\n");
     }
 
@@ -72,17 +71,17 @@ Aplique TODAS as regras das Partes A-P (foco no romance, FMC ativa em todos os p
       briefingBlock,
       `TAREFA NESTE TURNO:
 
-Entregue APENAS o BLOCO 0 — os dois resumos longos (RESUMO DA PARTE 1 e RESUMO DA PARTE 2), cada um com aproximadamente 600 a 900 palavras, em prosa corrida, com a estrutura de parágrafos definida na PARTE I do prompt mestre.
+Entregue APENAS o BLOCO 0 — os dois resumos longos (RESUMO DA PARTE 1 e RESUMO DA PARTE 2), cada um com aproximadamente 600 a 900 palavras, em prosa corrida, com a estrutura de parágrafos definida na PARTE G do prompt mestre.
 
-NÃO entregue Blocos 1-8 neste turno. NÃO escreva frases de espera ou pedidos de aprovação — o usuário vai aprovar/editar o resumo na interface do app antes de pedir os Blocos 1-8 em uma chamada separada.
+NÃO entregue Blocos 1-7 neste turno. NÃO escreva frases de espera ou pedidos de aprovação — o usuário vai aprovar/editar o resumo na interface do app antes de pedir os Blocos 1-7 em uma chamada separada.
 
-Use linguagem clara e didática conforme a PARTE I (apresente cada personagem pelo nome completo, idade, profissão e situação; explique termos mafiosos em palavras simples; conte cronologicamente; detalhe a aproximação dos dois). Aplique TODAS as regras das Partes A-P (cidade da lista permitida, nomes fora da lista proibida, FMC ativa, romance em primeiro plano, fechamento da Parte 1 sem cliffhanger, abertura da Parte 2 com bomba, reconciliação não apressada, final feliz obrigatório).
+Use linguagem clara e didática conforme a PARTE G (apresente cada personagem pelo nome completo, idade, profissão e situação; explique termos técnicos como CEO, herdeiro, conglomerado em palavras simples; conte cronologicamente; detalhe a aproximação dos dois). Aplique TODAS as regras das Partes A-N (cidade da lista permitida, nomes fora da lista proibida, FMC ativa, romance em primeiro plano, fechamento da Parte 1 sem cliffhanger, abertura da Parte 2 com bomba, reconciliação não apressada, final feliz obrigatório).
 
 FORMATO DE SAÍDA esperado neste turno:
 
 # RESUMO DA PARTE 1
 
-[8 parágrafos cobrindo: apresentação da FMC, apresentação do MMC, encontro, o que força a convivência, aproximação detalhada, primeiro grande perigo, como enfrentam e se escolhem, fechamento sem entrega total]
+[8 parágrafos cobrindo: apresentação da FMC, apresentação do MMC, encontro, o que força a convivência, aproximação detalhada, primeiro grande obstáculo, como enfrentam e se escolhem, fechamento sem entrega total]
 
 # RESUMO DA PARTE 2
 

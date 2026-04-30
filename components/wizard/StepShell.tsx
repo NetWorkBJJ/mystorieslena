@@ -2234,10 +2234,10 @@ function PremissaWizard() {
         <Sparkles className="size-4 text-primary mt-0.5 shrink-0" />
         <div className="flex flex-col gap-1">
           <p className="text-xs font-semibold text-primary">
-            Dark Romance de Máfia — fluxo em duas fases
+            Romance de Bilionário — fluxo em duas fases
           </p>
           <p className="text-[11px] text-foreground/75 leading-relaxed">
-            <span className="font-semibold">Fase 1:</span> descreva sua ideia, o agente gera um resumo (Parte 1 + Parte 2). <span className="font-semibold">Fase 2:</span> você aprova ou edita o resumo, e o agente constrói o universo completo (elenco, cenários, regras do mundo, 20 etapas) que vai alimentar Estrutura 1, 2 e Escrita.
+            <span className="font-semibold">Fase 1:</span> descreva sua ideia, o agente gera um resumo (Parte 1 + Parte 2). <span className="font-semibold">Fase 2:</span> você aprova ou edita o resumo, e o agente constrói a estrutura completa (elenco, cenários, contexto histórico, 20 etapas) que vai alimentar Estrutura 1, 2 e Escrita.
           </p>
         </div>
       </div>
@@ -2259,7 +2259,7 @@ function PremissaWizard() {
             id="premissa-briefing"
             value={briefingDraft}
             onChange={(e) => setBriefingDraft(e.target.value)}
-            placeholder={`Ex.: Nova York, máfia italoamericana. MMC: don jovem que herdou após o pai ser assassinado. FMC: forense de 26 anos que descobre algo que conecta o assassinato à família dele. Gatilho: casamento forçado por dívida do pai dela. Vilão: tio do MMC que comandou o assassinato e quer manter o poder. Segredo central: o MMC sabe quem matou o pai dela há anos e escondeu para protegê-la.\n\nMencione (opcional):\n• cidade (Nova York, Chicago, Boston, Las Vegas, Miami, Palermo, Catânia, Corleone, Nápoles, Moscou, São Petersburgo)\n• tipo de organização (Cosa Nostra, siciliana tradicional, Camorra, Bratva)\n• cargo do MMC (don, capo, herdeiro, sottocapo, consigliere)\n• profissão e situação inicial da FMC\n• trauma central de cada um\n• gatilho inicial (casamento forçado, dívida, fuga, vingança, contrato)\n• segredo central que você quer ver pago\n• tipo de vilão (família rival, traidor interno, ex, pai do MMC)`}
+            placeholder={`Ex.: Nova York, finanças/Wall Street. MMC: CEO de um conglomerado financeiro que herdou a empresa após o pai morrer. FMC: jornalista de 28 anos que perdeu o emprego e descobre que o apartamento dela foi comprado pela empresa dele. Gatilho: convivência forçada quando ela aceita um trabalho temporário na fundação cultural dele. Vilã: ex-noiva dele que ainda circula no meio social. Segredo central: o pai dele deixou uma cláusula que obriga o MMC a casar até os 35 ou perder o controle da empresa.\n\nMencione (opcional):\n• cidade (Nova York, Chicago, Seattle, Dallas, LA, San Francisco, Miami, Boston, Londres, Paris, Mônaco, Genebra, Zurique, Milão, Roma, Madri, Barcelona, Dubai, Hong Kong, Singapura, Tóquio)\n• tipo de fortuna (tecnologia, finanças, hotelaria, moda, herança antiga, imobiliário, indústria, mídia)\n• profissão e situação inicial da FMC\n• trauma central de cada um\n• gatilho inicial (humilhação pública, casamento por contrato, namoro falso, convivência forçada, dívida, projeto compartilhado)\n• segredo central que você quer ver pago\n• tipo de vilão (ex, sogra, sócio, rival corporativo)`}
             rows={phase === "briefing" ? 12 : 5}
             className="font-sans text-[14px] leading-relaxed resize-y"
           />
