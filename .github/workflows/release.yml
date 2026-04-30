@@ -124,8 +124,8 @@ jobs:
           gh release upload "${GITHUB_REF_NAME}" \
             dist-electron/MyStoriesLena-*-arm64.dmg \
             dist-electron/MyStoriesLena-*-arm64.dmg.blockmap \
-            dist-electron/MyStoriesLena-*-arm64-mac.zip \
-            dist-electron/MyStoriesLena-*-arm64-mac.zip.blockmap \
+            dist-electron/MyStoriesLena-*-arm64.zip \
+            dist-electron/MyStoriesLena-*-arm64.zip.blockmap \
             dist-electron/latest-mac.yml \
             --repo "${GITHUB_REPOSITORY}" \
             --clobber
