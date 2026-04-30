@@ -120,6 +120,28 @@ export interface StepOutputMetadata {
    * fica indisponível até regenerar do zero.
    */
   parseWarning?: string;
+  /**
+   * [Premissa, fluxo automático] Briefing de ideia que o usuário escreveu
+   * antes de gerar o resumo. Mantido pra reusar quando ele clicar em
+   * "Regenerar resumo" ou "Voltar ao briefing".
+   */
+  premissaBriefing?: string;
+  /**
+   * [Premissa, fluxo automático] Resumo (Bloco 0) gerado na Fase 1 e editável
+   * pelo usuário antes de aprovar. Quando `resumoApproved` é true, esse texto
+   * é enviado pra Fase 2 como `approvedResumo`.
+   */
+  premissaResumo?: string;
+  /** [Premissa] true depois que o usuário aprovou o resumo e a Fase 2 rodou. */
+  premissaResumoApproved?: boolean;
+  /** [Premissa] timestamp da aprovação do resumo. */
+  premissaResumoApprovedAt?: string;
+  /**
+   * [Premissa] true quando o usuário escolheu o modo manual ("já tenho a
+   * premissa pronta"). Nesse caso `content` recebe o texto colado direto
+   * e os campos do fluxo automático ficam vazios.
+   */
+  premissaManualPaste?: boolean;
 }
 
 export interface StepOutput {

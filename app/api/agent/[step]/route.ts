@@ -29,6 +29,10 @@ interface Body {
   batch?: AgentBatchContext;
   /** Sinopses dos capítulos já gerados em batches anteriores. */
   previousSynopses?: EscritaSynopsis[];
+  /** Fase do agente Premissa: "resumo" (Bloco 0) ou "estrutura" (Blocos 1-8). */
+  premissaPhase?: "resumo" | "estrutura";
+  /** Resumo (Bloco 0) já aprovado pelo usuário — exigido na fase "estrutura". */
+  approvedResumo?: string;
 }
 
 const ACCEPTED_IMAGE_MIMES: ClaudeImageMime[] = [
@@ -68,6 +72,17 @@ export async function POST(
     body = {};
   }
 
+  if (
+    step === "premissa" &&
+    body.premissaPhase === "estrutura" &&
+    !body.approvedResumo?.trim()
+  ) {
+    return new Response(
+      "Para gerar a estrutura (Blocos 1-8) é necessário enviar o resumo aprovado pelo usuário em `approvedResumo`.",
+      { status: 400 },
+    );
+  }
+
   const agent = getAgent(step as StepId);
   const userMessage = agent.buildUserMessage({
     previousOutputs: body.previousOutputs ?? {},
@@ -79,6 +94,8 @@ export async function POST(
     ...(body.previousSynopses
       ? { previousSynopses: body.previousSynopses }
       : {}),
+    ...(body.premissaPhase ? { premissaPhase: body.premissaPhase } : {}),
+    ...(body.approvedResumo ? { approvedResumo: body.approvedResumo } : {}),
   });
 
   // Image multimodal — só vai pro modelo se o agente declarou acceptsReferenceImage.

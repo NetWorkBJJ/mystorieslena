@@ -4,18 +4,24 @@ import { countWords } from "@/lib/word-count";
  * Helpers de exportação HTML do roteiro.
  *
  * Produz HTML estilizado pra colar no Google Docs preservando a hierarquia —
- * Capítulo como Heading 1 grande e bold, PARTE como subtítulo centralizado,
- * fonte Arial 11pt, parágrafos justificados (match exato do default do Docs).
+ * PARTE como Heading 1 centralizado, Capítulo como Heading 2 grande e bold,
+ * troca de POV (✦ Nome) como Heading 3, fonte Arial 11pt, parágrafos
+ * justificados (match exato do default do Docs).
  *
  * O mesmo HTML é usado tanto no download direto (.html), na exportação PDF
  * (printToPDF do Electron) quanto no copy-clipboard pra colar no Google Docs.
  *
  * Tolera dois formatos de marcador (legado e novo):
- *   - "═══ PARTE 1 ═══" (legado)              → separador "PARTE 1" centralizado
- *   - "# PARTE 1"                             → separador "PARTE 1" centralizado
- *   - "# Capítulo 1 — X" (legado)             → <h1> Capítulo 1 — X
- *   - "## Capítulo 1 — X" (novo)              → <h1> Capítulo 1 — X
- *   - "━━━ NOME ━━━" / "### ✦ Nome"           → <h3> "✦ Nome" (subtítulo de POV)
+ *   - "═══ PARTE 1 ═══" (legado)              → <h1> "PARTE 1" centralizado (Heading 1 no Docs)
+ *   - "# PARTE 1"                             → <h1> "PARTE 1" centralizado (Heading 1 no Docs)
+ *   - "# Capítulo 1 — X" (legado)             → <h2> Capítulo 1 — X (Heading 2 no Docs)
+ *   - "## Capítulo 1 — X" (novo)              → <h2> Capítulo 1 — X (Heading 2 no Docs)
+ *   - "━━━ NOME ━━━" / "### ✦ Nome"           → <h3> "✦ Nome" (Heading 3 no Docs, subtítulo de POV)
+ *
+ * A hierarquia h1 (PARTE) > h2 (Capítulo) > h3 (POV) faz o painel "Guias" /
+ * "Estrutura do documento" do Google Docs aninhar tudo numa árvore correta:
+ * cada Capítulo aparece embaixo da PARTE, e cada troca de POV embaixo do
+ * Capítulo. Sem essa hierarquia, só os h3 viravam nó visíveis.
  */
 
 const SANS = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
@@ -226,20 +232,23 @@ export function escritaContentToHtml(
       continue;
     }
     if (h2) {
-      // Capítulo — sai como <h1> pra virar Heading 1 ao colar no Google Docs.
+      // Capítulo — sai como <h2> pra virar Heading 2 no Google Docs e aninhar
+      // embaixo da PARTE (h1) na árvore de Guias / Estrutura do documento.
       flushPara();
       currentPov = null;
-      out.push(`<h1 style="${STYLE_H_CHAPTER}">${escapeHtml(h2[1])}</h1>`);
+      out.push(`<h2 style="${STYLE_H_CHAPTER}">${escapeHtml(h2[1])}</h2>`);
       continue;
     }
     if (h1) {
-      // Separador de PARTE — centralizado, simples; page-break antes da PARTE 2+.
+      // Separador de PARTE — sai como <h1> pra virar Heading 1 no Google Docs
+      // (raiz da árvore de Guias). Mantém centralizado via style inline e
+      // adiciona page-break antes da PARTE 2+.
       flushPara();
       currentPov = null;
       const isFirstPart = !out.some((s) => /class="part-divider"/.test(s));
       const breakStyle = isFirstPart ? "" : "; page-break-before: always";
       out.push(
-        `<div class="part-divider" style="${STYLE_PART_DIVIDER}${breakStyle}">${escapeHtml(h1[1])}</div>`,
+        `<h1 class="part-divider" style="${STYLE_PART_DIVIDER}${breakStyle}">${escapeHtml(h1[1])}</h1>`,
       );
       continue;
     }

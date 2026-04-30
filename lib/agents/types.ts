@@ -39,6 +39,14 @@ export interface AgentContext {
   batch?: AgentBatchContext;
   /** Sinopses dos capítulos já gerados em batches anteriores (continuidade). */
   previousSynopses?: EscritaSynopsis[];
+  /**
+   * Fase do agente Premissa. "resumo" pede só o Bloco 0 (dois resumos longos);
+   * "estrutura" pede Blocos 1-8 com o resumo já aprovado em `approvedResumo`.
+   * Outros agentes ignoram.
+   */
+  premissaPhase?: "resumo" | "estrutura";
+  /** Resumo (Bloco 0) já aprovado pelo usuário — usado na fase "estrutura". */
+  approvedResumo?: string;
 }
 
 export interface Agent {

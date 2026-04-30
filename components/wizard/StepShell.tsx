@@ -1395,15 +1395,7 @@ export function StepShell({ step }: Props) {
       )}
 
       {step === "premissa" ? (
-        <PremissaEditor
-          value={output?.content ?? ""}
-          onChange={(v) =>
-            setOutput("premissa", {
-              content: v,
-              generatedAt: output?.generatedAt ?? new Date().toISOString(),
-            })
-          }
-        />
+        <PremissaWizard />
       ) : (
         <StepUserInputBox
           step={step}
@@ -1796,141 +1788,685 @@ const StepUserInputBox = memo(function StepUserInputBox({
   );
 });
 
-interface PremissaEditorProps {
-  value: string;
-  onChange: (v: string) => void;
-}
+// ─── Premissa em duas fases ───────────────────────────────────────────
+//
+// Fluxo (modo automático):
+//   1. briefing  → usuário descreve a ideia, clica "Gerar resumo"
+//   2. streaming → /api/agent/premissa com premissaPhase: "resumo" (Bloco 0)
+//   3. approving → resumo aparece editável; usuário ajusta e aprova
+//   4. streaming → /api/agent/premissa com premissaPhase: "estrutura" (Blocos 1-8)
+//   5. done      → outputs.premissa.content recebe "RESUMO + ESTRUTURA"
+//
+// Fluxo (modo manual): toggle "Já tenho a premissa pronta" → textarea
+// livre, content gravado direto. Mantido como fallback.
+function PremissaWizard() {
+  const roteiro = useWizard((s) => s.roteiro);
+  const setOutput = useWizard((s) => s.setOutput);
+  const setIsGenerating = useWizard((s) => s.setIsGenerating);
+  const pushOutputToHistory = useWizard((s) => s.pushOutputToHistory);
+  const isGenerating = useWizard((s) => s.isGenerating);
 
-function PremissaEditor({ value, onChange }: PremissaEditorProps) {
-  const hasContent = value.trim().length > 0;
-  const wordCount = value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
-  const tooLong = wordCount > 1000;
+  const output = roteiro?.outputs.premissa;
+  const meta = output?.metadata ?? {};
+  const briefing = meta.premissaBriefing ?? "";
+  const resumo = meta.premissaResumo ?? "";
+  const approved = !!meta.premissaResumoApproved;
+  const manual = !!meta.premissaManualPaste;
+  const content = output?.content ?? "";
 
-  // Em modo View quando já tem conteúdo; modo Edit por padrão quando vazio.
-  const [isEditing, setIsEditing] = useState(!hasContent);
-  const [draft, setDraft] = useState(value);
+  const [briefingDraft, setBriefingDraft] = useState(briefing);
+  const [resumoDraft, setResumoDraft] = useState(resumo);
+  const [contentDraft, setContentDraft] = useState(content);
+  const [liveStream, setLiveStream] = useState("");
+  const [streamingPhase, setStreamingPhase] = useState<
+    null | "resumo" | "estrutura"
+  >(null);
+  const [isEditingResumo, setIsEditingResumo] = useState(false);
+  const [isEditingContent, setIsEditingContent] = useState(false);
+  const [isEditingManual, setIsEditingManual] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
-  // Quando o conteúdo muda (ex: usuário trocou de roteiro), sincroniza o draft.
+  // Sincroniza drafts quando o roteiro muda (troca de tela, undo, etc).
   useEffect(() => {
-    setDraft(value);
-  }, [value]);
+    setBriefingDraft(briefing);
+  }, [briefing]);
+  useEffect(() => {
+    if (!isEditingResumo) setResumoDraft(resumo);
+  }, [resumo, isEditingResumo]);
+  useEffect(() => {
+    if (!isEditingContent && !isEditingManual) setContentDraft(content);
+  }, [content, isEditingContent, isEditingManual]);
 
-  const startEdit = useCallback(() => {
-    setDraft(value);
-    setIsEditing(true);
-  }, [value]);
+  // Aborta stream quando o componente desmonta (usuário trocou de step).
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
 
-  const saveEdit = useCallback(() => {
-    onChange(draft);
-    setIsEditing(false);
-  }, [draft, onChange]);
+  // Roteiros antigos (pré-fluxo automático) têm `content` mas nenhum metadado
+  // novo. Tratamos como "manual" para preservar a premissa que o usuário já
+  // tinha — sem isso, a tela de briefing apareceria por cima do conteúdo.
+  const isLegacy = !!content && !resumo && !manual && !approved;
+  const phase: "manual" | "briefing" | "approving" | "done" =
+    manual || isLegacy
+      ? "manual"
+      : !resumo
+        ? "briefing"
+        : !approved || !content
+          ? "approving"
+          : "done";
 
-  const cancelEdit = useCallback(() => {
-    setDraft(value);
-    setIsEditing(hasContent ? false : true);
-  }, [value, hasContent]);
+  // ─── Streaming helpers ──────────────────────────────────────────────
+  const readStreamFully = async (
+    res: Response,
+    signal: AbortSignal,
+  ): Promise<string> => {
+    if (!res.body) throw new Error("Stream sem corpo");
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let acc = "";
+    while (true) {
+      if (signal.aborted) break;
+      const { done, value } = await reader.read();
+      if (done) break;
+      acc += decoder.decode(value, { stream: true });
+      setLiveStream(acc);
+    }
+    return acc;
+  };
 
-  return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-baseline justify-between gap-2 flex-wrap">
-        <div className="flex flex-col gap-0.5">
-          <Label htmlFor="premissa-text" className="text-sm font-semibold">
-            {isEditing ? "Cole a premissa pronta" : "Premissa"}
-          </Label>
-          <span className="text-[11px] text-muted-foreground">
-            Parte 1 + Parte 2 (até 500 palavras cada). Salva automaticamente.
-          </span>
+  // ─── Fase 1: gerar resumo (Bloco 0) ─────────────────────────────────
+  const generateResumo = useCallback(async () => {
+    const briefingTrim = briefingDraft.trim();
+    if (!briefingTrim || isGenerating) return;
+
+    if (resumo) {
+      pushOutputToHistory("premissa", "Antes de regenerar resumo");
+    }
+
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setIsGenerating(true);
+    setLiveStream("");
+    setStreamingPhase("resumo");
+
+    const startedAt = new Date().toISOString();
+
+    // Persiste o briefing no metadata logo no início — assim, se a
+    // geração falhar, o usuário não perde o que digitou.
+    setOutput("premissa", {
+      content,
+      generatedAt: output?.generatedAt ?? startedAt,
+      metadata: { ...meta, premissaBriefing: briefingTrim },
+    });
+
+    try {
+      const res = await fetch("/api/agent/premissa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userInput: briefingTrim,
+          referenceImage: roteiro?.referenceImage,
+          premissaPhase: "resumo",
+        }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok && res.status !== 200) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status}: ${errText.slice(0, 200)}`);
+      }
+      const fullText = (await readStreamFully(res, ctrl.signal)).trim();
+      if (!fullText) return;
+
+      const now = new Date().toISOString();
+      setOutput("premissa", {
+        // O conteúdo final só é populado depois da Fase 2; aqui zeramos
+        // pra que o downstream (Estrutura 1/2) não consuma um resumo
+        // ainda não aprovado como se fosse a premissa final.
+        content: "",
+        generatedAt: now,
+        metadata: {
+          ...meta,
+          premissaBriefing: briefingTrim,
+          premissaResumo: fullText,
+          premissaResumoApproved: false,
+          premissaManualPaste: false,
+        },
+      });
+      setResumoDraft(fullText);
+      setIsEditingResumo(false);
+    } catch (e) {
+      if (!(e instanceof Error && e.name === "AbortError")) {
+        console.error("[premissa] erro fase resumo:", e);
+      }
+    } finally {
+      setIsGenerating(false);
+      setStreamingPhase(null);
+      setLiveStream("");
+    }
+  }, [
+    briefingDraft,
+    isGenerating,
+    resumo,
+    pushOutputToHistory,
+    setIsGenerating,
+    setOutput,
+    content,
+    output?.generatedAt,
+    meta,
+    roteiro?.referenceImage,
+  ]);
+
+  // ─── Fase 2: aprovar resumo + gerar Blocos 1-8 ──────────────────────
+  const approveAndGenerateEstrutura = useCallback(async () => {
+    const resumoTrim = resumoDraft.trim();
+    const briefingTrim = briefingDraft.trim() || briefing;
+    if (!resumoTrim || isGenerating) return;
+
+    if (content) {
+      pushOutputToHistory("premissa", "Antes de regenerar estrutura");
+    }
+
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setIsGenerating(true);
+    setLiveStream("");
+    setStreamingPhase("estrutura");
+
+    try {
+      const res = await fetch("/api/agent/premissa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userInput: briefingTrim,
+          referenceImage: roteiro?.referenceImage,
+          premissaPhase: "estrutura",
+          approvedResumo: resumoTrim,
+        }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok && res.status !== 200) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status}: ${errText.slice(0, 200)}`);
+      }
+      const estrutura = (await readStreamFully(res, ctrl.signal)).trim();
+      if (!estrutura) return;
+
+      const fullContent = `# RESUMO\n\n${resumoTrim}\n\n# ESTRUTURA COMPLETA\n\n${estrutura}`;
+      const now = new Date().toISOString();
+      setOutput("premissa", {
+        content: fullContent,
+        generatedAt: now,
+        metadata: {
+          ...meta,
+          premissaBriefing: briefingTrim,
+          premissaResumo: resumoTrim,
+          premissaResumoApproved: true,
+          premissaResumoApprovedAt: now,
+          premissaManualPaste: false,
+        },
+      });
+      setContentDraft(fullContent);
+      setIsEditingResumo(false);
+      setIsEditingContent(false);
+    } catch (e) {
+      if (!(e instanceof Error && e.name === "AbortError")) {
+        console.error("[premissa] erro fase estrutura:", e);
+      }
+    } finally {
+      setIsGenerating(false);
+      setStreamingPhase(null);
+      setLiveStream("");
+    }
+  }, [
+    resumoDraft,
+    briefingDraft,
+    briefing,
+    isGenerating,
+    content,
+    pushOutputToHistory,
+    setIsGenerating,
+    setOutput,
+    meta,
+    roteiro?.referenceImage,
+  ]);
+
+  const cancelStream = useCallback(() => {
+    abortRef.current?.abort();
+    setIsGenerating(false);
+    setStreamingPhase(null);
+    setLiveStream("");
+  }, [setIsGenerating]);
+
+  // ─── Manual paste ───────────────────────────────────────────────────
+  const switchToManual = useCallback(() => {
+    setOutput("premissa", {
+      content,
+      generatedAt: output?.generatedAt ?? new Date().toISOString(),
+      metadata: { ...meta, premissaManualPaste: true },
+    });
+    setIsEditingManual(!content);
+  }, [setOutput, content, output?.generatedAt, meta]);
+
+  const switchToAutomatic = useCallback(() => {
+    setOutput("premissa", {
+      content: "",
+      generatedAt: new Date().toISOString(),
+      metadata: { ...meta, premissaManualPaste: false },
+    });
+    setContentDraft("");
+    setIsEditingManual(false);
+  }, [setOutput, meta]);
+
+  const saveManualEdit = useCallback(() => {
+    setOutput("premissa", {
+      content: contentDraft,
+      generatedAt: output?.generatedAt ?? new Date().toISOString(),
+      editedAt: new Date().toISOString(),
+      edited: true,
+      metadata: { ...meta, premissaManualPaste: true },
+    });
+    setIsEditingManual(false);
+  }, [setOutput, contentDraft, output?.generatedAt, meta]);
+
+  const saveContentEdit = useCallback(() => {
+    setOutput("premissa", {
+      content: contentDraft,
+      generatedAt: output?.generatedAt ?? new Date().toISOString(),
+      editedAt: new Date().toISOString(),
+      edited: true,
+      metadata: meta,
+    });
+    setIsEditingContent(false);
+  }, [setOutput, contentDraft, output?.generatedAt, meta]);
+
+  // ─── Word counts (regra do CLAUDE.md: usar countWords) ─────────────
+  const resumoWordCount = countWords(resumoDraft || resumo);
+  const contentWordCount = countWords(contentDraft || content);
+  const resumoTargetMin = 1200;
+  const resumoTargetMax = 1800;
+  const resumoOutOfTarget =
+    resumoWordCount > 0 &&
+    (resumoWordCount < resumoTargetMin || resumoWordCount > resumoTargetMax);
+
+  // ─── Streaming view (compartilhada entre fase resumo e estrutura) ──
+  if (streamingPhase) {
+    return (
+      <section className="flex flex-col gap-3">
+        <div className="rounded-lg border-2 border-primary/40 bg-primary/[0.03] px-4 sm:px-5 py-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <Loader2 className="size-4 animate-spin text-primary" />
+              <span className="text-sm font-semibold text-primary">
+                {streamingPhase === "resumo"
+                  ? "Gerando resumo (Bloco 0)…"
+                  : "Construindo universo da história (Blocos 1-8)…"}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={cancelStream}
+              className="gap-2"
+            >
+              Cancelar
+            </Button>
+          </div>
+          {streamingPhase === "estrutura" && (
+            <p className="text-[11px] text-muted-foreground">
+              Esta fase é mais detalhada — pode levar 1 a 3 minutos. O resumo
+              aprovado já está salvo; se algo der errado, ele permanece
+              disponível para regenerar a estrutura.
+            </p>
+          )}
+          {liveStream && (
+            <pre className="whitespace-pre-wrap font-sans text-[12px] leading-relaxed text-foreground/85 max-h-[55vh] overflow-auto border-t border-primary/20 pt-3">
+              {liveStream}
+            </pre>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          {hasContent && (
+      </section>
+    );
+  }
+
+  // ─── Modo manual ────────────────────────────────────────────────────
+  if (phase === "manual") {
+    const tooLongManual = contentWordCount > 1000;
+    return (
+      <section className="flex flex-col gap-3">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+          <div className="flex flex-col gap-0.5">
+            <Label htmlFor="premissa-manual" className="text-sm font-semibold">
+              {isEditingManual ? "Cole a premissa pronta" : "Premissa (modo manual)"}
+            </Label>
+            <span className="text-[11px] text-muted-foreground">
+              Texto colado direto vai para os Steps 2/3/4 sem passar pelo agente.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {!!content && (
+              <Badge
+                className={cn(
+                  "font-normal gap-1",
+                  tooLongManual
+                    ? "bg-amber-100 text-amber-800 border-amber-300"
+                    : "bg-emerald-100 text-emerald-800 border-emerald-300",
+                )}
+              >
+                <CheckCircle2 className="size-3" />
+                {contentWordCount.toLocaleString("pt-BR")} palavra
+                {contentWordCount === 1 ? "" : "s"}
+                {tooLongManual ? " (acima do limite)" : ""}
+              </Badge>
+            )}
+            {!isEditingManual && !!content && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setContentDraft(content);
+                  setIsEditingManual(true);
+                }}
+              >
+                <Pencil className="size-3.5" />
+                Editar
+              </Button>
+            )}
+            {isEditingManual && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setContentDraft(content);
+                    setIsEditingManual(!content);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button size="sm" onClick={saveManualEdit}>
+                  Salvar
+                </Button>
+              </>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={switchToAutomatic}
+              className="text-muted-foreground"
+            >
+              Voltar ao modo automático
+            </Button>
+          </div>
+        </div>
+
+        {isEditingManual ? (
+          <Textarea
+            id="premissa-manual"
+            value={contentDraft}
+            onChange={(e) => setContentDraft(e.target.value)}
+            placeholder={`Cole aqui a premissa completa.\n\nFormato sugerido:\n\n# PARTE 1\n[texto corrido]\n\n# PARTE 2\n[texto corrido]`}
+            rows={20}
+            className="font-sans text-[14px] leading-relaxed resize-y min-h-[400px]"
+          />
+        ) : (
+          <div className="rounded-lg border bg-card p-4 sm:p-6 max-h-[60vh] overflow-auto">
+            {content ? (
+              <Prose>{content}</Prose>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                Sem conteúdo. Clique em <span className="font-semibold">Editar</span> e cole o texto.
+              </p>
+            )}
+          </div>
+        )}
+
+        <ReferenceImageUpload />
+      </section>
+    );
+  }
+
+  // ─── Modo automático: briefing → approving → done ───────────────────
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="rounded-md border border-primary/25 bg-primary/[0.04] px-4 py-3 flex items-start gap-2.5">
+        <Sparkles className="size-4 text-primary mt-0.5 shrink-0" />
+        <div className="flex flex-col gap-1">
+          <p className="text-xs font-semibold text-primary">
+            Dark Romance de Máfia — fluxo em duas fases
+          </p>
+          <p className="text-[11px] text-foreground/75 leading-relaxed">
+            <span className="font-semibold">Fase 1:</span> descreva sua ideia, o agente gera um resumo (Parte 1 + Parte 2). <span className="font-semibold">Fase 2:</span> você aprova ou edita o resumo, e o agente constrói o universo completo (elenco, cenários, regras do mundo, 20 etapas) que vai alimentar Estrutura 1, 2 e Escrita.
+          </p>
+        </div>
+      </div>
+
+      {/* ─── Briefing ─── */}
+      {(phase === "briefing" || phase === "approving") && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+            <Label htmlFor="premissa-briefing" className="text-sm font-semibold">
+              Sua ideia
+            </Label>
+            <span className="text-[11px] text-muted-foreground">
+              {phase === "briefing"
+                ? "Quanto mais detalhe, melhor o resumo"
+                : "Edite e clique em Regenerar resumo se quiser ajustar"}
+            </span>
+          </div>
+          <Textarea
+            id="premissa-briefing"
+            value={briefingDraft}
+            onChange={(e) => setBriefingDraft(e.target.value)}
+            placeholder={`Ex.: Nova York, máfia italoamericana. MMC: don jovem que herdou após o pai ser assassinado. FMC: forense de 26 anos que descobre algo que conecta o assassinato à família dele. Gatilho: casamento forçado por dívida do pai dela. Vilão: tio do MMC que comandou o assassinato e quer manter o poder. Segredo central: o MMC sabe quem matou o pai dela há anos e escondeu para protegê-la.\n\nMencione (opcional):\n• cidade (Nova York, Chicago, Boston, Las Vegas, Miami, Palermo, Catânia, Corleone, Nápoles, Moscou, São Petersburgo)\n• tipo de organização (Cosa Nostra, siciliana tradicional, Camorra, Bratva)\n• cargo do MMC (don, capo, herdeiro, sottocapo, consigliere)\n• profissão e situação inicial da FMC\n• trauma central de cada um\n• gatilho inicial (casamento forçado, dívida, fuga, vingança, contrato)\n• segredo central que você quer ver pago\n• tipo de vilão (família rival, traidor interno, ex, pai do MMC)`}
+            rows={phase === "briefing" ? 12 : 5}
+            className="font-sans text-[14px] leading-relaxed resize-y"
+          />
+        </div>
+      )}
+
+      {/* ─── Resumo: aprovar/editar/regenerar ─── */}
+      {phase === "approving" && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="premissa-resumo" className="text-sm font-semibold">
+                Resumo gerado (Parte 1 + Parte 2)
+              </Label>
+              <span className="text-[11px] text-muted-foreground">
+                Edite à vontade. Quando estiver bom, aprove para gerar o universo completo.
+              </span>
+            </div>
             <Badge
               className={cn(
                 "font-normal gap-1",
-                tooLong
+                resumoOutOfTarget
                   ? "bg-amber-100 text-amber-800 border-amber-300"
                   : "bg-emerald-100 text-emerald-800 border-emerald-300",
               )}
             >
               <CheckCircle2 className="size-3" />
-              {wordCount.toLocaleString("pt-BR")} palavra
-              {wordCount === 1 ? "" : "s"}
-              {tooLong ? " (acima do limite)" : ""}
+              {resumoWordCount.toLocaleString("pt-BR")} palavras
+              {resumoOutOfTarget
+                ? ` (alvo ${resumoTargetMin}-${resumoTargetMax})`
+                : ""}
             </Badge>
+          </div>
+          {isEditingResumo ? (
+            <Textarea
+              id="premissa-resumo"
+              value={resumoDraft}
+              onChange={(e) => setResumoDraft(e.target.value)}
+              rows={20}
+              className="font-sans text-[14px] leading-relaxed resize-y min-h-[400px]"
+            />
+          ) : (
+            <div className="rounded-lg border bg-card p-4 sm:p-6 max-h-[55vh] overflow-auto">
+              <Prose>{resumoDraft || resumo}</Prose>
+            </div>
           )}
-          {!isEditing && hasContent && (
-            <Button variant="ghost" size="sm" onClick={startEdit}>
-              <Pencil className="size-3.5" />
-              Editar
-            </Button>
-          )}
-          {isEditing && hasContent && (
-            <>
-              <Button variant="ghost" size="sm" onClick={cancelEdit}>
-                Cancelar
+          <div className="flex items-center justify-end gap-2 flex-wrap pt-1">
+            {!isEditingResumo ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditingResumo(true)}
+              >
+                <Pencil className="size-3.5" /> Editar resumo
               </Button>
-              <Button size="sm" onClick={saveEdit}>
-                Salvar
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-md border border-primary/25 bg-primary/[0.04] px-4 py-3 flex items-start gap-2.5">
-        <Sparkles className="size-4 text-primary mt-0.5 shrink-0" />
-        <div className="flex flex-col gap-1">
-          <p className="text-xs font-semibold text-primary">
-            A automação absorve esta premissa nas próximas etapas
-          </p>
-          <p className="text-[11px] text-foreground/75 leading-relaxed">
-            Tudo que você colar aqui é injetado automaticamente nos Steps 2
-            (Estrutura — Parte 1), 3 (Estrutura — Parte 2) e 4 (Escrita).
-            Os agentes geram as estruturas e os capítulos a partir
-            <span className="font-semibold"> exatamente</span> dessa premissa
-            — sem digitar de novo. Se você editar e voltar a avançar, a
-            próxima geração já usa a versão nova.
-          </p>
-        </div>
-      </div>
-
-      {isEditing ? (
-        <Textarea
-          id="premissa-text"
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            // Mantém o auto-save no fluxo "primeira vez" (quando ainda não
-            // existe conteúdo): cada tecla persiste no store. Quando o
-            // usuário entra em edit-mode tendo conteúdo prévio, salva só
-            // ao clicar em Salvar (botão acima).
-            if (!hasContent) onChange(e.target.value);
-          }}
-          placeholder={`Cole aqui a premissa completa.\n\nFormato sugerido:\n\n# PARTE 1\n[texto corrido — até 500 palavras]\n\n# PARTE 2\n[texto corrido — até 500 palavras]`}
-          rows={20}
-          className="font-sans text-[14px] leading-relaxed resize-y min-h-[400px]"
-        />
-      ) : (
-        <div className="rounded-lg border bg-card p-4 sm:p-6 max-h-[60vh] overflow-auto">
-          <Prose>{value}</Prose>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setResumoDraft(resumo);
+                    setIsEditingResumo(false);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setOutput("premissa", {
+                      content,
+                      generatedAt: output?.generatedAt ?? new Date().toISOString(),
+                      metadata: { ...meta, premissaResumo: resumoDraft.trim() },
+                    });
+                    setIsEditingResumo(false);
+                  }}
+                >
+                  Salvar edição
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
       <ReferenceImageUpload />
 
-      {!hasContent && (
-        <div className="rounded-md border border-dashed bg-muted/20 px-4 py-3 flex items-start gap-2">
-          <Sparkles className="size-4 text-muted-foreground mt-0.5 shrink-0" />
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Esta etapa é <span className="font-semibold">manual</span> — quem
-            escreve a premissa é o roteirista. Cole o texto pronto acima e
-            clique em <span className="font-semibold">Avançar</span> pra
-            seguir pra Estrutura.
-          </p>
+      {/* ─── Conteúdo final (Blocos 1-8) ─── */}
+      {phase === "done" && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+            <div className="flex flex-col gap-0.5">
+              <Label className="text-sm font-semibold">
+                Universo completo da história
+              </Label>
+              <span className="text-[11px] text-muted-foreground">
+                Resumo aprovado + Blocos 1 a 8. Vai alimentar Estrutura 1, 2 e Escrita.
+              </span>
+            </div>
+            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-normal gap-1">
+              <CheckCircle2 className="size-3" />
+              {contentWordCount.toLocaleString("pt-BR")} palavras
+            </Badge>
+          </div>
+          {isEditingContent ? (
+            <>
+              <Textarea
+                value={contentDraft}
+                onChange={(e) => setContentDraft(e.target.value)}
+                rows={24}
+                className="font-mono text-[13px] leading-relaxed resize-y min-h-[500px]"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setContentDraft(content);
+                    setIsEditingContent(false);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button size="sm" onClick={saveContentEdit}>
+                  Salvar edição
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="rounded-lg border bg-card p-4 sm:p-6 max-h-[60vh] overflow-auto">
+                <Prose>{content}</Prose>
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setContentDraft(content);
+                    setIsEditingContent(true);
+                  }}
+                >
+                  <Pencil className="size-3.5" /> Editar
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       )}
+
+      {/* ─── Botões de ação por fase ─── */}
+      <div className="flex items-center gap-2 flex-wrap pt-1">
+        {phase === "briefing" && (
+          <Button
+            onClick={generateResumo}
+            disabled={!briefingDraft.trim() || isGenerating}
+            size="lg"
+            className="gap-2"
+          >
+            <Sparkles className="size-4" /> Gerar resumo
+          </Button>
+        )}
+        {phase === "approving" && (
+          <>
+            <Button
+              onClick={approveAndGenerateEstrutura}
+              disabled={!resumoDraft.trim() || isGenerating}
+              size="lg"
+              className="gap-2"
+            >
+              <CheckCircle2 className="size-4" /> Aprovar e gerar universo
+            </Button>
+            <Button
+              onClick={generateResumo}
+              disabled={!briefingDraft.trim() || isGenerating}
+              variant="outline"
+              size="lg"
+              className="gap-2"
+            >
+              <RotateCcw className="size-4" /> Regenerar resumo
+            </Button>
+          </>
+        )}
+        {phase === "done" && (
+          <Button
+            onClick={approveAndGenerateEstrutura}
+            disabled={!resumoDraft.trim() || isGenerating}
+            variant="outline"
+            size="sm"
+            className="gap-2"
+          >
+            <RotateCcw className="size-3.5" /> Regenerar universo
+          </Button>
+        )}
+        <div className="ml-auto">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={switchToManual}
+            className="text-muted-foreground"
+          >
+            Já tenho a premissa pronta — colar manualmente
+          </Button>
+        </div>
+      </div>
     </section>
   );
 }
