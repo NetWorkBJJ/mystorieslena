@@ -418,7 +418,15 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: "#0c0a0a",
     show: true,
-    icon: path.join(__dirname, "icons", "icon.ico"),
+    icon: path.join(
+      __dirname,
+      "icons",
+      process.platform === "win32"
+        ? "icon.ico"
+        : process.platform === "darwin"
+          ? "icon.icns"
+          : "icon.png",
+    ),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -749,12 +757,36 @@ ipcMain.handle("pdf:save-roteiro", async (_event, payload) => {
 
 /**
  * Verifica se o usuário já fez login na conta Claude (Pro/Max).
- * O Claude Code CLI guarda o token OAuth em ~/.claude/.credentials.json.
- * Versões antigas usavam ~/.claude/credentials.json (sem ponto). Checamos os
- * dois pra ser tolerante.
+ *
+ * - **Windows / Linux**: o Claude Code CLI guarda o token OAuth em
+ *   `~/.claude/.credentials.json` (versões antigas: sem ponto).
+ * - **macOS**: a partir do Claude Code CLI 2.x, o token é armazenado no
+ *   **Keychain** do sistema, sob o serviço `Claude Code-credentials`. Não
+ *   existe arquivo em disco. Para validar, chamamos
+ *   `security find-generic-password -s "Claude Code-credentials" -a <user>`.
+ *   Esse comando retorna exit code 0 se a entrada existe, sem expor o
+ *   conteúdo (precisaria de `-w` pra extrair, que pediria autorização).
  */
 function getClaudeAuthStatus() {
   const home = os.homedir();
+
+  if (process.platform === "darwin") {
+    try {
+      const username = os.userInfo().username;
+      // -s = service, -a = account. Sem -w não pede autorização do Keychain
+      // — só verifica existência. stdio:"ignore" suprime o output.
+      require("child_process").execFileSync(
+        "security",
+        ["find-generic-password", "-s", "Claude Code-credentials", "-a", username],
+        { stdio: "ignore" },
+      );
+      return { loggedIn: true, credentialsPath: "Keychain: Claude Code-credentials" };
+    } catch {
+      // exit != 0 = entrada não existe no keychain. Continua pra checar arquivo
+      // (caso muito antigo ou Claude CLI configurado de forma não-padrão).
+    }
+  }
+
   const candidates = [
     path.join(home, ".claude", ".credentials.json"),
     path.join(home, ".claude", "credentials.json"),
@@ -1008,7 +1040,24 @@ ipcMain.handle("claude:logout", () => {
   }
 });
 
-app.whenReady().then(boot);
+app.whenReady().then(() => {
+  // No macOS, em modo dev (`electron .`), o ícone do Dock por padrão é o do
+  // framework Electron (não o do app). O `BrowserWindow.icon` afeta só a
+  // janela. Pra ver o ícone customizado também no Dock durante dev, setamos
+  // explicitamente via app.dock.setIcon. No `.app` empacotado isso não é
+  // necessário — o macOS lê o `.icns` do bundle automaticamente.
+  if (process.platform === "darwin" && !app.isPackaged && app.dock) {
+    const dockIconPath = path.join(__dirname, "icons", "icon.icns");
+    if (fs.existsSync(dockIconPath)) {
+      try {
+        app.dock.setIcon(dockIconPath);
+      } catch (err) {
+        console.warn("[dock] setIcon falhou (best-effort):", err?.message || err);
+      }
+    }
+  }
+  return boot();
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

@@ -64,23 +64,40 @@ npm install
 # rodar em modo dev (Next.js + Electron com hot-reload)
 npm run electron:dev
 
-# gerar instalador local
-npm run icon:build       # gera o ícone .ico a partir do SVG
-npm run package          # gera dist-electron/MyStoriesLena-Setup-X.Y.Z.exe
+# gerar ícones (.ico, .icns e .png a partir do SVG temático)
+npm run icon:build
 
-# publicar uma release no GitHub (atualiza app dos colegas automaticamente)
-npm run release
+# gerar instalador local (detecta plataforma atual automaticamente)
+npm run package
+
+# ou explícito por plataforma:
+npm run package:win    # MyStoriesLena-Setup-X.Y.Z.exe (NSIS)
+npm run package:mac    # MyStoriesLena-X.Y.Z-{arm64,x64}.dmg + .zip
+
+# publicar release no GitHub (apenas com tag e GH_TOKEN — preferível usar CI)
+npm run release        # plataforma atual
+npm run release:win    # só Windows
+npm run release:mac    # só macOS
 ```
+
+A forma recomendada de publicar é via **GitHub Actions**: faça push de uma tag `v*.*.*` e o workflow `.github/workflows/release.yml` builda Windows + macOS arm64 + macOS x64 em runners separados e publica todos os artefatos numa só release.
 
 ### Modo LIVE (autor)
 
-Se você é quem mantém o código e quer que o `MyStoriesLena.exe` instalado leia diretamente do código-fonte sem precisar reinstalar a cada mudança, configure uma variável de ambiente apontando pra pasta do projeto:
+Se você é quem mantém o código e quer que o app instalado leia diretamente do código-fonte sem precisar reinstalar a cada mudança, configure uma variável de ambiente apontando pra pasta do projeto:
 
+**Windows (PowerShell):**
 ```powershell
 setx MYSTORIESLENA_SOURCE_DIR "C:\Users\<seu-user>\caminho-pro-projeto"
 ```
 
-Depois fecha e reabre todos os terminais e o app. A partir daí, qualquer alteração no código aparece ao fechar/abrir o `MyStoriesLena.exe`.
+**macOS / Linux (zsh ou bash):**
+```bash
+echo 'export MYSTORIESLENA_SOURCE_DIR="/Users/<seu-user>/caminho-pro-projeto"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Depois feche e reabra todos os terminais e o app. A partir daí, qualquer alteração no código aparece ao fechar/abrir o app instalado.
 
 ## Como a autenticação Claude funciona
 

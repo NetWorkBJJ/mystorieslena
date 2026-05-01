@@ -14,30 +14,36 @@ permissions:
 
 jobs:
   build:
-    name: Build ${{ matrix.os }}
+    name: Build ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       # CRITICO: max-parallel=1 evita race condition na criacao da release no
-      # GitHub. Os dois jobs antes rodavam em paralelo e ambos tentavam fazer
+      # GitHub. Os jobs antes rodavam em paralelo e ambos tentavam fazer
       # POST /releases com a mesma tag -> 422 already_exists. Agora rodam
-      # serializados: o primeiro garante que a release existe, o segundo
-      # apenas anexa assets.
+      # serializados: o primeiro garante que a release existe, os demais
+      # apenas anexam assets.
       max-parallel: 1
       matrix:
         include:
-          # Windows roda PRIMEIRO: cria a release no GitHub se nao existir
+          # 1) Windows roda PRIMEIRO: cria a release no GitHub se nao existir
           # ainda (`gh release create` idempotente) e anexa os assets do .exe
           # + latest.yml.
           - os: windows-latest
+            label: windows
             artifact: MyStoriesLena-Setup-*.exe
-          # macOS roda DEPOIS: a release ja existe (criada pelo Windows),
-          # entao basta anexar os assets do .dmg/.zip + latest-mac.yml.
-          # Antes usavamos `--publish always` no electron-builder, mas com
-          # multi-arch (arm64+x64) ele tem race conditions e as vezes nao
-          # publica `latest-mac.yml`, deixando o auto-updater Mac quebrado.
+          # 2) macOS Apple Silicon (arm64): runner macos-latest e arm64 nativo.
+          # Empacota dmg + zip arm64 e o latest-mac.yml.
           - os: macos-latest
-            artifact: MyStoriesLena-*.dmg
+            label: macos-arm64
+            artifact: MyStoriesLena-*-arm64.dmg
+          # 3) macOS Intel (x64): runner macos-13 e Intel nativo. Empacota
+          # dmg + zip x64 e SOBRESCREVE o latest-mac.yml com a versao que
+          # contem ambas as arch (electron-builder consolida automaticamente
+          # quando ambos artefatos sao baixados pra mesma release pelo updater).
+          - os: macos-13
+            label: macos-x64
+            artifact: MyStoriesLena-*-x64.dmg
 
     steps:
       - name: Checkout código
@@ -54,16 +60,10 @@ jobs:
         env:
           npm_config_optional: "true"
 
-      - name: Gerar ícone (Windows)
-        if: matrix.os == 'windows-latest'
+      - name: Gerar ícones (todos os formatos)
+        # build-icon.js gera .ico, .icns e .png numa só chamada — funciona
+        # em qualquer plataforma porque png2icons e sharp são puros JS.
         run: npm run icon:build
-
-      - name: Gerar ícone (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          npm run icon:build
-          # electron-builder no Mac aceita .png direto, mas se quisermos .icns
-          # nativo, dá pra converter aqui via iconutil. Por enquanto o PNG basta.
 
       - name: Build Next.js standalone
         run: npm run build
@@ -83,12 +83,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # ────────────────────────────────────────────────────────────────────
+      # Windows
+      # ────────────────────────────────────────────────────────────────────
       - name: Empacotar (Windows)
-        if: matrix.os == 'windows-latest'
+        if: matrix.label == 'windows'
         run: npx electron-builder --win nsis --publish never
 
       - name: Anexar assets do Windows na release
-        if: matrix.os == 'windows-latest'
+        if: matrix.label == 'windows'
         shell: bash
         run: |
           gh release upload "${GITHUB_REF_NAME}" \
@@ -100,25 +103,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Empacotar (macOS)
-        if: matrix.os == 'macos-latest'
-        run: npx electron-builder --mac dmg zip --publish never
+      # ────────────────────────────────────────────────────────────────────
+      # macOS arm64 (Apple Silicon)
+      # ────────────────────────────────────────────────────────────────────
+      - name: Empacotar (macOS arm64)
+        if: matrix.label == 'macos-arm64'
+        run: npx electron-builder --mac dmg zip --arm64 --publish never
         env:
           # Sem assinatura — app vai mostrar Gatekeeper warning na primeira execução.
           # Adicione APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID e
           # CSC_LINK/CSC_KEY_PASSWORD se for assinar e notarizar.
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      # latest-mac.yml é o arquivo CRITICO que electron-updater procura no Mac.
-      # Antes confiavamos no `--publish always` do electron-builder pra anexa-lo,
-      # mas as vezes ele falha silenciosamente e o auto-updater Mac retorna
-      # "no update available" mesmo com release nova.
-      #
-      # NOTA: o runner macos-latest e arm64. O electron-builder cross-compila
-      # so o arm64 por default mesmo com `arch: ["arm64", "x64"]` no
-      # package.json — assets x64 nao saem do build, entao nao tentamos subir.
-      - name: Anexar assets do macOS na release
-        if: matrix.os == 'macos-latest'
+      - name: Anexar assets do macOS arm64 na release
+        if: matrix.label == 'macos-arm64'
         shell: bash
         run: |
           gh release upload "${GITHUB_REF_NAME}" \
@@ -132,11 +130,61 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # ────────────────────────────────────────────────────────────────────
+      # macOS x64 (Intel)
+      # ────────────────────────────────────────────────────────────────────
+      - name: Empacotar (macOS x64)
+        if: matrix.label == 'macos-x64'
+        run: npx electron-builder --mac dmg zip --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      # Para multi-arch consolidado: baixa o latest-mac.yml que o job arm64
+      # subiu, mescla com o que acabamos de gerar (que tem só x64) e sobe o
+      # arquivo merged. Sem isso, o auto-updater no Mac Intel acha que só
+      # existe a versão arm64 (ou vice-versa).
+      - name: Mesclar latest-mac.yml (arm64 + x64)
+        if: matrix.label == 'macos-x64'
+        shell: bash
+        run: |
+          set -e
+          # Baixa o latest-mac.yml já publicado pelo job arm64 (ignora se não existir).
+          mkdir -p dist-electron-merge
+          if gh release download "${GITHUB_REF_NAME}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --pattern "latest-mac.yml" \
+              --dir dist-electron-merge 2>/dev/null; then
+            echo "latest-mac.yml do arm64 baixado, mesclando com x64..."
+            node scripts/merge-latest-mac.js \
+              dist-electron-merge/latest-mac.yml \
+              dist-electron/latest-mac.yml \
+              dist-electron/latest-mac.yml
+          else
+            echo "Sem latest-mac.yml prévio — usando o do x64 puro."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Anexar assets do macOS x64 na release
+        if: matrix.label == 'macos-x64'
+        shell: bash
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            dist-electron/MyStoriesLena-*-x64.dmg \
+            dist-electron/MyStoriesLena-*-x64.dmg.blockmap \
+            dist-electron/MyStoriesLena-*-x64.zip \
+            dist-electron/MyStoriesLena-*-x64.zip.blockmap \
+            dist-electron/latest-mac.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload do artefato (debug)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}-build
+          name: ${{ matrix.label }}-build
           path: dist-electron/${{ matrix.artifact }}
           if-no-files-found: warn
           retention-days: 7

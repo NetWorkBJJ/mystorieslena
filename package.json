@@ -12,10 +12,14 @@
     "electron:dev": "concurrently -k \"npm:dev\" \"wait-on http://localhost:3000 && cross-env NEXT_DEV_URL=http://localhost:3000 electron .\"",
     "electron:start": "electron .",
     "prepackage": "node scripts/build-icon.js",
-    "package": "next build && electron-builder --win nsis",
+    "package": "next build && electron-builder",
+    "package:win": "next build && electron-builder --win nsis",
+    "package:mac": "next build && electron-builder --mac dmg zip",
     "package:dir": "next build && electron-builder --dir",
-    "release": "next build && electron-builder --win nsis --publish always",
-    "release:draft": "next build && electron-builder --win nsis --publish onTagOrDraft",
+    "release": "next build && electron-builder --publish always",
+    "release:win": "next build && electron-builder --win nsis --publish always",
+    "release:mac": "next build && electron-builder --mac dmg zip --publish always",
+    "release:draft": "next build && electron-builder --publish onTagOrDraft",
     "icon:build": "node scripts/build-icon.js"
   },
   "dependencies": {
@@ -48,6 +52,7 @@
     "electron": "^33.0.0",
     "electron-builder": "^25.1.8",
     "png-to-ico": "^2.1.8",
+    "png2icons": "^2.0.1",
     "sharp": "^0.34.0",
     "tailwindcss": "^4",
     "typescript": "^5",
@@ -137,7 +142,7 @@
           ]
         }
       ],
-      "icon": "electron/icons/icon.png",
+      "icon": "electron/icons/icon.icns",
       "category": "public.app-category.productivity",
       "artifactName": "MyStoriesLena-${version}-${arch}.${ext}",
       "hardenedRuntime": false,
@@ -146,7 +151,7 @@
     },
     "dmg": {
       "title": "MyStoriesLena ${version}",
-      "icon": "electron/icons/icon.png",
+      "icon": "electron/icons/icon.icns",
       "contents": [
         {
           "x": 130,
