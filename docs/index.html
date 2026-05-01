@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Instalar MyStoriesLena</title>
+  <link rel="icon" type="image/png" href="https://github.com/NetWorkBJJ/mystorieslena/raw/main/electron/icons/icon.png" />
+  <style>
+    :root {
+      --bg: #faf7f4;
+      --card: #ffffff;
+      --ink: #1c1612;
+      --muted: #6b5e54;
+      --accent: #7a1d2c;
+      --accent-2: #a02a3e;
+      --line: #ece5dd;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 32px; }
+    .badge {
+      display: inline-block;
+      background: var(--accent);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-family: "Georgia", "Times New Roman", serif;
+      font-size: 48px;
+      font-weight: 400;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+    h1 em { font-style: italic; color: var(--accent); }
+    .subtitle {
+      color: var(--muted);
+      font-size: 17px;
+      max-width: 460px;
+      margin: 0 auto;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(28, 22, 18, 0.04);
+    }
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
+      margin-right: 12px;
+      vertical-align: middle;
+    }
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+    }
+    p { margin-bottom: 12px; color: var(--ink); }
+    .download-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin: 20px 0 8px;
+    }
+    @media (min-width: 600px) {
+      .download-row { grid-template-columns: 1fr 1fr; }
+    }
+    .btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 18px 20px;
+      border: 2px solid var(--line);
+      border-radius: 12px;
+      text-decoration: none;
+      color: var(--ink);
+      transition: all 0.15s;
+      cursor: pointer;
+      background: white;
+    }
+    .btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .btn.primary {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+    .btn.primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
+    .btn-arch { font-size: 18px; font-weight: 600; }
+    .btn-desc { font-size: 13px; opacity: 0.85; }
+    .recommend {
+      display: inline-block;
+      background: rgba(122, 29, 44, 0.1);
+      color: var(--accent);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    .terminal {
+      background: #1c1612;
+      color: #f0e8e0;
+      padding: 16px 20px;
+      border-radius: 8px;
+      font-family: "SF Mono", Menlo, Monaco, "Courier New", monospace;
+      font-size: 14px;
+      overflow-x: auto;
+      position: relative;
+      margin: 12px 0;
+    }
+    .terminal-copy {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .terminal-copy:hover { background: rgba(255, 255, 255, 0.2); }
+    .terminal-copy.copied { background: #4caf50; border-color: #4caf50; }
+    .hint {
+      background: #fff8e1;
+      border-left: 3px solid #f4b400;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      font-size: 14px;
+      color: #5f4500;
+      margin-top: 12px;
+    }
+    .help-line {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    .help-line a { color: var(--accent); }
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 24px 0 8px;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    .arch-banner {
+      background: linear-gradient(135deg, rgba(122, 29, 44, 0.06), rgba(160, 42, 62, 0.04));
+      border: 1px solid rgba(122, 29, 44, 0.15);
+      padding: 14px 18px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    .arch-banner.detected { color: var(--accent); }
+    kbd {
+      background: #f0eae3;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-family: inherit;
+      font-size: 0.9em;
+      border: 1px solid #d8cfc4;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <span class="badge">Instalação</span>
+      <h1>Instalar <em>MyStoriesLena</em></h1>
+      <p class="subtitle">Gerador de roteiros para Mac. Detectamos seu sistema e oferecemos o instalador certo.</p>
+    </header>
+
+    <div class="card">
+      <h2><span class="step-num">1</span>Baixar o instalador</h2>
+
+      <div id="archBanner" class="arch-banner">
+        🔍 Detectando seu Mac…
+      </div>
+
+      <div class="download-row">
+        <a id="dlArm" href="#" class="btn">
+          <div class="btn-arch">🟣 Apple Silicon</div>
+          <div class="btn-desc">Mac M1, M2, M3, M4 (2020+)</div>
+        </a>
+        <a id="dlX64" href="#" class="btn">
+          <div class="btn-arch">🔵 Intel</div>
+          <div class="btn-desc">Macs até 2020 (Intel Core)</div>
+        </a>
+      </div>
+
+      <p class="help-line">
+        Em dúvida? Vá em <kbd> menu</kbd> → <em>Sobre Este Mac</em> e olhe a linha <strong>Chip</strong>. Apple = roxo. Intel = azul.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2><span class="step-num">2</span>Instalar o app</h2>
+      <p>Duplo-clique no <code>.dmg</code> baixado e <strong>arraste o ícone do MyStoriesLena pra pasta Aplicativos</strong>. Pode fechar a janelinha depois.</p>
+    </div>
+
+    <div class="card">
+      <h2><span class="step-num">3</span>Destravar (1ª vez só)</h2>
+      <p>O macOS protege apps que não compraram um certificado da Apple ($99/ano). Pra destravar, abre o <strong>Terminal</strong> (<kbd>Cmd+Espaço</kbd>, digite "Terminal", <kbd>Enter</kbd>) e cole esse comando:</p>
+
+      <div class="terminal">
+        <button class="terminal-copy" onclick="copyCmd(this)">copiar</button>
+        <code id="cmd">xattr -cr /Applications/MyStoriesLena.app</code>
+      </div>
+
+      <div class="hint">
+        ⚠️ <strong>Sem esse passo</strong> o macOS bloqueia falando que o app está "danificado". Não tem perigo — esse comando só remove a flag de quarentena que o navegador colocou no download.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="step-num">4</span>Abrir e logar no Claude</h2>
+      <p>Abre o <strong>MyStoriesLena</strong> pelo Launchpad ou pasta Aplicativos. Na primeira vez ele pede pra logar na sua conta Claude Pro/Max:</p>
+      <ol style="margin-left: 28px; color: var(--ink);">
+        <li style="margin-bottom: 6px;">Clique em <strong>Conectar conta Claude</strong></li>
+        <li style="margin-bottom: 6px;">Vai abrir o Terminal — digite <code>/login</code> e <kbd>Enter</kbd></li>
+        <li style="margin-bottom: 6px;">Autorize no navegador</li>
+        <li style="margin-bottom: 6px;">Volte no app e clique em <strong>Já loguei — verificar</strong></li>
+      </ol>
+      <p style="margin-top: 14px;">Pronto! 🎉 Daqui em diante o app verifica atualizações sozinho na inicialização.</p>
+    </div>
+
+    <footer>
+      <a href="https://github.com/NetWorkBJJ/mystorieslena/releases" target="_blank">Ver todas as versões</a>
+      &nbsp;•&nbsp;
+      <a href="https://github.com/NetWorkBJJ/mystorieslena/issues" target="_blank">Reportar problema</a>
+    </footer>
+  </div>
+
+  <script>
+    // Detecção heurística de Apple Silicon vs Intel.
+    // navigator.userAgent no Mac sempre contém "Intel" mesmo em Apple Silicon
+    // (Apple mascara pra compat). userAgentData.getHighEntropyValues retorna
+    // "arm" no Apple Silicon (Chrome 90+). Pra Safari não tem API confiável,
+    // então usamos fallback de teste de WebGL renderer (Apple GPU = M*).
+    async function detectArch() {
+      // Tenta UA-Client Hints (Chromium)
+      if (navigator.userAgentData?.getHighEntropyValues) {
+        try {
+          const data = await navigator.userAgentData.getHighEntropyValues(["architecture"]);
+          if (data.architecture === "arm") return "arm64";
+          if (data.architecture === "x86") return "x64";
+        } catch {}
+      }
+      // Fallback: WebGL renderer string (Safari + outros)
+      try {
+        const canvas = document.createElement("canvas");
+        const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+        if (gl) {
+          const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+          const renderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "";
+          if (/Apple/i.test(renderer)) return "arm64";  // GPU Apple = M*
+          if (/Intel|AMD|NVIDIA/i.test(renderer)) return "x64";
+        }
+      } catch {}
+      return null;  // não conseguiu detectar
+    }
+
+    // Busca a última release via API do GitHub e atualiza os links.
+    async function loadLatestRelease() {
+      const repo = "NetWorkBJJ/mystorieslena";
+      const armEl = document.getElementById("dlArm");
+      const x64El = document.getElementById("dlX64");
+      const banner = document.getElementById("archBanner");
+
+      let release;
+      try {
+        const r = await fetch(`https://api.github.com/repos/${repo}/releases/latest`);
+        if (!r.ok) throw new Error("api fail");
+        release = await r.json();
+      } catch (err) {
+        // Fallback: links versionados pra v1.0.42 (release em build)
+        const base = `https://github.com/${repo}/releases/download/v1.0.42`;
+        armEl.href = `${base}/MyStoriesLena-1.0.42-arm64.dmg`;
+        x64El.href = `${base}/MyStoriesLena-1.0.42-x64.dmg`;
+        banner.innerHTML = "📡 Não consegui buscar a última versão — usando v1.0.42 (pode estar buildando ainda).";
+        return;
+      }
+
+      const armAsset = release.assets.find((a) => /arm64\.dmg$/.test(a.name));
+      const x64Asset = release.assets.find((a) => /x64\.dmg$/.test(a.name));
+      if (armAsset) armEl.href = armAsset.browser_download_url;
+      if (x64Asset) x64Asset && (x64El.href = x64Asset.browser_download_url);
+
+      // Detecta arch e destaca o botão correto
+      const arch = await detectArch();
+      if (arch === "arm64" && armAsset) {
+        armEl.classList.add("primary");
+        armEl.innerHTML += '<div class="recommend">RECOMENDADO PARA VOCÊ</div>';
+        banner.classList.add("detected");
+        banner.innerHTML = `✅ Detectamos <strong>Apple Silicon</strong> — versão ${release.tag_name}`;
+      } else if (arch === "x64" && x64Asset) {
+        x64El.classList.add("primary");
+        x64El.innerHTML += '<div class="recommend">RECOMENDADO PARA VOCÊ</div>';
+        banner.classList.add("detected");
+        banner.innerHTML = `✅ Detectamos <strong>Mac Intel</strong> — versão ${release.tag_name}`;
+      } else {
+        banner.innerHTML = `📦 Última versão: <strong>${release.tag_name}</strong> — escolha conforme seu chip abaixo.`;
+      }
+    }
+
+    function copyCmd(btn) {
+      const cmd = document.getElementById("cmd").innerText;
+      navigator.clipboard.writeText(cmd).then(() => {
+        btn.innerText = "copiado ✓";
+        btn.classList.add("copied");
+        setTimeout(() => {
+          btn.innerText = "copiar";
+          btn.classList.remove("copied");
+        }, 2000);
+      });
+    }
+
+    loadLatestRelease();
+  </script>
+</body>
+</html>
