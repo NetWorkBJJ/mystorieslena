@@ -25,6 +25,7 @@
 /electron/dist/
 /electron/icons/icon.png
 /electron/icons/icon.ico
+/electron/icons/icon.icns
 
 # misc
 .DS_Store

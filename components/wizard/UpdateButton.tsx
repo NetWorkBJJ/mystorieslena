@@ -54,7 +54,7 @@ export function UpdateButton({ className }: { className?: string }) {
             kind: "unavailable",
             reason:
               rt.mode === "live"
-                ? "Modo LIVE ativo (lendo da pasta de código). Atualizações automáticas só funcionam no .exe instalado normal."
+                ? "Modo LIVE ativo (lendo da pasta de código). Atualizações automáticas só funcionam no app instalado normalmente."
                 : rt.mode === "external-dev"
                   ? "Modo dev externo — sem updater."
                   : "Updater indisponível neste build.",
