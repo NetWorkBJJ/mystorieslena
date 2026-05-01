@@ -562,10 +562,21 @@ async function boot() {
           "[updater] desativado — repo GitHub ainda é placeholder no package.json",
         );
       } else {
-        autoUpdater.autoDownload = true;
-        autoUpdater.autoInstallOnAppQuit = true;
+        // No macOS sem cert Apple Developer pago, o auto-install falha com
+        // erro de mismatch de assinatura (cada build ad-hoc tem identidade
+        // nova). Em vez de tentar baixar/instalar e dar erro, só verifica
+        // disponibilidade — o renderer mostra um botão "Baixar" que abre
+        // a página da release no navegador, e o usuário substitui o .app
+        // manualmente uma vez. No Windows o NSIS não tem essa restrição
+        // e o flow auto continua perfeito.
+        const isMacAdhoc =
+          process.platform === "darwin" && !process.env.CSC_LINK;
+        autoUpdater.autoDownload = !isMacAdhoc;
+        autoUpdater.autoInstallOnAppQuit = !isMacAdhoc;
         wireUpdaterEvents();
-        autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+        // checkForUpdates (sem AndNotify) só verifica — não dispara download
+        // automático, então evita o erro feio no Mac.
+        autoUpdater.checkForUpdates().catch(() => {});
       }
     } catch (e) {
       console.log("[updater] skipped:", e?.message || e);
@@ -618,12 +629,19 @@ function wireUpdaterEvents() {
 }
 
 // IPC handlers — endpoints que o renderer chama via preload.js (window.mystorieslena).
-ipcMain.handle("runtime:info", () => ({
-  mode: runtimeMode, // "live" | "packaged" | "external-dev"
-  version: app.getVersion(),
-  isPackaged: app.isPackaged,
-  updaterAvailable: !!autoUpdater && app.isPackaged && runtimeMode === "packaged",
-}));
+ipcMain.handle("runtime:info", () => {
+  const isMacAdhoc =
+    process.platform === "darwin" && !process.env.CSC_LINK;
+  return {
+    mode: runtimeMode, // "live" | "packaged" | "external-dev"
+    version: app.getVersion(),
+    isPackaged: app.isPackaged,
+    updaterAvailable: !!autoUpdater && app.isPackaged && runtimeMode === "packaged",
+    // No Mac sem cert: "external-download" (renderer mostra botão que abre
+    // navegador). Windows/Mac com cert: "auto" (download + install in-app).
+    updateMode: isMacAdhoc ? "external-download" : "auto",
+  };
+});
 
 ipcMain.handle("updater:check", async () => {
   if (!autoUpdater) {
@@ -668,6 +686,56 @@ ipcMain.handle("updater:install", () => {
   // isSilent=false (mostra wizard NSIS), isForceRunAfter=true (reabre depois).
   autoUpdater.quitAndInstall(false, true);
   return { ok: true };
+});
+
+/**
+ * Abre o navegador padrão na página da release mais recente do repo.
+ * Usado em macOS sem cert Apple, onde o auto-install falha por
+ * mismatch de assinatura ad-hoc — em vez de quebrar, mostramos um
+ * botão "Baixar" que leva o usuário pra GitHub Releases pra ele
+ * substituir o .app manualmente uma vez.
+ *
+ * Lê owner/repo do package.json#build.publish[0] embarcado no app.
+ */
+ipcMain.handle("updater:open-download-page", () => {
+  try {
+    // Procura o package.json do app empacotado pra ler publish.owner.
+    const candidates = [
+      // packaged: process.resourcesPath/app/package.json (extraResources copia).
+      path.join(process.resourcesPath, "app", "package.json"),
+      // dev: raiz do projeto.
+      path.join(__dirname, "..", "package.json"),
+    ];
+    let owner = null;
+    let repo = null;
+    for (const p of candidates) {
+      if (!fs.existsSync(p)) continue;
+      try {
+        const pkg = JSON.parse(fs.readFileSync(p, "utf-8"));
+        const pub = Array.isArray(pkg?.build?.publish)
+          ? pkg.build.publish[0]
+          : pkg?.build?.publish;
+        if (pub?.owner && pub?.repo) {
+          owner = pub.owner;
+          repo = pub.repo;
+          break;
+        }
+      } catch {
+        // ignore — tenta próximo
+      }
+    }
+    if (!owner || !repo) {
+      return {
+        ok: false,
+        reason: "Não consegui determinar o repositório de releases.",
+      };
+    }
+    const url = `https://github.com/${owner}/${repo}/releases/latest`;
+    shell.openExternal(url);
+    return { ok: true, url };
+  } catch (e) {
+    return { ok: false, reason: String(e?.message || e) };
+  }
 });
 
 /**

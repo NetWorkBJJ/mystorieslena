@@ -9,6 +9,15 @@ export interface RuntimeInfo {
   isPackaged: boolean;
   /** true quando o app pode atualizar via GitHub Releases */
   updaterAvailable: boolean;
+  /**
+   * true em macOS sem certificado Apple Developer pago. Nessa configuração,
+   * o auto-install falha com erro de assinatura ad-hoc (cada build tem
+   * identidade nova). A UI mostra "Baixar" em vez de tentar instalar
+   * automaticamente — o clique abre a página da release no navegador,
+   * o usuário substitui o .app manualmente.
+   * No Windows o NSIS não tem essa restrição → updateMode === "auto".
+   */
+  updateMode: "auto" | "external-download";
 }
 
 export interface UpdaterCheckResult {
@@ -72,6 +81,12 @@ export interface MyStoriesLenaBridge {
   checkForUpdates: () => Promise<UpdaterCheckResult>;
   downloadUpdate: () => Promise<{ ok: boolean; reason?: string }>;
   quitAndInstall: () => Promise<{ ok: boolean }>;
+  /**
+   * Abre o navegador na página da release mais recente. Usado em macOS
+   * sem certificado Apple, onde auto-install falha por mismatch de
+   * assinatura ad-hoc.
+   */
+  openDownloadPage: () => Promise<{ ok: boolean; reason?: string }>;
   onUpdateEvent: (cb: (event: UpdateEvent) => void) => () => void;
   exportRoteiroPdf: (payload: ExportPdfPayload) => Promise<ExportPdfResult>;
   getClaudeStatus: () => Promise<ClaudeStatus>;

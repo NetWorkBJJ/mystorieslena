@@ -29,6 +29,14 @@ contextBridge.exposeInMainWorld("mystorieslena", {
   quitAndInstall: () => ipcRenderer.invoke("updater:install"),
 
   /**
+   * Abre o navegador padrão na página da release mais recente. Usado em
+   * macOS sem cert Apple Developer, onde auto-install falha por mismatch
+   * de assinatura ad-hoc — em vez de mostrar erro, oferecemos esse botão
+   * pra o usuário baixar e substituir o .app manualmente.
+   */
+  openDownloadPage: () => ipcRenderer.invoke("updater:open-download-page"),
+
+  /**
    * Exporta o roteiro completo como PDF. Retorna { ok, path } ou
    * { ok: false, canceled: true } se o usuário cancelar o dialog.
    */

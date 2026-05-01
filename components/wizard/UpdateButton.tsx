@@ -146,6 +146,12 @@ export function UpdateButton({ className }: { className?: string }) {
     }
   }, []);
 
+  const openDownloadPage = useCallback(async () => {
+    const bridge = window.mystorieslena;
+    if (!bridge) return;
+    await bridge.openDownloadPage();
+  }, []);
+
   const restartNow = useCallback(async () => {
     const bridge = window.mystorieslena;
     if (!bridge) return;
@@ -203,6 +209,23 @@ export function UpdateButton({ className }: { className?: string }) {
   }
 
   if (state.kind === "available") {
+    // No macOS sem cert Apple, auto-install falha por mismatch de assinatura
+    // ad-hoc. Em vez de tentar e dar erro, abrimos a página da release no
+    // navegador — usuário substitui o .app manualmente uma vez.
+    if (info?.updateMode === "external-download") {
+      return (
+        <Button
+          variant="default"
+          size="sm"
+          onClick={openDownloadPage}
+          className={cn(baseClass, "bg-primary text-primary-foreground")}
+          title="Abre a página de download no navegador. Baixe e substitua o app manualmente."
+        >
+          <Download className="size-3.5" />
+          Nova versão v{state.version} — baixar
+        </Button>
+      );
+    }
     return (
       <Button
         variant="default"
