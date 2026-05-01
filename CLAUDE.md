@@ -107,4 +107,4 @@ Per-chapter target margin is **±3%** (with a 30-word minimum) — see `targetRa
 - All user-facing strings are **Brazilian Portuguese**. Match the existing tone when adding UI copy.
 - The reference-image data URL is stored inline in the Roteiro (and thus in localStorage) — keep image size limits in mind when changing `ReferenceImageUpload`.
 - Auto-updater is wired only when `app.isPackaged && runtimeMode === "packaged"`. Don't expect it to fire in dev or LIVE mode.
-- When publishing (`npm run release`) the GitHub repo is hardcoded in `package.json#build.publish` (`lucasbaziliocomercial-crypto/mystorieslena`).
+- When publishing (`npm run release`) the GitHub repo is hardcoded in `package.json#build.publish` (`NetWorkBJJ/mystorieslena` — fork distribuído pela Helo).

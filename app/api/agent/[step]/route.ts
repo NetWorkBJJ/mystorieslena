@@ -148,7 +148,7 @@ export async function POST(
               : "Ctrl+Shift+I";
           controller.enqueue(
             encoder.encode(
-              `\n\n[BINÁRIO CLAUDE NÃO ENCONTRADO]\n\nO binário do Claude Code não está disponível neste pacote do app. Isso costuma acontecer quando a instalação ficou incompleta ou foi corrompida durante uma atualização.\n\n💡 COMO RESOLVER:\n\n1. Baixe o instalador mais recente em:\n   https://github.com/lucasbaziliocomercial-crypto/mystorieslena/releases\n${installerHint}\n\nSe persistir mesmo após reinstalar, abra um issue colando os logs do DevTools:\n   • Pressione ${devToolsHint} dentro do app pra abrir o DevTools\n   • Vá na aba "Console" e copie as linhas que começam com [claude]\n   • Reporte em https://github.com/lucasbaziliocomercial-crypto/mystorieslena/issues\n\n--- Detalhe técnico ---\n${msg}`,
+              `\n\n[BINÁRIO CLAUDE NÃO ENCONTRADO]\n\nO binário do Claude Code não está disponível neste pacote do app. Isso costuma acontecer quando a instalação ficou incompleta ou foi corrompida durante uma atualização.\n\n💡 COMO RESOLVER:\n\n1. Baixe o instalador mais recente em:\n   https://github.com/NetWorkBJJ/mystorieslena/releases\n${installerHint}\n\nSe persistir mesmo após reinstalar, abra um issue colando os logs do DevTools:\n   • Pressione ${devToolsHint} dentro do app pra abrir o DevTools\n   • Vá na aba "Console" e copie as linhas que começam com [claude]\n   • Reporte em https://github.com/NetWorkBJJ/mystorieslena/issues\n\n--- Detalhe técnico ---\n${msg}`,
             ),
           );
         } else if (isAuthError) {
