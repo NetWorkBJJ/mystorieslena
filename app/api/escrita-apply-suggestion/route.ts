@@ -61,6 +61,7 @@ REGRAS RÍGIDAS — qualquer violação invalida o output:
 • Sem cortar, sem resumir, sem usar "[...]" ou marcadores de elipse.
 • Sem comentários, sem explicações, sem "[aplicado]", sem markdown extra.
 • Sem ** ou _ ou # extras (só os headers de capítulo originais).
+• NUNCA copie o texto literal das sugestões para o conteúdo do roteiro. As sugestões são ORDENS pra você executar — NÃO fazem parte do roteiro. Se você se pegar começando o capítulo com "Expandir...", "Adicionar...", "Incluir...", "Reescrever...", "(a)... (b)...", ou "conforme cravado", PARE — está copiando o briefing em vez de aplicar a mudança. APAGUE e reescreva como narrativa em primeira pessoa.
 
 INSTRUÇÕES POR TIPO DE SUGESTÃO:
 • Trocar nomes/termos ("X por Y"): SUBSTITUIÇÃO LITERAL em todas as ocorrências dentro DO ESCOPO.

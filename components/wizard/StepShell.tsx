@@ -76,6 +76,7 @@ import { WordCountBadge } from "@/components/wizard/WordCountBadge";
 // countWords sempre da lib canônica — mesmo contador que a UI usa pra
 // exibir os totais. Ver CLAUDE.md seção "Contagem de palavras".
 import { countWords } from "@/lib/word-count";
+import { validateRewrite } from "@/lib/validate-rewrite";
 import { HistoryPanel } from "@/components/wizard/HistoryPanel";
 import { DownloadEscritaButton } from "@/components/wizard/DownloadEscritaButton";
 import { CopyPartButton } from "@/components/wizard/CopyPartButton";
@@ -669,12 +670,31 @@ export function StepShell({ step }: Props) {
           const fixParsed = parseRevisedChapters(fixAcc);
           const fixedCh = fixParsed.find((p) => p.number === ch.number);
           if (fixedCh?.content) {
-            accChapters[i] = {
-              ...ch,
-              content: fixedCh.content,
-              title: fixedCh.title ?? ch.title,
-            };
-            persistEscrita();
+            // Defesa contra resposta malformada do modelo (eco da instrução,
+            // truncamento, briefing copiado em vez do capítulo). Sem isso, o
+            // capítulo seria sobrescrito por lixo. Ver lib/validate-rewrite.ts.
+            const validation = validateRewrite({
+              newContent: fixedCh.content,
+              originalContent: ch.content,
+              targetWords: target,
+              triggerText: roteiro.userInputs?.revisor,
+            });
+            if (validation.ok) {
+              accChapters[i] = {
+                ...ch,
+                content: fixedCh.content,
+                title: fixedCh.title ?? ch.title,
+              };
+              persistEscrita();
+            } else {
+              console.warn(
+                `[Revisor Phase 1] Cap ${ch.number} (${partLabel}): ${validation.reason} — mantendo original. ${validation.message ?? ""}`,
+              );
+              setLiveStream(
+                (prev) =>
+                  `${prev}\n\n[AVISO] Cap ${ch.number} ${partLabel}: ${validation.message ?? "resposta inesperada da IA"} Mantido o texto original.`,
+              );
+            }
           } else {
             console.warn(
               `Fix devolveu output sem header parseável pro Cap ${ch.number} (${partLabel}) — mantendo original`,
@@ -759,12 +779,29 @@ export function StepShell({ step }: Props) {
                 (c) => c.part === part && c.number === pickedCap.number,
               );
               if (idxInAcc >= 0) {
-                accChapters[idxInAcc] = {
-                  ...accChapters[idxInAcc]!,
-                  content: balCh.content,
-                  title: balCh.title ?? accChapters[idxInAcc]!.title,
-                };
-                persistEscrita();
+                // Mesma defesa da Phase 1 — modelo pode ecoar briefing.
+                const validation = validateRewrite({
+                  newContent: balCh.content,
+                  originalContent: accChapters[idxInAcc]!.content,
+                  targetWords: newTarget,
+                  triggerText: roteiro.userInputs?.revisor,
+                });
+                if (validation.ok) {
+                  accChapters[idxInAcc] = {
+                    ...accChapters[idxInAcc]!,
+                    content: balCh.content,
+                    title: balCh.title ?? accChapters[idxInAcc]!.title,
+                  };
+                  persistEscrita();
+                } else {
+                  console.warn(
+                    `[Revisor Phase 2] Balance da ${part} (Cap ${pickedCap.number}): ${validation.reason} — mantendo original. ${validation.message ?? ""}`,
+                  );
+                  setLiveStream(
+                    (prev) =>
+                      `${prev}\n\n[AVISO] Balance da ${part}: ${validation.message ?? "resposta inesperada da IA"} Mantido o texto original.`,
+                  );
+                }
               }
             } else {
               console.warn(

@@ -20,6 +20,7 @@ import {
   concatenateChapters,
   parseEscritaChaptersDirect,
 } from "./parse-escrita-output";
+import { validateRewrite } from "./validate-rewrite";
 
 export type ScopeKind = "chapter" | "part" | "full";
 
@@ -39,6 +40,15 @@ export interface SuggestionApplyResult {
   newContent?: string;
   /** Array de chapters atualizado (só populado se applied=true). */
   newChapters?: EscritaChapter[];
+  /**
+   * Sinaliza que a IA devolveu uma resposta que falhou validação (eco da
+   * instrução, truncamento, briefing copiado em vez do capítulo) e o caller
+   * deve avisar a usuária. Quando true, applied é false e o conteúdo
+   * original foi preservado.
+   */
+  validationFailed?: boolean;
+  /** Mensagem legível pra UI quando validationFailed=true. */
+  validationMessage?: string;
 }
 
 /**
@@ -201,13 +211,88 @@ export async function applySuggestionsToScope(params: {
 
   const now = new Date().toISOString();
 
+  // Texto da instrução que pode ser ecoado pelo modelo. Usado pra detectar
+  // quando o Opus copia o briefing literal em vez de aplicar a sugestão.
+  // Concatena título + sugestão + porqueAlterado de todos os erros.
+  const triggerText = suggestions
+    .map((s) =>
+      [s.titulo, s.sugestao, s.porqueAlterado].filter(Boolean).join(" "),
+    )
+    .join("\n");
+
+  /**
+   * Valida um cap reparseado contra o original correspondente em fullChapters.
+   * Retorna o validation result do helper canônico.
+   */
+  const validateAgainstOriginal = (
+    reparsed: EscritaChapter,
+    original: EscritaChapter | undefined,
+  ) => {
+    if (!original) {
+      return {
+        ok: false as const,
+        reason: "too-short" as const,
+        message: `Cap ${reparsed.number} sem correspondente original.`,
+      };
+    }
+    return validateRewrite({
+      newContent: reparsed.content,
+      originalContent: original.content,
+      triggerText,
+    });
+  };
+
   let newFullContent: string;
   let newChapters: EscritaChapter[];
 
   if (scope.kind === "full") {
-    newFullContent = newScopeContent;
-    const reparsed = parseEscritaChaptersDirect(newFullContent);
-    newChapters = reparsed.length > 0 ? reparsed : fullChapters;
+    const reparsed = parseEscritaChaptersDirect(newScopeContent);
+    if (reparsed.length === 0) {
+      // Sem capítulos parseáveis — não dá pra validar individualmente. Trata
+      // como roteiro monolítico e roda só os checks de tamanho/eco no todo.
+      const validation = validateRewrite({
+        newContent: newScopeContent,
+        originalContent: scope.content,
+        triggerText,
+      });
+      if (!validation.ok) {
+        console.warn(
+          `[apply-suggestion] full sem caps + validação falhou: ${validation.reason}`,
+        );
+        return {
+          applied: false,
+          validationFailed: true,
+          validationMessage:
+            validation.message ??
+            "A IA devolveu uma resposta inesperada — texto original mantido.",
+        };
+      }
+      newFullContent = newScopeContent;
+      newChapters = fullChapters;
+    } else {
+      // Valida cada cap reparseado contra seu original. Qualquer falha
+      // invalida a aplicação inteira (evita salvar metade lixo).
+      for (const r of reparsed) {
+        const original = fullChapters.find(
+          (c) => c.part === r.part && c.number === r.number,
+        );
+        const v = validateAgainstOriginal(r, original);
+        if (!v.ok) {
+          console.warn(
+            `[apply-suggestion] full Cap ${r.number} ${r.part}: ${v.reason} — abortando aplicação. ${v.message ?? ""}`,
+          );
+          return {
+            applied: false,
+            validationFailed: true,
+            validationMessage:
+              v.message ??
+              "A IA devolveu uma resposta inesperada — texto original mantido.",
+          };
+        }
+      }
+      newFullContent = newScopeContent;
+      newChapters = reparsed;
+    }
   } else if (scope.kind === "part") {
     const reparsedPart = parseEscritaChaptersDirect(newScopeContent);
     if (reparsedPart.length === 0) {
@@ -215,6 +300,26 @@ export async function applySuggestionsToScope(params: {
       return { applied: false };
     }
     const fallbackPart = scope.chapters[0]?.part;
+    // Valida cada cap reparseado da Parte contra o original em scope.chapters.
+    for (const r of reparsedPart) {
+      const partOfR = r.part ?? fallbackPart;
+      const original = scope.chapters.find(
+        (c) => c.part === partOfR && c.number === r.number,
+      );
+      const v = validateAgainstOriginal(r, original);
+      if (!v.ok) {
+        console.warn(
+          `[apply-suggestion] part Cap ${r.number} ${partOfR}: ${v.reason} — abortando aplicação. ${v.message ?? ""}`,
+        );
+        return {
+          applied: false,
+          validationFailed: true,
+          validationMessage:
+            v.message ??
+            "A IA devolveu uma resposta inesperada — texto original mantido.",
+        };
+      }
+    }
     const reparsedWithPart: EscritaChapter[] = reparsedPart.map((r) => ({
       ...r,
       part: r.part ?? fallbackPart,
@@ -252,6 +357,19 @@ export async function applySuggestionsToScope(params: {
         (c) => c.part === partOfR && c.number === r.number,
       );
       if (idx >= 0) {
+        const v = validateAgainstOriginal(r, updated[idx]);
+        if (!v.ok) {
+          console.warn(
+            `[apply-suggestion] chapter Cap ${r.number} ${partOfR}: ${v.reason} — abortando aplicação. ${v.message ?? ""}`,
+          );
+          return {
+            applied: false,
+            validationFailed: true,
+            validationMessage:
+              v.message ??
+              "A IA devolveu uma resposta inesperada — texto original mantido.",
+          };
+        }
         updated[idx] = {
           ...updated[idx]!,
           content: r.content,

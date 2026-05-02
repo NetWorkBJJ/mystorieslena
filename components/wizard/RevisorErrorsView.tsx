@@ -87,7 +87,7 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
     async (
       errorId: string,
       opts: { signal?: AbortSignal; onChunk?: (acc: string) => void } = {},
-    ): Promise<{ applied: boolean }> => {
+    ): Promise<{ applied: boolean; validationMessage?: string }> => {
       const err = errors.find((e) => e.id === errorId);
       if (!err || !escritaOutput?.content || !revisorOutput) {
         return { applied: false };
@@ -111,7 +111,12 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
         !result.newContent ||
         !result.newChapters
       ) {
-        return { applied: false };
+        return {
+          applied: false,
+          validationMessage: result.validationFailed
+            ? result.validationMessage
+            : undefined,
+        };
       }
 
       const now = new Date().toISOString();
@@ -297,7 +302,7 @@ interface CardProps {
   onApplySuggestion: (opts: {
     signal: AbortSignal;
     onChunk: (acc: string) => void;
-  }) => Promise<{ applied: boolean }>;
+  }) => Promise<{ applied: boolean; validationMessage?: string }>;
 }
 
 function ErrorCard({
@@ -310,6 +315,7 @@ function ErrorCard({
   const [pending, startTransition] = useTransition();
   const [suggestionPending, setSuggestionPending] = useState(false);
   const [localFailed, setLocalFailed] = useState(false);
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [livePreview, setLivePreview] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
@@ -321,6 +327,7 @@ function ErrorCard({
 
   const handleApply = () => {
     setLocalFailed(false);
+    setValidationMessage(null);
     startTransition(() => {
       const result = onApply();
       if (!result.applied) setLocalFailed(true);
@@ -329,6 +336,7 @@ function ErrorCard({
 
   const handleApplySuggestion = async () => {
     setLocalFailed(false);
+    setValidationMessage(null);
     setLivePreview("");
     setSuggestionPending(true);
     const ctrl = new AbortController();
@@ -340,7 +348,12 @@ function ErrorCard({
           if (!ctrl.signal.aborted) setLivePreview(acc);
         },
       });
-      if (!result.applied && !ctrl.signal.aborted) setLocalFailed(true);
+      if (!result.applied && !ctrl.signal.aborted) {
+        setLocalFailed(true);
+        if (result.validationMessage) {
+          setValidationMessage(result.validationMessage);
+        }
+      }
     } finally {
       abortRef.current = null;
       setSuggestionPending(false);
@@ -507,8 +520,9 @@ function ErrorCard({
           )}
           {localFailed && !error.applied && isInformativo && (
             <span className="text-xs text-amber-800 leading-relaxed">
-              Falha ao aplicar a correção — verifique o console e tente
-              novamente, ou aplique manualmente no Step 4.
+              {validationMessage
+                ? `${validationMessage} Tente aplicar de novo.`
+                : "Falha ao aplicar a correção — verifique o console e tente novamente, ou aplique manualmente no Step 4."}
             </span>
           )}
         </div>

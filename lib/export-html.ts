@@ -1,5 +1,3 @@
-import { countWords } from "@/lib/word-count";
-
 /**
  * Helpers de exportação HTML do roteiro.
  *
@@ -74,87 +72,52 @@ function preprocessRoteiro(raw: string): string {
 }
 
 /**
- * Heurística de detecção do MMC: o prompt da Escrita garante que a FMC narra
- * >50% das palavras totais (Parte 1 inteira é FMC, e na Parte 2 ela continua
- * majoritária). Conta palavras por POV ao longo de TODO o roteiro e retorna
- * o nome com MENOS palavras = MMC.
+ * Detecta o nome do MMC pra aplicar o highlight verde nos parágrafos do
+ * POV masculino na Parte 2.
  *
- * Não dá pra contar só ocorrências de `### ✦` porque os POVs alternam — em
- * Parte 2 é comum aparecer 4 marcadores de cada lado e empatar. O que separa
- * os dois é o tamanho dos blocos, não a frequência dos marcadores.
+ * Regra do prompt da Escrita (lib/agents/milionario1p/escrita-prompt.ts:74):
+ *   "Quando o capítulo da Parte 2 começa, coloque sempre o ### ✦ [Nome] do
+ *    narrador inicial logo abaixo do título do capítulo, mesmo que seja a FMC."
  *
- * Retorna `null` quando não dá pra decidir: POV único, empate no mínimo,
- * ou nenhum POV com palavras (caso típico ao processar Parte 1 isolada).
+ * Ou seja: o PRIMEIRO `### ✦ Nome` do roteiro é SEMPRE a FMC. Como o formato
+ * Helô só tem 2 POVs em primeira pessoa (FMC + MMC), qualquer POV diferente
+ * que apareça depois do primeiro é o MMC.
+ *
+ * Essa heurística é determinística e funciona em qualquer recorte — roteiro
+ * inteiro, só Parte 2, ou um único capítulo da Parte 2 — porque não depende
+ * de contagem de palavras (a tentativa anterior usava "quem tem menos
+ * palavras = MMC" e invertia o highlight quando a FMC tinha menos palavras
+ * num recorte específico).
+ *
+ * Retorna `null` quando não dá pra decidir: roteiro sem `### ✦` nenhum
+ * (Parte 1 isolada) ou só com 1 POV (FMC narrando sozinha).
  */
 export function detectMaleLeadName(raw: string): string | null {
   const normalized = preprocessRoteiro(raw);
-  const stats = new Map<string, { words: number; display: string }>();
 
-  let currentPov: string | null = null;
-  let buffer: string[] = [];
-
-  const flush = () => {
-    if (currentPov && buffer.length > 0) {
-      const text = buffer.join(" ").trim();
-      if (text) {
-        const entry = stats.get(currentPov);
-        if (entry) entry.words += countWords(text);
-      }
-    }
-    buffer = [];
-  };
+  let firstPov: string | null = null;
+  let mmcDisplay: string | null = null;
 
   for (const rawLine of normalized.split("\n")) {
     const line = rawLine.trim();
-
     const h3 = line.match(/^###\s+(.+)$/);
-    const h2 = line.match(/^##\s+(.+)$/);
-    const h1 = line.match(/^#\s+(.+)$/);
+    if (!h3) continue;
 
-    if (h3) {
-      flush();
-      const display = h3[1].replace(/^✦\s*/, "").trim();
-      if (display) {
-        currentPov = display.toLowerCase();
-        if (!stats.has(currentPov)) {
-          stats.set(currentPov, { words: 0, display });
-        }
-      } else {
-        currentPov = null;
-      }
+    const display = h3[1].replace(/^✦\s*/, "").trim();
+    if (!display) continue;
+
+    const canonical = display.toLowerCase();
+    if (firstPov === null) {
+      firstPov = canonical;
       continue;
     }
-    if (h2 || h1) {
-      flush();
-      currentPov = null;
-      continue;
-    }
-
-    if (!line) {
-      flush();
-      continue;
-    }
-
-    buffer.push(line);
-  }
-  flush();
-
-  if (stats.size < 2) return null;
-
-  let minWords = Infinity;
-  let minName: string | null = null;
-  let tied = false;
-  for (const { words, display } of stats.values()) {
-    if (words === 0) continue;
-    if (words < minWords) {
-      minWords = words;
-      minName = display;
-      tied = false;
-    } else if (words === minWords) {
-      tied = true;
+    if (canonical !== firstPov) {
+      mmcDisplay = display;
+      break;
     }
   }
-  return tied || minName === null ? null : minName;
+
+  return mmcDisplay;
 }
 
 /**
