@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   EscritaChapter,
   Roteiro,
+  RoteiroDrafts,
   RoteiroReferenceImage,
   StepGenerationSnapshot,
   StepId,
@@ -26,6 +27,26 @@ interface WizardState {
    * é enviado pra Escrita ou Revisor.
    */
   setUserInput: (step: StepId, input: string) => void;
+  /**
+   * Salva o rascunho de um textarea (não-commitado). Cada step tem seus
+   * próprios campos (ver [RoteiroDrafts]). Strings vazias / só whitespace
+   * deletam o draft em vez de salvar lixo. Usado pelo hook `useDraft` em
+   * intervalos debounced — nunca chamar em todo keystroke direto.
+   */
+  setDraft: <S extends keyof RoteiroDrafts>(
+    step: S,
+    field: keyof NonNullable<RoteiroDrafts[S]>,
+    value: string,
+  ) => void;
+  /**
+   * Limpa o rascunho de um campo específico, ou de todos os campos do step
+   * se `field` for omitido. Chamado depois que o valor vira oficial (botão
+   * Gerar / Aplicar / Salvar).
+   */
+  clearDraft: <S extends keyof RoteiroDrafts>(
+    step: S,
+    field?: keyof NonNullable<RoteiroDrafts[S]>,
+  ) => void;
   setReferenceImage: (image: RoteiroReferenceImage | null) => void;
   setTitle: (title: string) => void;
   setIsGenerating: (v: boolean) => void;
@@ -146,6 +167,60 @@ export const useWizard = create<WizardState>((set, get) => ({
       return {
         roteiro: persist({ ...s.roteiro, userInputs }),
       };
+    }),
+
+  setDraft: (step, field, value) =>
+    set((s) => {
+      if (!s.roteiro) return s;
+      const drafts = { ...(s.roteiro.drafts ?? {}) } as RoteiroDrafts;
+      const stepDrafts = {
+        ...((drafts[step] as Record<string, string> | undefined) ?? {}),
+      } as Record<string, string>;
+      // Whitespace-only ou vazio deleta — não engorda localStorage com lixo
+      // e mantém a semântica "rascunho ausente" igual a "nunca digitou".
+      if (value.trim().length === 0) {
+        delete stepDrafts[field as string];
+      } else {
+        stepDrafts[field as string] = value;
+      }
+      if (Object.keys(stepDrafts).length === 0) {
+        delete drafts[step];
+      } else {
+        (drafts as Record<string, unknown>)[step] = stepDrafts;
+      }
+      const next: Roteiro = { ...s.roteiro };
+      if (Object.keys(drafts).length === 0) {
+        delete next.drafts;
+      } else {
+        next.drafts = drafts;
+      }
+      return { roteiro: persist(next) };
+    }),
+
+  clearDraft: (step, field) =>
+    set((s) => {
+      if (!s.roteiro?.drafts?.[step]) return s;
+      const drafts = { ...s.roteiro.drafts } as RoteiroDrafts;
+      if (field === undefined) {
+        delete drafts[step];
+      } else {
+        const stepDrafts = {
+          ...((drafts[step] as Record<string, string> | undefined) ?? {}),
+        } as Record<string, string>;
+        delete stepDrafts[field as string];
+        if (Object.keys(stepDrafts).length === 0) {
+          delete drafts[step];
+        } else {
+          (drafts as Record<string, unknown>)[step] = stepDrafts;
+        }
+      }
+      const next: Roteiro = { ...s.roteiro };
+      if (Object.keys(drafts).length === 0) {
+        delete next.drafts;
+      } else {
+        next.drafts = drafts;
+      }
+      return { roteiro: persist(next) };
     }),
 
   setReferenceImage: (image) =>

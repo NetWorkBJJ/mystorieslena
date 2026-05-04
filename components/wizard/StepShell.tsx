@@ -41,6 +41,7 @@ import {
   type StepOutput,
 } from "@/types/roteiro";
 import { useWizard } from "@/store/wizard";
+import { useDraft } from "@/lib/use-draft";
 import { getAgent } from "@/lib/agents";
 import { CATEGORIES } from "@/lib/categories";
 import { DEFAULT_CATEGORY } from "@/types/roteiro";
@@ -202,6 +203,7 @@ export function StepShell({ step }: Props) {
   const setOutput = useWizard((s) => s.setOutput);
   const updateOutputContent = useWizard((s) => s.updateOutputContent);
   const setUserInput = useWizard((s) => s.setUserInput);
+  const clearDraft = useWizard((s) => s.clearDraft);
   const setCurrentStep = useWizard((s) => s.setCurrentStep);
   const pushOutputToHistory = useWizard((s) => s.pushOutputToHistory);
 
@@ -1372,9 +1374,15 @@ export function StepShell({ step }: Props) {
   const handleApplyCorrection = useCallback(
     (text: string) => {
       setUserInput(step, text);
+      // Texto vira oficial em userInputs[step]; o rascunho persistido pode
+      // ser apagado. Cobre estrutura1/2, escrita, revisor — o único caminho
+      // de "Aplicar correção" pra steps não-Premissa passa por aqui.
+      if (step !== "premissa") {
+        clearDraft(step, "input");
+      }
       void generate("refine", text);
     },
-    [step, setUserInput, generate],
+    [step, setUserInput, clearDraft, generate],
   );
 
   if (!roteiro) return null;
@@ -1785,15 +1793,15 @@ const StepUserInputBox = memo(function StepUserInputBox({
   isGenerating,
   onApply,
 }: StepUserInputBoxProps) {
-  const [pendingInput, setPendingInput] = useState<string>(savedInput);
-
-  // Sincroniza com o saved quando o usuário troca de step ou roteiro.
-  // Não sincroniza durante digitação (o saved só muda em setUserInput,
-  // que acontece no clique do botão — depois disso pendingInput === saved
-  // e o useEffect é no-op).
-  useEffect(() => {
-    setPendingInput(savedInput);
-  }, [savedInput, step]);
+  // Step "premissa" tem fluxo próprio (PremissaWizard) e não chega aqui.
+  // O `as` abaixo é só pra estreitar o tipo do useDraft pra exatamente um
+  // dos steps que possuem campo `input`.
+  const draftStep = step as "estrutura1" | "estrutura2" | "escrita" | "revisor";
+  const [pendingInput, setPendingInput] = useDraft(
+    draftStep,
+    "input",
+    savedInput,
+  );
 
   const trimmedPending = pendingInput.trim();
   const isDirty = pendingInput !== savedInput;
@@ -1878,6 +1886,7 @@ function PremissaWizard() {
   const roteiro = useWizard((s) => s.roteiro);
   const setOutput = useWizard((s) => s.setOutput);
   const setUserInput = useWizard((s) => s.setUserInput);
+  const clearDraft = useWizard((s) => s.clearDraft);
   const setIsGenerating = useWizard((s) => s.setIsGenerating);
   const pushOutputToHistory = useWizard((s) => s.pushOutputToHistory);
   const isGenerating = useWizard((s) => s.isGenerating);
@@ -1898,10 +1907,30 @@ function PremissaWizard() {
   // em qualquer regeneração (resumo ou estrutura).
   const savedInstruction = roteiro?.userInputs?.premissa ?? "";
 
-  const [briefingDraft, setBriefingDraft] = useState(briefing);
-  const [resumoDraft, setResumoDraft] = useState(resumo);
-  const [contentDraft, setContentDraft] = useState(content);
-  const [pendingInstruction, setPendingInstruction] = useState(savedInstruction);
+  // Drafts persistidos em roteiro.drafts.premissa.* — sobrevivem à troca
+  // de step. Limpos quando o usuário cometer o valor (Gerar resumo, Salvar
+  // edição, Aplicar instrução). Sem isso, digitar no briefing e clicar em
+  // Avançar antes de gerar perdia tudo.
+  const [briefingDraft, setBriefingDraft] = useDraft(
+    "premissa",
+    "briefing",
+    briefing,
+  );
+  const [resumoDraft, setResumoDraft] = useDraft(
+    "premissa",
+    "resumo",
+    resumo,
+  );
+  const [contentDraft, setContentDraft] = useDraft(
+    "premissa",
+    "content",
+    content,
+  );
+  const [pendingInstruction, setPendingInstruction] = useDraft(
+    "premissa",
+    "instruction",
+    savedInstruction,
+  );
   const [liveStream, setLiveStream] = useState("");
   const [streamingPhase, setStreamingPhase] = useState<
     null | "resumo" | "estrutura"
@@ -1910,20 +1939,6 @@ function PremissaWizard() {
   const [isEditingContent, setIsEditingContent] = useState(false);
   const [isEditingManual, setIsEditingManual] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-
-  // Sincroniza drafts quando o roteiro muda (troca de tela, undo, etc).
-  useEffect(() => {
-    setBriefingDraft(briefing);
-  }, [briefing]);
-  useEffect(() => {
-    if (!isEditingResumo) setResumoDraft(resumo);
-  }, [resumo, isEditingResumo]);
-  useEffect(() => {
-    if (!isEditingContent && !isEditingManual) setContentDraft(content);
-  }, [content, isEditingContent, isEditingManual]);
-  useEffect(() => {
-    setPendingInstruction(savedInstruction);
-  }, [savedInstruction]);
 
   // Aborta stream quando o componente desmonta (usuário trocou de step).
   useEffect(() => {
@@ -2029,6 +2044,10 @@ function PremissaWizard() {
           premissaManualPaste: false,
         },
       });
+      // Briefing e resumo viraram oficiais (metadata) — apaga drafts pra
+      // que próximas remontagens leiam do metadata, não do draft antigo.
+      clearDraft("premissa", "briefing");
+      clearDraft("premissa", "resumo");
       setResumoDraft(fullText);
       setIsEditingResumo(false);
     } catch (e) {
@@ -2048,6 +2067,8 @@ function PremissaWizard() {
     pushOutputToHistory,
     setIsGenerating,
     setOutput,
+    setResumoDraft,
+    clearDraft,
     content,
     output?.generatedAt,
     meta,
@@ -2110,6 +2131,9 @@ function PremissaWizard() {
           premissaManualPaste: false,
         },
       });
+      // Estrutura aprovada — todos os campos da Premissa viraram oficiais
+      // (briefing/resumo no metadata, content no output). Apaga drafts.
+      clearDraft("premissa");
       setContentDraft(fullContent);
       setIsEditingResumo(false);
       setIsEditingContent(false);
@@ -2132,6 +2156,8 @@ function PremissaWizard() {
     pushOutputToHistory,
     setIsGenerating,
     setOutput,
+    setContentDraft,
+    clearDraft,
     meta,
     roteiro?.referenceImage,
   ]);
@@ -2153,6 +2179,9 @@ function PremissaWizard() {
     const trimmed = pendingInstruction.trim();
     if (!trimmed || isGenerating) return;
     setUserInput("premissa", trimmed);
+    // Instrução virou oficial em userInputs.premissa — apaga draft pra
+    // evitar reidratar o textarea com o mesmo texto na próxima visita.
+    clearDraft("premissa", "instruction");
     if (phase === "approving") {
       await generateResumo(trimmed);
     } else if (phase === "done") {
@@ -2164,6 +2193,7 @@ function PremissaWizard() {
     isGenerating,
     phase,
     setUserInput,
+    clearDraft,
     generateResumo,
     approveAndGenerateEstrutura,
   ]);
@@ -2186,7 +2216,7 @@ function PremissaWizard() {
     });
     setContentDraft("");
     setIsEditingManual(false);
-  }, [setOutput, meta]);
+  }, [setOutput, setContentDraft, meta]);
 
   const saveManualEdit = useCallback(() => {
     setOutput("premissa", {
@@ -2196,8 +2226,9 @@ function PremissaWizard() {
       edited: true,
       metadata: { ...meta, premissaManualPaste: true },
     });
+    clearDraft("premissa", "content");
     setIsEditingManual(false);
-  }, [setOutput, contentDraft, output?.generatedAt, meta]);
+  }, [setOutput, clearDraft, contentDraft, output?.generatedAt, meta]);
 
   const saveContentEdit = useCallback(() => {
     setOutput("premissa", {
@@ -2207,8 +2238,9 @@ function PremissaWizard() {
       edited: true,
       metadata: meta,
     });
+    clearDraft("premissa", "content");
     setIsEditingContent(false);
-  }, [setOutput, contentDraft, output?.generatedAt, meta]);
+  }, [setOutput, clearDraft, contentDraft, output?.generatedAt, meta]);
 
   // ─── Word counts (regra do CLAUDE.md: usar countWords) ─────────────
   const resumoWordCount = countWords(resumoDraft || resumo);
@@ -2465,6 +2497,7 @@ function PremissaWizard() {
                       generatedAt: output?.generatedAt ?? new Date().toISOString(),
                       metadata: { ...meta, premissaResumo: resumoDraft.trim() },
                     });
+                    clearDraft("premissa", "resumo");
                     setIsEditingResumo(false);
                   }}
                 >

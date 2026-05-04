@@ -204,6 +204,29 @@ export type RoteiroCategory =
 /** Default usado pra roteiros legados (sem `category` no localStorage). */
 export const DEFAULT_CATEGORY: RoteiroCategory = "milionario-1p";
 
+/**
+ * Rascunhos não-confirmados de cada textarea do wizard, escopados por step.
+ * Sobrevivem à navegação entre steps; são limpos quando o usuário comete o
+ * valor via botão (Gerar resumo, Aplicar correção, Salvar edição). Sem isso,
+ * trocar de step apaga o que estava digitado e ainda não foi salvo.
+ */
+export interface RoteiroDrafts {
+  premissa?: {
+    /** Textarea "Sua ideia" no fluxo automático. */
+    briefing?: string;
+    /** Textarea do resumo editável (modo "approving"). */
+    resumo?: string;
+    /** Textarea do modo manual (premissa colada direto). */
+    content?: string;
+    /** Caixa "Instruções adicionais" da Premissa. */
+    instruction?: string;
+  };
+  estrutura1?: { input?: string };
+  estrutura2?: { input?: string };
+  escrita?: { input?: string };
+  revisor?: { input?: string };
+}
+
 export interface Roteiro {
   id: string;
   title: string;
@@ -233,6 +256,13 @@ export interface Roteiro {
   referenceImage?: RoteiroReferenceImage;
   /** Histórico de gerações por step. Cada step tem sua própria pilha de snapshots. */
   history?: Partial<Record<StepId, StepGenerationSnapshot[]>>;
+  /**
+   * Rascunhos do que está digitado nos textareas mas ainda não foi commitado
+   * via botão. Persistido para o usuário não perder trabalho ao trocar de
+   * step. Limpo automaticamente quando o valor vira oficial (via Gerar /
+   * Aplicar / Salvar). Detalhes em [RoteiroDrafts].
+   */
+  drafts?: RoteiroDrafts;
 }
 
 export function nextStep(step: StepId): StepId | null {
