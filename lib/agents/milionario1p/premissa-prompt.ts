@@ -110,10 +110,12 @@ PARTE 1 EXISTE PARA — OBRIGAÇÕES NÃO NEGOCIÁVEIS:
 
 REGRA CENTRAL DA PARTE 1: a leitora precisa fechar a Parte 1 acreditando que assistiu uma paixão NASCER. Não que pegou um casal já formado. Cada uma das 6 etapas precisa entregar UM avanço concreto na construção dessa paixão — um olhar diferente, um toque novo, uma confissão, uma escolha emocional, uma vulnerabilidade compartilhada. Sem avanço emocional concreto a cada etapa, a Parte 1 não cumpre sua função.
 
-A Parte 1 NÃO termina com casamento, filhos ou oficialização. Termina com a sensação: "eles se escolheram e venceram a primeira guerra — agora estão juntos." SEM dúvida pairando, SEM pista do que vem depois, SEM porta fechada, SEM nome misterioso. A Parte 1 fecha resolvida em si mesma. A leitora deve fechar a Parte 1 acreditando que eles estão genuinamente bem. O conflito da Parte 2 vai NASCER NOVO na abertura da Parte 2.
+A Parte 1 NÃO termina com casamento, filhos ou oficialização. Termina com a sensação: "eles finalmente ficaram juntos… mas será que essa história está mesmo resolvida?" — um QUESTIONAMENTO SUTIL que cria curiosidade leve, sem transformar em conflito aberto ou cliffhanger dramático. O leitor fecha a Parte 1 satisfeito com a história, mas com vontade sutil de saber o que vem depois. Não por angústia — por curiosidade.
+
+O conflito da Parte 2 vai NASCER NOVO na abertura da Parte 2 (uma bomba), mas a Parte 1 já planta uma sementinha de curiosidade — algo que a FMC percebeu e não comentou, uma frase do MMC que ecoa diferente, uma sensação de que há algo mais. NÃO é uma porta fechada nem um nome misterioso nem uma frase suspeita explicitada — é apenas um pensamento dela que fica no ar.
 
 Pergunta central da Parte 1: "Esses dois vão se escolher apesar de tudo que os separa?"
-Recompensa da Parte 1: ele a escolhe, ela decide ficar, superam o primeiro grande obstáculo, há cumplicidade real. A recompensa é satisfatória, mas parcial — não há "para sempre" ainda, apenas a confirmação de que se escolheram.
+Recompensa da Parte 1: ele a escolhe, ela decide ficar, superam o primeiro grande obstáculo, há cumplicidade real. A recompensa é satisfatória, mas parcial — não há "para sempre" ainda, apenas a confirmação de que se escolheram, com um questionamento sutil da FMC que fica no ar.
 
 PARTE 2 EXISTE PARA:
 - Abrir com uma BOMBA logo no início, criando a sensação de que eles vão se separar.
@@ -145,14 +147,17 @@ A escolha do tipo de final feliz deve combinar com o contexto da história. Uma 
 REGRA DA RECONCILIAÇÃO NA PARTE 2:
 Os conflitos da Parte 2 precisam ser MENORES em escala que os da Parte 1, mas MAIS PROFUNDOS emocionalmente. A reconciliação deve ser MAIS ROMÂNTICA, sem clichê. O MMC pega no ponto fraco da FMC, ou se sacrifica por ela, ou prova que está disposto a lutar por ela de verdade. A leitora precisa pensar: "quero que eles fiquem juntos logo."
 
+A LUTA PELA RECONCILIAÇÃO NÃO FICA SÓ PRO FINAL — começa do meio para o final. O MMC age, mostra, prova ao longo da segunda metade da Parte 2. A FMC vê, resiste, cede aos poucos quando percebe que é real. O ponto exato em que ela cede pode acontecer entre as Etapas 14 e 18 — depende do contexto da história — mas as TENTATIVAS dele e a EVOLUÇÃO emocional dela já começam antes.
+
 CURVA OBRIGATÓRIA DA PARTE 2:
 - Início (Etapa 7): a bomba aparece. Casal abalado, separação iminente.
-- Meio (Etapas 8 a 14): briga prolongada, sofrimento, distância emocional. Eles podem até se separar fisicamente. O leitor sofre junto. O MMC age, prova, tenta — mas a FMC resiste. Cada gesto dele é um tijolo, mas a parede não cai ainda.
-- Reconciliação (entre as Etapas 14 e 18): a reconciliação acontece em algum ponto entre o meio e o fim da Parte 2. PODE ser na Etapa 14, 15, 16, 17 ou 18 — depende do contexto da história. O importante é que a reconciliação NÃO seja apressada nem rápida demais. Ela precisa ser construída por toda a briga anterior, com várias provas e sacrifícios concretos. Se a reconciliação vier mais cedo (Etapas 14-15), as etapas seguintes precisam mostrar o casal já reconciliado mas enfrentando consequências externas — não pode ser rápida e seguida de paz vazia.
+- Meio (Etapas 8 a 13): briga prolongada, sofrimento, distância emocional. Eles podem até se separar fisicamente. O leitor sofre junto. O MMC já COMEÇA a agir, provar, tentar — cada gesto dele é um tijolo. A FMC vê e registra, mas resiste.
+- Reconciliação (entre as Etapas 14 e 18): a reconciliação acontece em algum ponto desta janela. PODE ser na Etapa 14, 15, 16, 17 ou 18 — depende do contexto da história. O importante é que NÃO seja apressada nem rápida demais. Ela precisa ser construída por toda a luta anterior, com várias provas e sacrifícios concretos. Se a reconciliação vier mais cedo (Etapas 14-15), as etapas seguintes mostram o casal já reconciliado mas enfrentando o ataque final do antagonista juntos.
 - Fim (Etapas 19-20): queda do antagonista + final feliz.
 
-REGRA INEGOCIÁVEL DA RECONCILIAÇÃO:
-- NUNCA antes da Etapa 14.
+REGRA DA RECONCILIAÇÃO — DO MEIO PARA O FIM, NÃO SÓ NO FIM:
+- A LUTA pela reconciliação começa do meio para o final, não fica reservada à última etapa. O MMC age, mostra, prova ao longo das Etapas 12-17. A FMC vê, resiste, e cede em algum ponto entre 14 e 18.
+- NUNCA antes da Etapa 14 — precisa de tempo para a tensão se acumular.
 - NUNCA apressada — precisa ser construída por pelo menos 6 a 8 etapas de tensão, briga, distância, provas e sacrifícios.
 - O leitor precisa sentir que a relação pode realmente acabar antes de a reconciliação chegar.
 - Se a reconciliação acontece mais cedo (Etapas 14-15), as etapas seguintes não viram lua de mel — elas mostram o casal já junto enfrentando o ataque final do antagonista juntos.
@@ -212,22 +217,74 @@ GERAL:
 PARTE 1:
 - Termina com FINAL SATISFATÓRIO mas SEM ENTREGA TOTAL.
 - Sem casamento, sem filhos, sem gravidez, sem oficialização pública, sem morar juntos definitivamente.
-- SEM questionamento ou dúvida sutil pairando — a Parte 1 fecha resolvida em si mesma.
-- SEM porta fechada, nome misterioso, frase suspeita, gaveta trancada como gancho para a Parte 2.
-- O leitor fecha a Parte 1 acreditando genuinamente que eles estão bem.
+- TERMINA com QUESTIONAMENTO SUTIL da FMC nas últimas linhas — dúvida leve, curiosidade sem ser cliffhanger nem conflito aberto.
+- SEM porta fechada explícita, sem nome misterioso plantado, sem frase suspeita gritando, sem gaveta trancada como gancho dramático. O questionamento é INTERNO da FMC, não um sinal externo.
+- O leitor fecha a Parte 1 satisfeito com a história, mas com vontade SUTIL de saber o que vem depois (curiosidade, não angústia).
 - A FMC é ativa em todos os pontos de virada.
-- Pimenta da Parte 1 é sugerida, não explícita.
+- **PIMENTA DA PARTE 1: APENAS SUGERIDA POR ELIPSE.** Sem descrição corporal/sensorial do ato. Sem preliminares descritas. Sem penetração. Sem clímax explicitado. A cena íntima detalhada fica EXCLUSIVAMENTE reservada para a Parte 2.
 
 PARTE 2:
 - ABRE COM BOMBA — a revelação que cria a sensação de separação iminente. O leitor precisa achar que eles vão se separar.
 - A bomba pode ser: o leitor acha que ele a traiu, traiu a confiança, segredo de família, verdade sobre o passado dele, descoberta sobre como se conheceram.
 - O casal LUTA contra a separação, e essa luta FORTALECE ainda mais a relação.
 - O arco estrutural não pode repetir o da Parte 1.
-- A reconciliação acontece QUASE NO FIM da Parte 2 (Etapa 18), não no meio. O MMC age e prova durante toda a Parte 2, mas a FMC só cede perto do fim. A maior parte da Parte 2 é briga, distância, separação iminente.
+- A LUTA pela reconciliação começa do meio para o final, não fica reservada à última etapa. O MMC age, mostra, prova ao longo da segunda metade da Parte 2. A FMC vê, resiste, cede em algum ponto entre Etapas 14 e 18. A maior parte da Parte 2 é briga, distância, separação iminente, com tentativas concretas do MMC já desde o meio.
 - O MMC age, prova, sacrifica algo concreto.
 - A FMC permanece ativa, inclusive na reconciliação.
 - Termina com casamento + (às vezes filhos/gravidez) + realização de um sonho da FMC.
-- Pimenta da Parte 2 pode ser mais explícita, mas continua elegante.
+- **PIMENTA DA PARTE 2: CENA ÍNTIMA COMPLETA OBRIGATÓRIA** — alvo 1.000 a 1.200 palavras, com preliminares + sexo oral recíproco + penetração detalhada + clímax. Vocabulário direto e sensual permitido (membro, seio, penetração, gozo); palavrões e gírias chulas continuam proibidos.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PARTE D2 — TIPOS DE CONFLITO IDEAIS POR PARTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Use estes catálogos como referência ao montar a estrutura. A Parte 2 PRECISA escolher conflitos diferentes em natureza dos da Parte 1 — não apenas "outro segredo no lugar".
+
+CONFLITOS BONS PARA A PARTE 1:
+- Diferença de classes sociais.
+- A FMC é humilhada no mundo dele (jantar de gala, gala beneficente, evento social).
+- Convivência forçada em ambientes de luxo que ela não conhece.
+- Ex ciumenta ou amante que tenta afastá-la.
+- Família dele que não a aceita.
+- A FMC se sente deslocada e insegura no novo mundo.
+- Mal-entendido emocional com base concreta (ex aparece em foto, frase mal interpretada, situação ambígua).
+- Atração que complica a vida profissional/pessoal de ambos.
+- A FMC precisa aprender regras sociais que considera ridículas mas são importantes no mundo dele.
+- Medo de confiar (do MMC, dela, ou dos dois).
+
+CONFLITOS BONS PARA A PARTE 2:
+- Insegurança da FMC sobre pertencer ao mundo dele agora que estão juntos publicamente.
+- Ex ou rival que intensifica os ataques (mais perigoso, mais articulado, mais perto).
+- Pressão familiar ou social mais forte (família ameaça deserdar, conselho da empresa pressiona, mídia ataca).
+- Medo de não ser suficiente para o futuro que ele oferece.
+- Diferença de expectativas sobre o futuro (carreira dela vs vida ao lado dele, filhos, mudança).
+- Ciúme ou possessividade que precisa ser resolvido em definitivo.
+- Decisão difícil sobre identidade própria vs relação.
+- A FMC questiona se está perdendo quem era para virar quem ele precisa que ela seja.
+- Necessidade de assumir publicamente a relação contra críticas.
+- Prova de que o amor vale mais que o status / conforto / herança.
+
+REGRA: A Parte 2 ESCOLHE conflitos de natureza diferente dos da Parte 1. Se a Parte 1 foi "ela humilhada por uma rival", a Parte 2 NÃO PODE ser "outra rival humilha de novo". Tem que MUDAR de natureza — ir para conflito interno sobre identidade, ou pressão familiar, ou expectativas de futuro.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PARTE D3 — COMO SABER SE A PARTE 2 ESTÁ REPETITIVA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A Parte 2 ESTÁ FUNCIONANDO quando:
+- O casal já está emocionalmente junto no início (mesmo que a bomba os abale).
+- O conflito mudou de NATUREZA — é sobre MANTER, não sobre conquistar.
+- A FMC tem mais segurança do que tinha antes (mesmo abalada, ela é mais firme nas decisões).
+- A relação está em jogo de um jeito NOVO (não é o mesmo obstáculo da Parte 1 reciclado).
+- O enredo aponta para consagração final.
+
+A Parte 2 ESTÁ REPETITIVA quando:
+- Parece outra versão da Parte 1 com nomes trocados.
+- Faz o casal duvidar do amor do zero (eles já provaram que se escolhem na Parte 1 — agora é sobre permanência, não sobre escolha inicial).
+- Recicla o mesmo antagonista do mesmo jeito (mesma rival com mesma manobra, mesma humilhação social).
+- Repete a mesma tensão sem amadurecimento.
+- Enrola antes do casamento/filhos sem motivo concreto.
+
+TESTE MENTAL: resuma o arco de cada parte em UMA frase. Se as duas frases forem intercambiáveis, mude a Parte 2.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PARTE E — REGRA OBRIGATÓRIA DE CENÁRIO
@@ -306,6 +363,8 @@ Femininos proibidos: Valentina, Camila, Isadora, Isabella, Sofia, Aurora, Elena,
 
 Secundários proibidos: Tony, Vinnie, Angelo, Carlo, Sergei, Boris, Alex, Max, Sam, Ben, Nick, Chris, Tom, Mike, John, James, Jack, Will, Charlie, Daniel, Anna, Sarah, Jessica, Rachel, Monica, Patricia, Sandra, Carla, Lucia, Rosa, Soren, Cillian.
 
+REGRA DE SEGURANÇA REFORÇADA: antes de entregar QUALQUER bloco da premissa (Bloco 0 ou Blocos 1-7), verificar TODOS os nomes contra esta lista. Inclui personagens secundários, ex, antagonistas, figurantes nomeados, parentes mencionados — TODOS. Se algum nome proibido aparecer, substituir IMEDIATAMENTE por opção criativa.
+
 REGRA DE SEGURANÇA: antes de entregar, verificar TODOS os nomes contra esta lista. Se algum proibido aparecer, substituir por opção criativa.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -318,7 +377,7 @@ ENTREGUE EXATAMENTE NESTA ORDEM, SEM PULAR NENHUM BLOCO:
 
 ━━━ BLOCO 0: RESUMO INICIAL DAS DUAS PARTES (OBRIGATÓRIO ANTES DE QUALQUER OUTRO BLOCO) ━━━
 
-ANTES de qualquer outro bloco da estrutura, entregue DOIS resumos detalhados — um para a Parte 1 e outro para a Parte 2. Cada resumo deve ter aproximadamente UMA PÁGINA cheia, equivalente a 600 a 900 palavras cada. NÃO é um resumo curto. É uma narrativa completa do que acontece em cada parte, contando tudo do início ao fim.
+ANTES de qualquer outro bloco da estrutura, entregue DOIS resumos — um para a Parte 1 e outro para a Parte 2. **CADA RESUMO DEVE TER NO MÁXIMO 500 PALAVRAS.** Não é um resumo telegráfico, mas é enxuto e direto. Conte do início ao fim os pontos essenciais de cada parte, sem encher de detalhes secundários, mantendo linguagem clara e acessível.
 
 REGRA DE LINGUAGEM — ESTE PONTO É CRÍTICO:
 O resumo precisa ser MUITO BEM EXPLICADO, com linguagem clara, simples e didática — quase como se você estivesse explicando a história para alguém que NÃO conhece nada de literatura, nem do gênero, nem dos personagens. Imagine que está contando a história para uma criança ou para uma pessoa que nunca leu um romance. Cada personagem precisa ser apresentado pelo nome completo, com profissão, idade aproximada e situação de vida. Cada relação precisa ser explicada (quem é amigo de quem, quem é parente de quem, quem trabalha onde). Cada termo técnico (CEO, herdeiro, conglomerado, fusão) precisa vir acompanhado de explicação simples se aparecer.
@@ -340,78 +399,46 @@ EXIGIDO no resumo:
 - CONTAR A APROXIMAÇÃO DETALHADAMENTE — como os dois passam de estranhos a íntimos. Que cenas marcam essa transição. Quais são os primeiros olhares, primeiros toques, primeiros conflitos, primeiras vulnerabilidades. NÃO basta dizer "eles se aproximam" — precisa contar COMO foi a aproximação.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RESUMO DA PARTE 1 (600 a 900 palavras — uma página cheia)
+RESUMO DA PARTE 1 (NO MÁXIMO 500 palavras)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Conte a Parte 1 inteira, do começo ao fim, em prosa corrida. Use vários parágrafos. Estrutura sugerida:
+Conte a Parte 1 inteira, do começo ao fim, em prosa corrida e enxuta. Use parágrafos curtos. Estrutura mínima a cobrir:
 
-PARÁGRAFO 1 — APRESENTAÇÃO DA FMC:
-Quem é ela? Nome completo, idade, profissão, situação de vida atual. O que ela quer? Qual é a ferida emocional dela? O que aconteceu com ela antes da história começar?
+1) APRESENTAÇÃO DOS PROTAGONISTAS (FMC + MMC) — quem são, idade, profissão/posição, ferida emocional de cada um. Pode aparecer em UM parágrafo só, apresentando primeiro a FMC e depois o MMC, de forma direta.
 
-PARÁGRAFO 2 — APRESENTAÇÃO DO MMC:
-Quem é ele? Nome completo, idade, profissão/posição, riqueza, família. O que ele carrega de passado? Qual é a ferida emocional dele? Por que ele é como é?
+2) O ENCONTRO + O QUE FORÇA A CONVIVÊNCIA — como os dois se encontram, em que circunstância, e o que faz com que tenham que conviver (trabalho, contrato, casamento de conveniência, dívida, projeto, etc.). Em UM parágrafo.
 
-PARÁGRAFO 3 — O ENCONTRO:
-Como os dois se encontram pela primeira vez? Onde? Em que circunstância? O que cada um pensa do outro nesse primeiro contato? Que primeira impressão fica?
+3) A APROXIMAÇÃO + O PRIMEIRO OBSTÁCULO — como a paixão se desenvolve em camadas (primeiro olhar diferente, primeiro toque, primeira conversa que vai além do superficial) e qual é o primeiro grande conflito que ameaça a relação (rival, família que rejeita, humilhação social, escândalo, exigência impossível). Cite cenas concretas, não generalize.
 
-PARÁGRAFO 4 — O QUE FORÇA A CONVIVÊNCIA:
-O que faz com que esses dois precisem ficar próximos? Trabalho, contrato, casamento de conveniência, dívida, hospedagem forçada, projeto compartilhado? Detalhe a situação concreta.
-
-PARÁGRAFO 5 — A APROXIMAÇÃO (ESTE É O PARÁGRAFO MAIS IMPORTANTE):
-Conte detalhadamente como a paixão se desenvolve. Quais são os momentos-chave da aproximação? Quando acontece o primeiro olhar diferente? O primeiro toque acidental? A primeira conversa que vai além do superficial? Quando ele começa a notar coisas pequenas sobre ela? Quando ela começa a ver o homem por trás da imagem pública? Que cenas específicas marcam a transição de estranhos para íntimos? Cite cenas concretas, não generalize.
-
-PARÁGRAFO 6 — O PRIMEIRO GRANDE OBSTÁCULO:
-Qual é o primeiro grande conflito? Pode ser uma rival que aparece, uma família que rejeita ela, uma humilhação social, um escândalo na imprensa, uma traição falsa, uma exigência impossível. Detalhe o que acontece e como afeta os dois.
-
-PARÁGRAFO 7 — COMO ELES ENFRENTAM E SE ESCOLHEM:
-Como eles superam o obstáculo? O que ele faz por ela? O que ela faz por ele ou por si mesma? Como cada um prova que escolhe o outro?
-
-PARÁGRAFO 8 — FECHAMENTO DA PARTE 1:
-Como termina a Parte 1? Eles vencem o obstáculo, se escolhem, têm cumplicidade emocional consolidada. Mas SEM casamento, SEM filhos, SEM oficialização. O leitor fecha a Parte 1 acreditando que estão bem, sem dúvida pairando.
+4) COMO ELES SE ESCOLHEM E O FECHAMENTO — como superam o obstáculo, o que cada um prova ao outro, e como termina a Parte 1: casal junto e em paz, com cumplicidade consolidada, MAS sem casamento, sem filhos, sem oficialização. Termina com um questionamento sutil da FMC que fica no ar — algo que ela percebeu, uma pergunta que não fez, uma sensação de que há algo mais. Não é cliffhanger, não é bomba, é apenas curiosidade leve.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RESUMO DA PARTE 2 (600 a 900 palavras — uma página cheia)
+RESUMO DA PARTE 2 (NO MÁXIMO 500 palavras)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Conte a Parte 2 inteira, do começo ao fim, em prosa corrida. Use vários parágrafos. Estrutura sugerida:
+Conte a Parte 2 inteira, do começo ao fim, em prosa corrida e enxuta. Use parágrafos curtos. Estrutura mínima a cobrir:
 
-PARÁGRAFO 1 — A BOMBA INICIAL:
-Como começa a Parte 2? Qual é a revelação que aparece? Em termos concretos: "ela descobre que ele já era casado", "uma mulher aparece dizendo que tem um filho dele", "o pai dele ameaça deserdá-lo se ela continuar na vida dele", "ela descobre que o primeiro encontro foi armado". Detalhe a cena.
+1) A BOMBA INICIAL + POR QUE PARECE O FIM — como começa a Parte 2, qual é a revelação concreta (ele já era casado, uma mulher aparece com um filho dele, o pai ameaça deserdá-lo, o primeiro encontro foi armado, etc.) e por que isso quebra a confiança dela. Em UM parágrafo curto.
 
-PARÁGRAFO 2 — POR QUE ISSO PARECE O FIM:
-Por que essa bomba parece o fim do casal? O que ela acredita ter sido enganada sobre? Por que ela não consegue mais confiar?
+2) AFASTAMENTO ATIVO + INVESTIGAÇÃO DA FMC — como ela confronta antes de sair, o que exige dele, para onde vai, e o que descobre por conta própria durante o afastamento (pistas, conversas, evidências). Sempre ATIVA, nunca passiva.
 
-PARÁGRAFO 3 — O AFASTAMENTO ATIVO DA FMC:
-Como ela age? Ela não some em silêncio. Ela confronta antes de sair. Que perguntas faz? O que exige dele? Para onde vai? Como organiza a vida dela longe dele?
+3) AS TENTATIVAS DO MMC + A VERDADE COMPLETA — gestos concretos do MMC para reconquistá-la (sacrifícios práticos, presença constante, prova de mudança), e a verdade completa do segredo central sendo finalmente revelada.
 
-PARÁGRAFO 4 — A INVESTIGAÇÃO DA FMC:
-Durante o afastamento, o que ela descobre por conta própria? Que pistas encontra? Com quem fala? Como começa a desenterrar a verdade?
+4) A RECONCILIAÇÃO — em que ponto da história ela cede (entre as Etapas 14 e 18 — a luta começa do meio para o final, não fica só no fim) e qual gesto/sacrifício/prova finalmente quebra a resistência dela. A reconciliação NÃO é apressada — é construída pela tensão anterior.
 
-PARÁGRAFO 5 — AS TENTATIVAS DO MMC:
-O que ele faz para se aproximar? Que gestos concretos? Que sacrifícios práticos? Cite ações específicas — abandonou um cargo, encontrou alguém importante para ela, recuperou algo perdido, expôs publicamente uma verdade que protegia ele.
-
-PARÁGRAFO 6 — A VERDADE COMPLETA:
-Qual é a verdade inteira do segredo central? Como ela é finalmente revelada? Como a FMC processa essa verdade?
-
-PARÁGRAFO 7 — A RECONCILIAÇÃO:
-Quando e como acontece a reconciliação? Em que etapa da história? O que finalmente quebra a resistência da FMC? A reconciliação não é apressada — é construída por toda a tensão anterior. Detalhe a cena que muda tudo.
-
-PARÁGRAFO 8 — A QUEDA DO ANTAGONISTA:
-Como o vilão cai? A FMC participa ativamente? Como o antagonista é desmascarado/derrotado/punido?
-
-PARÁGRAFO 9 — O FINAL FELIZ:
-Como a história fecha? Qual elemento de final feliz a história entrega — casamento, pedido, gravidez planejada, gravidez surpresa, filho, realização de sonho da FMC, viagem, mudança de vida juntos, compra de casa, reencontro com alguém importante? Detalhe a cena final.
+5) QUEDA DO ANTAGONISTA + FINAL FELIZ — como o vilão é derrotado (com FMC participando ativamente) e qual elemento de final feliz a história entrega: casamento, pedido aceito, gravidez planejada/surpresa, filho, realização de um sonho da FMC, lua de mel, mudança de vida juntos, compra de casa. Cena final concreta.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LEMBRETES PARA OS DOIS RESUMOS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Cada resumo é uma página cheia de prosa corrida — não use marcadores ou listas internas. A divisão em parágrafos é estrutural, mas o texto flui como uma sinopse longa.
+- **Cada resumo tem NO MÁXIMO 500 palavras.** Conte mentalmente — se passar de 500, corte.
+- Use prosa corrida em parágrafos curtos — sem marcadores, sem listas internas.
 - Inclua os pontos-chave plantados durante a Parte 1 (mesmo que ainda não revelados).
 - Inclua os segredos completos e revelações finais.
-- O leitor da premissa precisa terminar de ler os dois resumos sabendo TUDO que acontece na história, sem precisar de blocos adicionais.
-- Use parágrafos de tamanho variado, mas garanta que cada parágrafo tenha conteúdo concreto — não enrole.
-- Mantenha linguagem simples e didática mesmo no resumo extenso.
+- O leitor da premissa precisa terminar de ler os dois resumos sabendo TUDO que acontece na história.
+- Cada parágrafo tem conteúdo concreto — sem enrolação, sem encher de adjetivos.
+- Linguagem simples e didática.
 
 ━━━ BLOCO 1: CABEÇALHO ━━━
 - Indicar narração em primeira pessoa pela protagonista feminina (FMC).
@@ -452,7 +479,7 @@ Funções obrigatórias de cada etapa:
 - ETAPA 3: encontro com o MMC em condições neutras (sem ele saber quem ela é, ou ela não saber quem ele é).
 - ETAPA 4: retorno triunfal da FMC ao mundo do início, agora ao lado do MMC.
 - ETAPA 5: consolidação do romance, com inserção de UM elemento misterioso pequeno (porta fechada, ligação estranha, gaveta trancada) que NÃO vira crise — vira semente.
-- ETAPA 6: fechamento da Parte 1 com FINAL SATISFATÓRIO, mas SEM ENTREGA TOTAL DO CASAL. Os dois se escolhem, vencem o primeiro grande obstáculo, têm cumplicidade emocional consolidada, possivelmente uma cena íntima sugerida — mas SEM casamento, SEM filhos, SEM gravidez, SEM oficialização pública, SEM morar juntos definitivamente, SEM promessa de "para sempre". A Parte 1 fecha resolvida em si mesma, sem dúvida plantada, sem porta fechada, sem nome misterioso, sem frase suspeita pairando. O conflito da Parte 1 está RESOLVIDO. A Parte 2 vai trazer um conflito NOVO. PROIBIDO terminar a Parte 1 com qualquer sombra ou pista do que vem na Parte 2 — o leitor fecha a Parte 1 acreditando genuinamente que eles estão bem.
+- ETAPA 6: fechamento da Parte 1 com FINAL SATISFATÓRIO, mas SEM ENTREGA TOTAL DO CASAL. Os dois se escolhem, vencem o primeiro grande obstáculo, têm cumplicidade emocional consolidada — mas SEM casamento, SEM filhos, SEM gravidez, SEM oficialização pública, SEM morar juntos definitivamente, SEM promessa de "para sempre". REGRA ABSOLUTA DA CENA ÍNTIMA NA PARTE 1: a entrega física do casal pode acontecer nesta etapa (ou em etapas anteriores), mas é APENAS SUGERIDA por elipse narrativa — beijo, ela indo com ele para o quarto, porta se fechando, retomada na manhã seguinte. NUNCA descrita: sem preliminares descritas, sem sensações corporais íntimas, sem clímax explicitado, sem qualquer descrição do ato em nenhum nível. A cena íntima detalhada fica EXCLUSIVAMENTE reservada para a Parte 2. O fechamento da Parte 1 inclui um QUESTIONAMENTO SUTIL da FMC nas últimas linhas — uma dúvida leve, algo que ela percebeu, uma pergunta que não fez, uma sensação de que há algo mais. Não é cliffhanger, não é conflito aberto, não é bomba. É apenas curiosidade leve. O conflito da Parte 1 está RESOLVIDO; a Parte 2 vai trazer um conflito NOVO. O leitor fecha a Parte 1 satisfeito, mas com vontade sutil de saber o que vem depois.
 
 PARA CADA ETAPA, escreva:
 - Título da etapa
@@ -479,7 +506,7 @@ Funções obrigatórias de cada etapa:
 - ETAPA 15: integração de novos vínculos (criança, família, comunidade).
 - ETAPA 16: jogada final do antagonista.
 - ETAPA 17: sacrifício do MMC — algo que custa a ele.
-- ETAPA 18: PONTO DE VIRADA DA RECONCILIAÇÃO — toda a tensão acumulada da Parte 2 se resolve aqui. A FMC finalmente cede, depois de toda a briga, distância e prova. Esta é a etapa onde o leitor enfim pode respirar — eles voltam a ficar juntos. Cena íntima permitida com pimenta mais explícita que a Parte 1. A entrega é construída por TUDO que veio antes (Etapas 7 a 17 inteiras de tensão).
+- ETAPA 18 (OU ETAPA EM QUE A RECONCILIAÇÃO ACONTECE — pode ser entre 14 e 18 conforme contexto): PONTO DE VIRADA DA RECONCILIAÇÃO — a FMC finalmente cede, depois de toda a briga, distância e prova. Esta é a etapa onde o leitor enfim pode respirar — eles voltam a ficar juntos. CENA ÍNTIMA OBRIGATÓRIA E COMPLETA DA PARTE 2: alvo 1.000 a 1.200 palavras, com preliminares afetuosas + sexo oral recíproco + penetração detalhada + clímax/orgasmo forte. Vocabulário direto e sensual permitido (membro, seio, penetração, gozo, prazer intenso) — palavrões e gírias chulas continuam proibidos. Sempre narrada pela FMC em 1ª pessoa. A entrega é construída por TUDO que veio antes (Etapas 7 a 17 inteiras de tensão e provas concretas do MMC).
 - ETAPA 19: queda pública do antagonista.
 - ETAPA 20: fechamento consagrador — casamento, gravidez, filho, futuro selado.
 
@@ -502,11 +529,12 @@ Liste, no mínimo, estas 11 regras (adaptando o conteúdo à história gerada):
 4. Nada de pensar pelos outros — a FMC só deduz pelas ações dos outros.
 5. Revelações travadas — listar item por item o que só pode aparecer em qual etapa.
 6. FMC ativa em todas as decisões-chave — listar quais etapas exigem ação dela.
-7. Reconciliação acontece QUASE NO FIM da Parte 2 (Etapa 18), depois de longa briga e separação iminente. NÃO no meio.
-8. Sem casamento, sem filhos, sem gravidez na Parte 1.
-9. Parte 1 fecha com o casal junto e bem.
-10. Diferença estrutural Parte 1 vs Parte 2 — descrever em uma frase cada.
-11. Nomes fixados — listar todos os nomes da história e proibir alteração.
+7. Reconciliação acontece DO MEIO PARA O FINAL da Parte 2 (entre Etapas 14 e 18, conforme contexto), construída por toda a luta anterior. A LUTA pela reconciliação começa do meio para o final — não fica reservada à última etapa.
+8. Sem casamento, sem filhos, sem gravidez na Parte 1. Cena íntima da Parte 1 apenas SUGERIDA por elipse (sem descrição do ato).
+9. Parte 1 fecha com o casal junto e bem, com QUESTIONAMENTO SUTIL da FMC nas últimas linhas (curiosidade leve, não cliffhanger).
+10. Cena íntima OBRIGATÓRIA na Parte 2 — completa, alvo 1.000 a 1.200 palavras, com preliminares + sexo oral recíproco + penetração + clímax. Vocabulário direto e sensual permitido; palavrões/gírias chulas proibidos.
+11. Diferença estrutural Parte 1 vs Parte 2 — descrever em uma frase cada.
+12. Nomes fixados — listar todos os nomes da história e proibir alteração.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PARTE H — MAPA DE PLANTIO E PAGAMENTO OBRIGATÓRIO
@@ -569,7 +597,7 @@ NA PARTE 1:
 - ETAPA 3 — no encontro com o MMC, ela é uma participante ativa da aproximação. Provoca, observa, responde, recua quando precisa.
 - ETAPA 4 — o retorno ao mundo do início é decisão dela. Ela escolhe quando, como, com qual postura. Quem confronta primeiro é ela.
 - ETAPA 5 — se algo no comportamento do MMC a incomoda (como um silêncio, uma porta fechada), ela registra para o leitor e decide conscientemente o que fazer. Mesmo a decisão de "esperar para perguntar" precisa ser uma escolha narrada, não passividade.
-- ETAPA 6 — o fechamento da Parte 1 é uma escolha dela de ficar. Não é o MMC pedindo e ela aceitando — é mútuo. E essa escolha é feita SEM dúvida pairando — ela termina a Parte 1 acreditando genuinamente que está bem.
+- ETAPA 6 — o fechamento da Parte 1 é uma escolha dela de ficar. Não é o MMC pedindo e ela aceitando — é mútuo. Ela termina a Parte 1 satisfeita com a escolha, MAS com um questionamento sutil interno — uma curiosidade leve sobre algo que ela percebeu e ainda não explorou. Essa dúvida é INTERNA e LEVE, não compromete a paz do final, não é cliffhanger.
 
 NA PARTE 2:
 - ETAPA 8 — quando vê algo suspeito armado pelo antagonista, ela NÃO foge. Aproxima-se para entender.
@@ -749,23 +777,24 @@ CRONOGRAMA OBRIGATÓRIO DE CONSTRUÇÃO ROMÂNTICA NA PARTE 1:
 - ETAPA 3 — primeiro encontro com o MMC. CURIOSIDADE inicial. NADA de beijo. NADA de declaração. Apenas observação mútua e estranhamento.
 - ETAPA 4 — eles passam a conviver. INCÔMODO PRODUTIVO + ATRAÇÃO INVOLUNTÁRIA. Algum toque acidental, algum olhar que dura demais. Sem beijo ainda.
 - ETAPA 5 — RESISTÊNCIA + INTIMIDADE EMOCIONAL crescendo. Conversas mais profundas. Pequenas confissões. Talvez o primeiro beijo aqui, perto do fim da etapa, com toda a tensão acumulada — OU o primeiro beijo guardado para a Etapa 6.
-- ETAPA 6 — ENTREGA EMOCIONAL e/ou primeira entrega física. Construída por TUDO que veio antes. A noite íntima, se houver, é sugerida (não explícita).
+- ETAPA 6 — ENTREGA EMOCIONAL e, possivelmente, a noite juntos APENAS SUGERIDA por elipse (porta fechando, manhã seguinte). NUNCA descrita: sem preliminares, sem clímax, sem sensorial do ato.
 
 PROIBIDO NA PARTE 1:
 - Beijo antes da Etapa 4 (idealmente apenas na Etapa 5 ou 6).
-- Cena íntima sugerida antes da Etapa 6.
+- Qualquer descrição de cena íntima — nem na Etapa 6, nem em outra. Apenas elipse narrativa é permitida.
+- Preliminares descritas, penetração, clímax, sensações corporais íntimas — em qualquer etapa.
 - Declaração explícita de amor antes da Etapa 6.
 - "Eu te amo" nunca antes da Etapa 6, e mesmo assim apenas se for orgânico.
 - Casal andando de mãos dadas como casal estabelecido antes da Etapa 5.
 
 CRONOGRAMA OBRIGATÓRIO DE EVOLUÇÃO ROMÂNTICA NA PARTE 2:
 
-A Parte 2 começa com o casal já formado e cai em crise logo no início. A maior parte da Parte 2 é briga, distância e separação iminente. A reconciliação acontece DO MEIO PARA O FIM (entre Etapas 14 e 18), desde que NÃO seja apressada.
+A Parte 2 começa com o casal já formado e cai em crise logo no início. A maior parte da Parte 2 é briga, distância e separação iminente. A LUTA pela reconciliação começa do meio para o final — não fica reservada à última etapa. O MMC age, mostra, prova ao longo da segunda metade. A FMC vê, resiste, cede em algum ponto entre Etapas 14 e 18.
 
 - ETAPA 7 — abertura com bomba. Intimidade do casal aparece no máximo no primeiro parágrafo, depois a revelação muda tudo. A confiança racha imediatamente.
 - ETAPAS 8-11 — ABALO E SEPARAÇÃO. Confiança quebrada. Distância criada. A FMC se afasta. A briga se aprofunda. O leitor sente que a relação pode realmente acabar.
-- ETAPAS 12-14 — TENTATIVAS DO MMC + RESISTÊNCIA DA FMC. Ele tenta se aproximar, prova com gestos, sacrifícios práticos. Mas a FMC resiste. A verdade começa a aparecer em camadas. A briga continua.
-- ETAPAS 14-18 — JANELA DE RECONCILIAÇÃO. A reconciliação acontece em algum ponto desta janela, dependendo do contexto da história. Pode ser na Etapa 14, 15, 16, 17 ou 18. O importante é que NÃO seja apressada — precisa ser construída por todas as etapas anteriores. Se a reconciliação vier mais cedo (Etapas 14-15), as etapas seguintes mostram o casal já reconciliado mas ainda enfrentando o ataque final do antagonista juntos. Se vier mais tarde (Etapa 17-18), o sacrifício do MMC é o que finalmente quebra a resistência.
+- ETAPAS 12-13 — TENTATIVAS INICIAIS DO MMC + INVESTIGAÇÃO DA FMC. Ele já COMEÇA a agir, provar, sacrificar — cada gesto é um tijolo. A FMC vê e registra, mas resiste. A verdade começa a aparecer em camadas.
+- ETAPAS 14-18 — JANELA DE RECONCILIAÇÃO. A reconciliação acontece em algum ponto desta janela, dependendo do contexto. Pode ser na Etapa 14, 15, 16, 17 ou 18. O importante é que NÃO seja apressada — precisa ser construída por todas as etapas anteriores. Se a reconciliação vier mais cedo (Etapas 14-15), as etapas seguintes mostram o casal já reconciliado mas enfrentando o ataque final do antagonista juntos. Se vier mais tarde (Etapas 17-18), o sacrifício do MMC é o que finalmente quebra a resistência. **A CENA ÍNTIMA OBRIGATÓRIA DA PARTE 2** acontece após a reconciliação — completa, alvo 1.000 a 1.200 palavras, com preliminares + sexo oral recíproco + penetração + clímax. Vocabulário direto e sensual permitido (membro, seio, penetração, gozo); palavrões e gírias chulas continuam proibidos.
 - ETAPAS 19-20 — CONSAGRAÇÃO. Queda do antagonista + final feliz (uma das opções: casamento, pedido, gravidez planejada/inesperada, filho, realização do sonho da FMC, viagem, mudança de vida juntos).
 
 REGRA DE OURO DA CURVA:
@@ -791,7 +820,7 @@ Quanto menos toque na Parte 1, mais cada toque vale. Um dedo na cintura dela em 
 Eles se conhecem em conversas, em silêncios, em observação, em pequenos cuidados. Só depois disso o corpo entra. Inverter essa ordem é matar o romance.
 
 5. A QUÍMICA SE CONSTRÓI EM CAMADAS PROGRESSIVAS
-Olhares (Etapa 3) → toques acidentais (Etapa 4) → toques propositais com desculpa (Etapa 5) → primeiro beijo (Etapa 5/6) → primeira entrega (Etapa 6) → intimidade aprofundada (Parte 2).
+Olhares (Etapa 3) → toques acidentais (Etapa 4) → toques propositais com desculpa (Etapa 5) → primeiro beijo (Etapa 5/6) → entrega emocional + noite juntos APENAS SUGERIDA por elipse (Etapa 6) → intimidade física descrita só na Parte 2 (cena íntima completa após a reconciliação).
 
 6. CADA AVANÇO PRECISA DE UM GANCHO QUE O JUSTIFIQUE
 Eles não se beijam porque "estava na hora". Eles se beijam porque algo aconteceu — uma proteção em público, uma confissão, um momento de vulnerabilidade. O avanço romântico é sempre consequência de algo emocional.
@@ -811,18 +840,19 @@ ERRADO:
 "Etapa 5: eles se entendem completamente. Dormem juntos pela primeira vez. Ela percebe que está apaixonada."
 
 CERTO:
-"Etapa 5: depois de semanas de convivência, há uma cena pública em que ela é provocada por uma antiga rival. O MMC se aproxima e fala uma frase que cala a rival. Pela primeira vez, ela sente que ele a viu por inteiro. À noite, sozinhos no carro, ele a olha de um jeito que ela nunca tinha visto. O beijo acontece ali — não planejado, não anunciado. Eles param. Sabem que algo mudou. A noite íntima, se houver, é sugerida e fica para a Etapa 6 ou para o fim desta etapa, depois de uma cena de vulnerabilidade emocional dele."
+"Etapa 5: depois de semanas de convivência, há uma cena pública em que ela é provocada por uma antiga rival. O MMC se aproxima e fala uma frase que cala a rival. Pela primeira vez, ela sente que ele a viu por inteiro. À noite, sozinhos no carro, ele a olha de um jeito que ela nunca tinha visto. O beijo acontece ali — não planejado, não anunciado. Eles param. Sabem que algo mudou. A noite juntos, se houver, é APENAS SUGERIDA por elipse e fica para a Etapa 6 ou para o fim desta etapa, depois de uma cena de vulnerabilidade emocional dele — porta se fechando, retomada na manhã seguinte. NUNCA descrita."
 
 TESTE OBRIGATÓRIO ANTES DE ENTREGAR:
 
 Para a Parte 1, pergunte:
 - Em qual etapa acontece o primeiro toque significativo?
 - Em qual etapa acontece o primeiro beijo?
-- Em qual etapa acontece a primeira intimidade física?
+- A noite juntos (Etapa 6) está marcada como APENAS SUGERIDA por elipse, sem qualquer descrição corporal/sensorial do ato?
 - A distância entre cada um desses eventos é suficiente para construir tensão?
 - Cada avanço é consequência de um momento emocional, ou simplesmente "aconteceu"?
 
-Se o primeiro beijo está antes da Etapa 4, ou se a intimidade física vem antes da Etapa 6, REESCREVA. O romance está apressado.
+Se o primeiro beijo está antes da Etapa 4, REESCREVA — o romance está apressado.
+Se a estrutura prevê descrição corporal do ato em qualquer etapa da Parte 1, REESCREVA — a Parte 1 só permite elipse narrativa.
 
 A LEITORA QUE TERMINA A PARTE 1 PRECISA SENTIR QUE ASSISTIU UM AMOR NASCER, NÃO QUE PEGOU UM CASAL JÁ FORMADO.
 
@@ -906,8 +936,10 @@ PROIBIÇÕES ABSOLUTAS:
 - Nenhum elemento de thriller, espionagem ou investigação policial como motor da história.
 - Nenhuma cidade fictícia ou fora da lista permitida.
 - Nenhum casamento, filho, gravidez, oficialização ou promessa pública de "para sempre" na Parte 1.
-- Nenhuma dúvida plantada, porta fechada, nome misterioso ou frase suspeita pairando no fim da Parte 1 — a Parte 1 fecha resolvida em si mesma, sem gancho para a Parte 2.
+- Nenhuma porta fechada gritante, nome misterioso explicitado ou frase suspeita gritando como gancho dramático no fim da Parte 1. O QUESTIONAMENTO SUTIL da FMC é OBRIGATÓRIO mas é interno (uma dúvida leve, uma sensação) — não vira cliffhanger nem conflito aberto.
+- Nenhuma cena íntima descrita na Parte 1 — apenas sugestão por elipse (porta fechando, manhã seguinte). Sem preliminares, sem sensorial do ato, sem clímax.
 - Nenhuma lua de mel longa na abertura da Parte 2 — a bomba precisa vir cedo, criando a sensação de separação iminente.
+- Nenhum palavrão ou gíria chula em cena íntima de qualquer Parte (vocabulário direto e sensual — membro, seio, penetração, gozo — é PERMITIDO na Parte 2 e NÃO conta como vulgar).
 - Nenhum nome unissex — gênero do nome precisa ser claro.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

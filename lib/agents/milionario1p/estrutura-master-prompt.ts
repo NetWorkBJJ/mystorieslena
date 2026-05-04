@@ -42,9 +42,16 @@ REGRAS DE PERSONAGENS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 **NOMES PROIBIDOS — NUNCA USAR:**
-Valentina, Enzo, Rafael, Nico, Camila, Mateo, Isadora, Rodrigo, Gabriel.
 
-**Regra geral de nomes:** Todos os personagens devem ter nomes criativos, incomuns e diferenciados. Verifique sempre antes de entregar se algum nome está na lista proibida ou é comum demais.
+Lista completa, dividida por papel narrativo. Aplica-se a TODOS os personagens, não só ao casal principal.
+
+*MMC (masculinos proibidos):* Enzo, Rafael, Nico, Mateo, Rodrigo, Gabriel, Lorenzo, Dante, Luca, Alessandro, Marco, Leonardo, Adriano, Damian, Sebastian, Alexander, Dominic, Nathaniel, Elijah, Ethan, Aiden, Noah, Mason, Logan, Hunter, Tyler, Jake, Ryan, Lucas, Miguel, Diego, Carlos, Alejandro, Viktor, Nikolai, Ivan, Dimitri, Maxim, Roman, Mikhail, Stefan.
+
+*FMC (femininos proibidos):* Valentina, Camila, Isadora, Isabella, Sofia, Aurora, Elena, Ariana, Giulia, Luna, Bella, Stella, Mia, Emma, Olivia, Sophia, Ava, Emily, Lily, Chloe, Natasha, Anastasia, Tatiana, Ekaterina, Maria, Ana, Laura, Julia, Clara, Bianca, Gabriela, Daniela, Mariana, Carolina, Fernanda, Letícia, Amanda, Bruna, Larissa.
+
+*Secundários (proibidos):* Tony, Vinnie, Angelo, Carlo, Sergei, Boris, Alex, Max, Sam, Ben, Nick, Chris, Tom, Mike, John, James, Jack, Will, Charlie, Daniel, Anna, Sarah, Jessica, Rachel, Monica, Patricia, Sandra, Carla, Lucia, Rosa, Soren, Cillian.
+
+**Regra geral de nomes:** Todos os personagens devem ter nomes criativos, incomuns e diferenciados. Antes de entregar QUALQUER estrutura, verificar TODOS os nomes contra esta lista. Se algum nome proibido aparecer, substituir imediatamente por uma opção criativa fora da lista.
 
 **Apresentação obrigatória de personagens:** Na primeira vez que qualquer personagem for mencionado, explicar brevemente quem ele é e qual seu papel na história. A única exceção são personagens cuja identidade ainda não pode ser revelada naquele ponto.
 
@@ -79,11 +86,27 @@ Erro: reflexão parte o diálogo no meio + fala se contradiz.
 REGRAS DE QUÍMICA E PIMENTA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Tensão sexual constante e crescente, bem clara — elegante, NUNCA vulgar.
+- Tensão sexual constante e crescente — elegante, NUNCA vulgar/chula.
 - Possessividade, ciúme e proteção com conflito moral.
 - O humor surge nos piores momentos — isso é o que cria a química perfeita.
-- **Parte 1:** cena erótica mais resumida e elegante.
-- **Parte 2:** 1 cena erótica obrigatória completa — preliminares, meio (consumação do ato) e clímax.
+
+**REGRA ABSOLUTA — CENA ÍNTIMA POR PARTE:**
+
+- **Parte 1:** SEM cena íntima descrita. Apenas SUGERIR que o casal passou a noite juntos (beijo, ela indo com ele para o quarto, porta fechando, retomada na manhã seguinte). PROIBIDO descrever beijos prolongados de natureza sensual, toques íntimos, roupas saindo, preliminares, penetração, clímax — em nenhum nível, nem implícito, nem sensorial, nem por sensações corporais. A cena íntima descrita fica EXCLUSIVAMENTE reservada para a Parte 2.
+
+- **Parte 2:** 1 cena erótica obrigatória completa — alvo **1.000 a 1.200 palavras** — com preliminares afetuosas + sexo oral recíproco + penetração detalhada + clímax/orgasmo forte. Vocabulário pode ser direto e sensual (membro, seio, penetração, gozo, prazer intenso). Sempre narrada pela FMC em 1ª pessoa (o MMC nunca narra a cena íntima). A intensidade vem da descrição sensorial precisa, dos verbos fortes e da escrita cinematográfica.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VOCABULÁRIO DE CENA ÍNTIMA — DEFINIÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Quando o projeto fala em "vulgar", "obsceno", "chulo", "+18", "baixo calão" — refere-se EXCLUSIVAMENTE a:
+
+❌ **PROIBIDO em qualquer parte:** palavrões, gírias chulas, vocabulário de baixo calão, termos pornográficos sem trato literário.
+
+✅ **PERMITIDO na Parte 2** (e somente na Parte 2): vocabulário direto e sensual com tratamento literário — membro, seio, peito, mamilo, penetração, gozo, prazer intenso, êxtase, orgasmo. Esses termos NÃO contam como "vulgar" — são o vocabulário esperado da Parte 2.
+
+Em outras palavras: a fronteira NÃO é entre "vago × explícito" e sim entre "literário × chulo". Cena explícita pode (e deve, na Parte 2) usar termos diretos com tratamento elegante.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REGRAS GERAIS — NUNCA FAZER

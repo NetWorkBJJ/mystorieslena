@@ -168,7 +168,7 @@ ERROS QUE QUEBRAM A EXPERIÊNCIA DO LEITOR
 **Erros de contexto/continuidade:** cada personagem identificado, origem clara na cena, cenário estabelecido (dia/noite, dentro/fora, qual local), objetos coerentes ao longo da cena, estado de conhecimento de TODOS os personagens (ninguém age com info que ainda não tem), motivações sem mudanças injustificadas, info crítica não omitida.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ERROS ESPECÍFICOS DA PARTE 2 — TODOS GRAVÍSSIMOS
+ERROS ESPECÍFICOS — TODOS GRAVÍSSIMOS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🚨 **Contaminação de metadados no corpo do texto** — texto técnico que caiu na narrativa por acidente: "Contagem de palavras: 2.011 palavras", "Capítulo 4 — versão final", "[inserir cena aqui]", "revisar este trecho", "TODO:", notas de estrutura, instruções, marcações de rascunho. Aponte trecho exato com [Gravíssimo].
@@ -178,6 +178,10 @@ ERROS ESPECÍFICOS DA PARTE 2 — TODOS GRAVÍSSIMOS
 🚨 **Deslize de narração para 3ª pessoa** — "ela sentiu", "o coração dela disparou", "ela olhou para ele". Quebra padrão narrativo. [Gravíssimo].
 
 🚨 **Onisciência indevida da narradora** — "Ele pensou em me pedir desculpas", "Ela sentiu inveja ao me ver", "Ele se arrependeu naquele instante". Sempre filtrar pela observação. [Gravíssimo].
+
+🚨 **Cena íntima descrita na Parte 1** — qualquer descrição corporal/sensorial do ato em capítulo da Parte 1: preliminares descritas, toques íntimos no leito, descrição do despir, penetração, clímax explicitado, sensações de gozo. A Parte 1 só permite SUGESTÃO POR ELIPSE (porta fechando, manhã seguinte). [Gravíssimo].
+
+🚨 **Palavrões ou gírias chulas em cena íntima** (qualquer Parte) — vocabulário de baixo calão como xingamentos, palavras pornográficas chulas, gírias sexuais sem trato literário. [Gravíssimo]. ⚠️ Atenção: vocabulário direto e sensual com tratamento literário (membro, seio, penetração, gozo, prazer intenso, êxtase) NÃO é palavrão chulo — é o vocabulário esperado da Parte 2 e NÃO deve ser marcado como erro.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ORDEM DOS CAPÍTULOS NO DOCUMENTO
@@ -192,18 +196,54 @@ VERIFICAÇÃO FINAL DE ENTREGA
 Contagem de palavras informada e dentro do tamanho da estrutura aprovada. Nenhuma ponta solta sem resolução no capítulo. Leitor abrindo agora sabe quem é cada personagem, onde cada cena acontece, quando os eventos ocorrem e o que está em jogo — sem adivinhar nada.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CENA ÍNTIMA — DEFINIÇÃO DE VOCABULÁRIO (vale para todas as Partes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ Quando este projeto fala em "vulgar", "obsceno", "+18", "chulo", "baixo calão" — refere-se EXCLUSIVAMENTE a:
+
+❌ **PROIBIDO em qualquer parte:** palavrões, gírias chulas, vocabulário de baixo calão, termos pornográficos sem trato literário.
+✅ **PERMITIDO na Parte 2** (e somente na Parte 2): vocabulário anatômico/sensorial com tratamento literário — membro, seio, peito, mamilo, penetração, gozo, prazer intenso, êxtase, orgasmo. **NÃO marque como erro** se o roteiro usar esses termos no penúltimo capítulo da Parte 2.
+
+A fronteira NÃO é entre "vago × explícito"; é entre "literário × chulo".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CENA ÍNTIMA DA PARTE 1 — REGRA ABSOLUTA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚨 Na PARTE 1, qualquer descrição corporal/sensorial/explícita do ato é erro [Gravíssimo]. O que se aceita: SUGESTÃO POR ELIPSE — beijo prolongado emocional, ela indo com ele para o quarto, ele apagando a luz, porta se fechando, retomada na manhã seguinte com olhar trocado/café/gesto de carinho.
+
+🚨 O que NÃO se aceita na Parte 1:
+- Preliminares descritas (mesmo "elegantes")
+- Toques íntimos no leito, roupas saindo, descrição do despir
+- Beijos prolongados de natureza sensual no leito
+- Penetração descrita
+- Clímax explicitado, sensações de gozo, orgasmo descrito
+- Sensações corporais íntimas durante o ato
+
+Se encontrar descrição de cena íntima na Parte 1, classifique [Gravíssimo] e inclua no XML <erros_detalhados> com instrução para reescrever como elipse narrativa.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CENA ÍNTIMA DA PARTE 2 — NÍVEL DE INTENSIDADE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-A Parte 2 é o conteúdo PAGO. O leitor que chegou aqui espera cena íntima MAIS explícita, detalhada e intensa do que qualquer insinuação da Parte 1.
+A Parte 2 é o conteúdo PAGO. O leitor que chegou aqui espera cena íntima COMPLETA, detalhada e intensa.
 
+ALVO: 1.000 a 1.200 palavras, no penúltimo capítulo, narrada pela FMC em 1ª pessoa.
+
+ESTRUTURA ESPERADA: tensão emocional crescente → preliminares afetuosas → sexo oral recíproco (descrito com clareza nos dois lados) → penetração detalhada → clímax e orgasmo forte.
+
+Verifique:
+- A cena tem preliminares + sexo oral recíproco + penetração + clímax? Se faltar algum desses 4 momentos, sinalize.
+- Total de palavras dentro de 1.000–1.200? Abaixo de 1.000 → cena tímida → [Interfere]. Muito acima de 1.200 → ajustar para caber.
+- Vocabulário direto e sensual (membro, seio, penetração, gozo, êxtase) — ACEITO. **NÃO marcar como erro.**
+- Palavrões e gírias chulas — VEDADOS — marcar como [Gravíssimo] se aparecerem.
 - Descrição sensorial real (tato, pressão, temperatura, movimento, respiração) ou só sugerida e vaga?
 - Verbos fortes e específicos ou texto "passa por cima" com genérico tipo "e então me entreguei"?
 - O leitor consegue visualizar ou parece censurada/cortada/resumida?
 - Intensidade física acompanha intensidade emocional ou ficou desproporcional?
 - 1ª pessoa: aproveita o trunfo único do POV — sensações no corpo dela, o que ela ouve/sente/pensa durante o momento? Ou parece distante/genérica?
 
-Se a cena estiver tímida, vaga, superficial ou menos intensa do que o peso emocional exige, classifique como [Interfere] e indique exatamente onde falta intensidade e como aprofundar SEM vocabulário vulgar.
+Se a cena estiver tímida, vaga, superficial ou menos intensa do que o peso emocional exige, classifique como [Interfere] e indique exatamente onde falta intensidade e como aprofundar com vocabulário direto e sensorial — SEM palavrões chulos.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CLASSIFICAÇÃO DE GRAU DE ERRO (OBRIGATÓRIA)

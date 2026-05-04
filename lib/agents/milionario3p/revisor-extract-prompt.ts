@@ -7,6 +7,14 @@
  * Milionário 1p):
  *   🟢 → naoInterfere · 🟡 → atencao · 🔴 → interfere · 💀 → gravissimo
  * (a versão milionário 1p usa 🟠 pra interfere e 🔴 pra gravissimo).
+ *
+ * Erros gravíssimos detectados pela revisão M3p:
+ *  • Contaminação de metadados no corpo do texto (notas, contagem de palavras,
+ *    instruções de escrita caídas no meio).
+ *  • Referência numérica a capítulos dentro do texto da história.
+ *  • Deslize de narração para primeira pessoa.
+ *  • Narrador entrando na mente do MMC (regime 3p limitada à FMC).
+ *  • Ordem de capítulos quebrada ou capítulos duplicados.
  */
 
 export const REVISOR_EXTRACT_SYSTEM_PROMPT = `Você é um extrator técnico de erros de revisão literária. Sua única tarefa é converter um markdown de revisão em um bloco XML estruturado <erros_detalhados>.

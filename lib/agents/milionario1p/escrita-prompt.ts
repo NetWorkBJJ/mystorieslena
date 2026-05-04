@@ -187,7 +187,7 @@ Aplique TODAS antes de considerar qualquer capítulo finalizado. Não são suges
 
 19. MARCOS DA RELAÇÃO RÁPIDOS — se acontece em menos tempo do que o leitor acharia razoável, pelo menos UM personagem verbaliza a velocidade.
 
-20. SEM CASAMENTO OU FILHOS NA PARTE 1 — esses são marcos da Parte 2, se a estrutura pedir.
+20. SEM CASAMENTO OU FILHOS NA PARTE 1 — esses são marcos da Parte 2, se a estrutura pedir. E SEM CENA ÍNTIMA DESCRITA NA PARTE 1 — apenas sugestão por elipse (porta fechando, manhã seguinte). A cena íntima descrita é EXCLUSIVA da Parte 2.
 
 21. NUNCA FAZER HOOK — a história começa DIRETO pelo Capítulo 1, sem intro, sem prólogo, sem teaser. Entre na cena.
 
@@ -253,26 +253,35 @@ Na 1ª vez que qualquer personagem aparecer, explique brevemente quem ele é e q
 CENAS ÍNTIMAS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-PARTE 1 — elegante, sensorial, sugerida:
-- Aproximações corporais, toques que param no meio, mãos na cintura/pulso/rosto, ele falando perto demais, ela perdendo a respiração.
-- Quando a estrutura permite, pode incluir preliminares, penetração e clímax — escrita de forma ELEGANTE e SENSORIAL.
-- MÁXIMO 500 palavras.
-- SEMPRE narrada pela FMC em 1ª pessoa.
+⚠️ DEFINIÇÃO DE VOCABULÁRIO (vale para todas as cenas íntimas do projeto):
+- "Vulgar/+18/obsceno/chulo/baixo calão" = palavrões e gírias chulas. **PROIBIDO em qualquer parte.**
+- "Direto e sensual" = vocabulário anatômico/sensorial com tratamento literário (membro, seio, peito, mamilo, penetração, gozo, prazer intenso, êxtase, orgasmo). **PERMITIDO na Parte 2.**
+A fronteira NÃO é entre "vago × explícito"; é entre "literário × chulo".
 
-PARTE 2 — erótica com profundidade sensorial completa:
-- Regra inegociável: MESMO nas cenas mais intensas, NUNCA palavras obscenas, chulas ou de baixo calão. A intensidade vem da descrição sensorial/física/emocional — NUNCA do palavrão.
+PARTE 1 — APENAS SUGERIDA, SEM DESCRIÇÃO DO ATO:
+- Pode aparecer: aproximações corporais até a porta do quarto, beijo prolongado emocional, abraço apertado, mão na cintura/pulso/rosto, ele falando perto demais, ela perdendo a respiração, ela indo com ele para o quarto, ele apagando a luz, a porta se fechando.
+- Após a sugestão, retoma na manhã seguinte (ou tempo depois) — olhar trocado, ele observando-a ainda dormindo, café compartilhado, gesto de carinho que sinaliza que algo mudou.
+- A elipse narrativa preserva a sugestão sem entregar o ato.
+- PROIBIDO descrever: beijos prolongados de natureza sensual no leito, toques íntimos, roupas saindo, o ato físico em qualquer nível, sensações corporais sexuais, preliminares (mesmo "elegantes"), penetração, clímax, gozo, sensações de orgasmo.
+- Sempre narrada pela FMC em 1ª pessoa.
+- A cena íntima descrita fica EXCLUSIVAMENTE reservada para a Parte 2.
+
+PARTE 2 — CENA COMPLETA, DETALHADA, ALVO 1.000–1.200 PALAVRAS:
+- Estrutura: tensão emocional crescente → preliminares afetuosas e apaixonadas → sexo oral recíproco (descrito com clareza nos dois lados) → penetração detalhada → clímax e orgasmo forte.
 - Narrada pela FMC — SEMPRE. MMC NUNCA assume a narração durante a cena íntima.
+- Vocabulário direto e sensual permitido: membro, seio, peito, mamilo, penetração, gozo, prazer intenso, êxtase, orgasmo.
+- PROIBIDO: palavrões, gírias chulas, vocabulário de baixo calão. A intensidade vem da descrição sensorial precisa, dos verbos fortes e da escrita cinematográfica — nunca do palavrão.
 - A FMC questiona, analisa e se surpreende consigo mesma.
 - Revela o que ela percebe dele (gestos, olhares, palavras) e o que isso provoca nela.
 - Misture vulnerabilidade com senso de poder.
-- Detalhes sensoriais precisos: tato, som, temperatura, pressão, peso.
+- Detalhes sensoriais precisos: tato, som, temperatura, pressão, peso, respiração.
 - Verbos fortes e específicos para movimentos.
 - Tensão e prazer se confundem e se complementam.
 - Pelo menos uma fala de cada personagem revelando algo emocional além do físico.
 - Começa com tensão emocional antes de entrar no físico.
 - Ritmo das frases acelera conforme intensidade sobe.
 - Termina com reflexão emocional da FMC — o que ficou, o que mudou, o que foi selado.
-- Segunda cena íntima na Parte 2 (se houver): resumida — apenas deixar claro que aconteceu.
+- Segunda cena íntima na Parte 2 (se houver): resumida — apenas deixar claro que aconteceu, sem detalhar.
 
 REFERÊNCIA DE TOM para a cena íntima da Parte 2 (NUNCA reproduzir, apenas tom/nível/profundidade):
 - Tensão residual acumulada na atmosfera antes do físico.
@@ -283,7 +292,9 @@ REFERÊNCIA DE TOM para a cena íntima da Parte 2 (NUNCA reproduzir, apenas tom/
 - Movimento lento/calculado/profundo que vira aceleração progressiva.
 - Ruptura: ela se quebra primeiro, corpo contraindo em espasmos; ele solta som baixo contra os lábios dela.
 - Pós-cena: peso dele permanente, mão dele descansando com calma aterrorizante e doce; ela coloca a mão sobre a dele; silêncio pleno.
-- NADA de vocabulário chulo. Tudo por descrição sensorial precisa.
+- Vocabulário direto e sensual permitido nesta seção (membro, seio, penetração, gozo). NADA de palavrão chulo. Tudo por descrição sensorial precisa.
+
+⚠️ Observação para rotas de pós-processamento (ex: /api/escrita-fix-wordcount): quando esta seção for consultada para AJUSTAR contagem de palavras de um capítulo já escrito, NUNCA insira cena íntima nova nem expanda uma sugestão de Parte 1 em descrição. Apenas ajuste prosa existente respeitando as regras desta seção.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ARQUÉTIPOS
@@ -327,14 +338,15 @@ TECNOLOGIA PROMPTMASTER — APLICAR AO FINAL DO ROTEIRO COMPLETO
 
 Depois de escrever o roteiro completo (Parte 1 + Parte 2, todos os capítulos), aplique as 5 PASSADAS DE AUTO-REVISÃO sobre o todo, atualize a MEMÓRIA VIVA com o estado final da história, e VALIDE com as 8 regras bloqueantes.
 
-5 PASSADAS DE AUTO-REVISÃO (relate o que verificou e o que ajustou):
+6 PASSADAS DE AUTO-REVISÃO (relate o que verificou e o que ajustou):
 - Passada 1 — ESPAÇO: toda cena com ancoragem de local, transições explícitas, nada de teletransporte, sentidos obedecendo à física.
 - Passada 2 — TEMPO: cronologia, contagens regressivas, idades, dias da semana (se usados), viagens levando tempo, referências temporais matematicamente corretas.
 - Passada 3 — CRUZAMENTO ESPAÇO×TEMPO: tudo faz sentido junto?
 - Passada 4 — POV (Parte 2): cada trecho identificado, MMC não repete FMC, cena íntima na FMC, voz distinta, nunca dois MMC em sequência.
 - Passada 5 — 1ª PESSOA: ZERO deslize para 3ª pessoa dentro de um POV. "Eu senti", nunca "ela sentiu" dentro do POV dela.
+- Passada 6 — CENAS ÍNTIMAS POR PARTE: na Parte 1, qualquer descrição corporal/sensorial do ato é erro — só elipse permitida (porta fechando, manhã seguinte); na Parte 2, a cena íntima do penúltimo capítulo está dentro de 1.000–1.200 palavras com preliminares + sexo oral recíproco + penetração + clímax, vocabulário direto e sensual aceito (membro, seio, penetração, gozo), zero palavrões chulos.
 
-8 VALIDAÇÕES BLOQUEANTES — SE QUALQUER UMA PERSISTIR, MARQUE BLOQUEADO:
+9 VALIDAÇÕES BLOQUEANTES — SE QUALQUER UMA PERSISTIR, MARQUE BLOQUEADO:
 1. POV MISTURADO — deslize de 1ª para 3ª pessoa dentro do POV, ou POV do MMC repetindo cena que a FMC já narrou.
 2. QUEBRA DE 4ª PAREDE — qualquer menção a "parte 1", "parte 2", "capítulo", "versão", "TODO", "revisar", "inserir", contagem de palavras DENTRO DO CORPO da narrativa.
 3. TIMELINE CONTRADITÓRIA — idade/data/dia da semana/contagem regressiva que não bate.
@@ -342,7 +354,8 @@ Depois de escrever o roteiro completo (Parte 1 + Parte 2, todos os capítulos), 
 5. LOCAL INCONSISTENTE — local recorrente com característica diferente da estabelecida (bairro, andar, distância).
 6. CENA ÍNTIMA NO MMC — qualquer cena íntima narrada pelo MMC.
 7. NARRADORA COM INFORMAÇÃO IMPOSSÍVEL — FMC sabendo algo que não presenciou, sem origem explicada.
-8. VOCABULÁRIO CHULO EM CENA ÍNTIMA.
+8. PALAVRÕES OU GÍRIAS CHULAS EM CENA ÍNTIMA. (Vocabulário direto e sensual — membro, seio, penetração, gozo — é PERMITIDO na Parte 2; o veto se refere apenas a palavrões/baixo calão.)
+9. CENA ÍNTIMA DESCRITA NA PARTE 1. Qualquer descrição corporal/sensorial do ato, preliminares descritas, penetração, clímax explicitado, sensações de gozo, ou descrição do despir/toques íntimos NA PARTE 1 = bloqueio. A Parte 1 só permite a sugestão por elipse narrativa (porta fechando, manhã seguinte). A cena íntima descrita fica EXCLUSIVAMENTE reservada para a Parte 2.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 MEMÓRIA VIVA FINAL — SCHEMA JSON
@@ -447,6 +460,7 @@ Passada 2 — Tempo: [idem]
 Passada 3 — Cruzamento Espaço×Tempo: [idem]
 Passada 4 — POV (Parte 2): [idem]
 Passada 5 — 1ª Pessoa: [idem]
+Passada 6 — Cenas íntimas por Parte (P1 só elipse, P2 1.000–1.200 pal. com vocabulário direto): [idem]
 Checklist adicional: [muletas frasais encontradas/corrigidas no todo, repetições de caracterização, velocidade emocional, cliffhangers graduados, total de palavras Parte 1 + Parte 2 conferido]
 Contagem total de palavras: Parte 1 = [n], Parte 2 = [n], Total = [n]
 

@@ -11,10 +11,13 @@ import { ESCRITA_SYSTEM_PROMPT } from "./escrita-prompt";
  * baked: não-hook, parágrafos de 5 linhas, advérbios proibidos).
  *
  * Word counts:
- *  • Parte 1: 11.300-11.700 palavras totais (alvo 11.500).
+ *  • Parte 1: 11.000-12.000 palavras totais (alvo 12.000).
  *  • Parte 2: 13.000-13.500 palavras totais (alvo 13.250 — RIGOROSO).
  *
- * Narração: TERCEIRA PESSOA onisciente externa em todo o roteiro.
+ * Narração: TERCEIRA PESSOA LIMITADA À FMC (sem POV masculino, MMC observado
+ * de fora) na Parte 1. Para a Parte 2, a estrutura aprovada (Step 3) prevalece
+ * — em casos legados ela pode pedir narrador onisciente, conforme nota
+ * documentada no system prompt da Escrita.
  */
 export const escritaAgent: Agent = {
   id: "escrita",
@@ -78,7 +81,7 @@ export const escritaAgent: Agent = {
           "• Se mexer apenas em capítulos da Parte 2, inclua só o banner ═══ PARTE 2 ═══ — não inclua a Parte 1.",
           "• Cada capítulo precisa vir COMPLETO (não só o trecho mudado).",
           "• Mantenha a contagem de palavras dentro de ±3% do alvo declarado na ESTRUTURA correspondente.",
-          "• NARRAÇÃO em TERCEIRA PESSOA — narrador externo onisciente. NUNCA primeira pessoa em narração.",
+          "• NARRAÇÃO em TERCEIRA PESSOA LIMITADA À FMC (Parte 1) — narrador externo, sem POV masculino, MMC observado de fora. Na Parte 2, a estrutura aprovada prevalece. NUNCA primeira pessoa em narração.",
           "• NÃO inclua ═══ ROTEIRO ═══, ═══ RELATÓRIO ═══, ═══ MEMÓRIA ═══, ═══ VALIDAÇÃO ═══.",
           "• NÃO peça confirmação. NÃO comente o que mudou. Comece direto pelo banner.",
           "",
@@ -163,10 +166,14 @@ export const escritaAgent: Agent = {
         .join(" e ");
       const partTotalLabel =
         batch.part === "Parte 1"
-          ? "11.300 a 11.700 palavras totais (alvo 11.500 — RIGOROSO)"
+          ? "11.000 a 12.000 palavras totais (alvo 12.000 — RIGOROSO)"
           : "13.000 a 13.500 palavras totais (alvo 13.250 — RIGOROSO, jamais cair fora dessa faixa)";
+      const narrationLabel =
+        batch.part === "Parte 1"
+          ? "narrador externo em terceira pessoa LIMITADA À FMC (sem POV masculino, MMC observado de fora — gestos, falas, atos, NUNCA pensamentos internos dele)"
+          : "terceira pessoa pelo narrador externo invisível conforme a estrutura aprovada da Parte 2";
       sections.push(
-        `━━━ AÇÃO ━━━\n\n1) Escreva APENAS ${chapsList} da ${batch.part}. Não escreva HOOK. Não escreva nenhum outro capítulo. Não inclua banners ═══ ROTEIRO ═══ / ═══ PARTE X ═══ / ═══ RELATÓRIO ═══ / ═══ MEMÓRIA ═══ / ═══ VALIDAÇÃO ═══ — esses ficam por conta do app.\n\n2) Cada capítulo começa com cabeçalho exatamente neste formato:\n\n## Capítulo N — [Título do capítulo conforme a estrutura]\n\n[texto do capítulo em TERCEIRA PESSOA — narrador externo onisciente alternando foco entre FMC e MMC]\n\n3) NARRAÇÃO — REGRA INEGOCIÁVEL:\n   • TERCEIRA PESSOA do início ao fim. Nenhum personagem narra.\n   • "Eu", "me", "mim", "meu", "minha" SÓ aparecem dentro de diálogos (falas diretas entre travessões/aspas).\n   • "Nós", "nosso", "nossa" como voz narrativa é PROIBIDO.\n   • O narrador alterna o foco entre FMC e MMC ao longo das cenas, mas nunca se anuncia.\n\n4) CONTAGEM DE PALAVRAS — REGRA INEGOCIÁVEL DA ESTRUTURA APROVADA:\n   • Margem por capítulo: ±3% do alvo declarado na estrutura.\n   • Total da ${batch.part}: ${partTotalLabel}. O somatório dos capítulos dessa Parte (depois de todos os pares) precisa cair nesse intervalo.\n   • Antes de fechar cada capítulo, conte palavra-por-palavra. Se ficar abaixo, EXPANDA cenas existentes (não invente novas) com mais detalhe sensorial e diálogo. Se ficar acima, ENCURTE redundâncias.\n   • Não tente "salvar palavras pra próximo cap" nem "compensar capítulo anterior" — cada cap fecha dentro do seu alvo individual.\n\n5) Não mencione "parte 1", "parte 2", "capítulo X" no corpo da narrativa — só nos cabeçalhos estruturais.\n\n6) AO FINAL DOS CAPÍTULOS, gere um bloco de sinopses no formato exato:\n\n═══ SINOPSES ═══\n- Cap N: [3-5 frases. O que aconteceu, tom predominante, cliffhanger, contagem real de palavras escrita.]\n- Cap N+1: [idem]\n\nAs sinopses entram como contexto pro próximo par de capítulos — sejam precisas sobre eventos, mudanças de status entre personagens, ganchos abertos. Foco em CONTINUIDADE.`,
+        `━━━ AÇÃO ━━━\n\n1) Escreva APENAS ${chapsList} da ${batch.part}. Não escreva HOOK. Não escreva nenhum outro capítulo. Não inclua banners ═══ ROTEIRO ═══ / ═══ PARTE X ═══ / ═══ RELATÓRIO ═══ / ═══ MEMÓRIA ═══ / ═══ VALIDAÇÃO ═══ — esses ficam por conta do app.\n\n2) Cada capítulo começa com cabeçalho exatamente neste formato:\n\n## Capítulo N — [Título do capítulo conforme a estrutura]\n\n[texto do capítulo em ${narrationLabel}]\n\n3) NARRAÇÃO — REGRA INEGOCIÁVEL:\n   • TERCEIRA PESSOA do início ao fim. Nenhum personagem narra.\n   • "Eu", "me", "mim", "meu", "minha" SÓ aparecem dentro de diálogos (falas diretas entre travessões/aspas).\n   • "Nós", "nosso", "nossa" como voz narrativa é PROIBIDO.\n   • Para a ${batch.part}: ${batch.part === "Parte 1" ? "FOCO LIMITADO à FMC. O leitor entra nos pensamentos dela e adivinha o MMC pelos gestos. NUNCA narrar pensamentos do MMC." : "siga o regime narrativo definido pela ESTRUTURA aprovada da Parte 2."}\n   • O narrador nunca se anuncia.\n\n4) CONTAGEM DE PALAVRAS — REGRA INEGOCIÁVEL DA ESTRUTURA APROVADA:\n   • Margem por capítulo: ±3% do alvo declarado na estrutura.\n   • Total da ${batch.part}: ${partTotalLabel}. O somatório dos capítulos dessa Parte (depois de todos os pares) precisa cair nesse intervalo.\n   • Antes de fechar cada capítulo, conte palavra-por-palavra. Se ficar abaixo, EXPANDA cenas existentes (não invente novas) com mais detalhe sensorial e diálogo. Se ficar acima, ENCURTE redundâncias.\n   • Não tente "salvar palavras pra próximo cap" nem "compensar capítulo anterior" — cada cap fecha dentro do seu alvo individual.\n\n5) Não mencione "parte 1", "parte 2", "capítulo X" no corpo da narrativa — só nos cabeçalhos estruturais.\n\n6) AO FINAL DOS CAPÍTULOS, gere um bloco de sinopses no formato exato:\n\n═══ SINOPSES ═══\n- Cap N: [3-5 frases. O que aconteceu, tom predominante, cliffhanger, contagem real de palavras escrita.]\n- Cap N+1: [idem]\n\nAs sinopses entram como contexto pro próximo par de capítulos — sejam precisas sobre eventos, mudanças de status entre personagens, ganchos abertos. Foco em CONTINUIDADE.`,
       );
     }
 

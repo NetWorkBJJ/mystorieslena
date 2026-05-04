@@ -6,11 +6,11 @@ import { ESTRUTURA1_PROMPT } from "./estrutura1-prompt";
 /**
  * Etapa 2 — Estrutura da Parte 1 (Romance de Milionário 3ª pessoa, canal Rowan).
  *
- * 11.500 palavras (faixa 11.300-11.700, alvo 11.500), 5-6 capítulos.
- * Hook expansão do título de 90-120 palavras, narração em terceira pessoa
- * onisciente externa (alterna foco FMC ↔ MMC), cena erótica elegante e
- * resumida no penúltimo/último cap (≤500 palavras), final feliz sem
- * casamento e sem filhos.
+ * 11.000 a 12.000 palavras (alvo 12.000), 5-6 capítulos.
+ * Hook expansão do título de 90-120 palavras (1 principal + 3 alternativos),
+ * narração em terceira pessoa LIMITADA À FMC (sem POV masculino, MMC observado
+ * de fora), SEM cena íntima descrita na Parte 1 (apenas elipse: aproximação →
+ * porta fechando → manhã seguinte), final feliz sem casamento e sem filhos.
  *
  * System prompt = master M3P + estrutura1 M3P.
  */
@@ -18,7 +18,7 @@ export const estrutura1Agent: Agent = {
   id: "estrutura1",
   label: "Estrutura — Parte 1",
   description:
-    "Monta a estrutura completa da Parte 1 de Milionário 3p (11.500 palavras, 5-6 capítulos) — hook expansão do título, mapa cena por cena, capítulos com química crescente, cena íntima elegante, casal junto e em paz no final",
+    "Monta a estrutura completa da Parte 1 de Milionário 3p (11.000-12.000 palavras, 5-6 capítulos) — hook expansão do título com 3 alternativos, mapa cena por cena, capítulos com química crescente, narração 3ª pessoa limitada à FMC (sem POV masculino), entrega do casal SEM cena íntima descrita (apenas elipse), final em paz sem casamento e sem filhos",
   model: MODELS.opus,
   thinking: "adaptive",
   effort: "high",
@@ -65,7 +65,7 @@ export const estrutura1Agent: Agent = {
           "• <original> precisa ser ÚNICO no documento. Se duplicado, expanda com contexto.",
           "• NÃO devolva a estrutura inteira. NÃO devolva markdown explicativo fora dos blocos <alteracao>.",
           "• Não invente mudanças que a roteirista não pediu.",
-          "• Se mudar a contagem de palavras de um capítulo, EMITA TAMBÉM blocos <alteracao> rebalanceando outros para manter o total entre 11.300 e 11.700 palavras (REGRA INEGOCIÁVEL).",
+          "• Se mudar a contagem de palavras de um capítulo, EMITA TAMBÉM blocos <alteracao> rebalanceando outros para manter o total entre 11.000 e 12.000 palavras (REGRA INEGOCIÁVEL).",
           "• Se a correção pedida não exigir alteração nenhuma, devolva apenas a string [NENHUMA_ALTERACAO_NECESSARIA] e nada mais.",
           "",
           "Comece direto pelo primeiro <alteracao>. Sem preâmbulo, sem perguntas.",
@@ -103,7 +103,7 @@ export const estrutura1Agent: Agent = {
     }
 
     sections.push(
-      "━━━ AÇÃO ━━━\n\nMonte a ESTRUTURA COMPLETA da Parte 1 seguindo o LAYOUT DE SAÍDA OBRIGATÓRIO definido no system prompt (Mundo → Pessoas-chave → FMC → MMC → Casal → Secundários → Hook → Mapa cena por cena → Capítulos → Temas → Arcos → Momentos-chave). Comece direto, sem pedir confirmação. Não escreva os capítulos em si — apenas a ESTRUTURA/PLANEJAMENTO.\n\n⚠️ ATENÇÃO CRÍTICA — CONTAGEM DE PALAVRAS: a SOMA das contagens declaradas para os 5-6 capítulos DEVE ficar entre 11.300 e 11.700 palavras (alvo 11.500). REGRA INEGOCIÁVEL. Antes de finalizar, SOME mentalmente as contagens de cada capítulo e CONFIRME que o total está dentro da faixa. Se ficar fora, REDISTRIBUA até bater.\n\n⚠️ NARRAÇÃO em TERCEIRA PESSOA — narrador externo onisciente que alterna foco entre FMC e MMC. NÃO é narração da FMC em primeira pessoa.",
+      "━━━ AÇÃO ━━━\n\nMonte a ESTRUTURA COMPLETA da Parte 1 seguindo o LAYOUT DE SAÍDA OBRIGATÓRIO definido no system prompt (Mundo → Pessoas-chave → FMC → MMC → Casal → Secundários → Hook + 3 alternativos → Mapa cena por cena → Capítulos → Temas → Arcos → Momentos-chave). Comece direto, sem pedir confirmação. Não escreva os capítulos em si — apenas a ESTRUTURA/PLANEJAMENTO.\n\n⚠️ ATENÇÃO CRÍTICA — CONTAGEM DE PALAVRAS: a SOMA das contagens declaradas para os 5-6 capítulos DEVE ficar entre 11.000 e 12.000 palavras (alvo 12.000). REGRA INEGOCIÁVEL. Antes de finalizar, SOME mentalmente as contagens de cada capítulo e CONFIRME que o total está dentro da faixa. Se ficar fora, REDISTRIBUA até bater.\n\n⚠️ NARRAÇÃO em TERCEIRA PESSOA LIMITADA À FMC — narrador externo que acompanha PRIORITARIAMENTE a heroína. SEM POV masculino. SEM entrar nos pensamentos do MMC (ele aparece apenas pelos atos, falas, gestos observáveis). NÃO é narração da FMC em primeira pessoa.\n\n⚠️ ENTREGA DO CASAL na Parte 1 NÃO TEM cena íntima descrita — apenas elipse (aproximação → porta fechando → manhã seguinte). Final em paz, sem casamento, sem filhos.",
     );
 
     return sections.join("\n\n");

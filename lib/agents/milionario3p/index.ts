@@ -6,12 +6,15 @@
  * /api/escrita-fix-wordcount) e o par de extração estruturada do Revisor
  * (fallback /api/revisor-extract-errors).
  *
- * NARRAÇÃO: Toda a história em terceira pessoa onisciente externa, alternando
- * foco entre FMC e MMC.
+ * NARRAÇÃO: Terceira pessoa LIMITADA À FMC. Sem POV masculino. O MMC é mostrado
+ * apenas pelos atos, falas e gestos observáveis — o leitor nunca entra na
+ * cabeça dele. Esse regime vale para a Parte 1 sempre. Para a Parte 2, a
+ * estrutura aprovada (Step 3) prevalece — em casos legados ela pode pedir
+ * narrador onisciente, e o agent da Escrita segue a estrutura nesses casos
+ * (ver nota dedicada em escrita-prompt.ts).
  *
- * NOTA — PREMISSA: o agente da Premissa é um stub travado (placeholder=true)
- * enquanto a autora não envia o prompt mestre M3P da Premissa. A roteirista
- * deve usar manual-paste no Step 1 até lá.
+ * Word counts: P1 11.000–12.000 palavras (alvo 12.000), P2 13.000–13.500
+ * (alvo 13.250). Símbolos do Revisor: 🟢🟡🔴💀.
  */
 
 import type { StepId } from "@/types/roteiro";

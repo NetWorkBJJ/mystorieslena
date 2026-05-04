@@ -62,7 +62,7 @@ If the SDK throws an auth-shaped error, the route injects a Portuguese-language 
 O app suporta múltiplos sub-nichos de romance, registrados em `lib/categories/index.ts`. Cada `Roteiro` tem um campo `category: RoteiroCategory` travado na criação (escolhido no `CategoryPicker` antes do roteiro existir):
 
 - `milionario-1p` — Romance de Milionário em 1ª pessoa (default; default histórico para roteiros legados sem `category` — backfill em `lib/storage.ts`).
-- `milionario-3p` — Placeholder; reaproveita prompts de 1p até a versão 3p chegar.
+- `milionario-3p` — Romance de Milionário em 3ª pessoa pelo canal Rowan. Narração 3ª pessoa **limitada à FMC** (sem POV masculino — MMC observado pelos atos), prompts próprios em `lib/agents/milionario3p/`. Premissa bifásica (resumos ≤500 palavras + obrigações de estrutura). Totais 12.000 (P1, faixa 11.000–12.000) / 13.250 (P2, faixa 13.000–13.500). Símbolos 🟢🟡🔴💀 no Revisor. **Caveat:** o `estrutura2-prompt.ts` ainda usa narrador onisciente legado; a Escrita lê a estrutura aprovada e segue ela na Parte 2 (a regra "limitada à FMC" sempre vale na Parte 1).
 - `mafia` — Dark Romance de Máfia (prompts próprios, totais 12.500/13.500 em vez de 11.500/13.250, símbolos 🟢🟡🔴💀 no Revisor).
 
 Cada categoria tem seu próprio diretório `lib/agents/<id>/` com 5 agentes + prompts. O dispatcher `getAgent(category, step)` em `lib/agents/index.ts` puxa do registry. `partTotalRange(part, category)` e `planBatches(..., category)` são category-aware. Os endpoints `/api/agent/[step]`, `/api/escrita-fix-wordcount` e `/api/revisor-extract-errors` recebem `category` no body — sem isso, caem no default `milionario-1p`.
@@ -75,15 +75,17 @@ Each step in `lib/agents/<categoria>/` exports an `Agent` (`lib/agents/types.ts`
 
 The Escrita agent runs in **2-em-2 mode**: the frontend loop in `components/wizard/StepShell.tsx` dispatches sequential batches of 2 chapters each (`[P1:1,2] → [P1:3,4] → ... → [P2:1,2] → ...`), respecting the part boundary. Each batch returns the chapters plus a `═══ SINOPSES ═══` block with a 3-5 sentence summary per chapter — these synopses become context for subsequent batches and act as the bridge from Parte 1 to Parte 2. The Escrita step itself does no word-count calibration — capítulos saem com a contagem que sair. The legacy parser `lib/parse-escrita-output.ts` is kept for retro-compat with old all-at-once roteiros in localStorage.
 
-The **Revisor step** runs three phases when the user clicks Gerar: (1) per-chapter extension via `/api/escrita-fix-wordcount` (Opus) for any chapter outside the per-cap target ±3%, updating `outputs.escrita` in place; (2) part-total balance via the same endpoint if the Parte total falls outside `partTotalRange(part, category)` (varia por categoria — milionário 11.300-11.700/13.000-13.500, máfia 12.300-12.700/13.300-13.700); (3) structured review via `/api/agent/revisor` that streams the markdown report plus an `<erros_detalhados>` XML block parsed into `metadata.errors` for one-click `find+replace` fixes. The escritaSnapshotHash is taken AFTER extension so the UI can detect post-revision edits to the calibrated text. Re-clicking Gerar re-runs all three phases — phase 1/2 are idempotent (chapters already within target are skipped).
+The **Revisor step** runs three phases when the user clicks Gerar: (1) per-chapter extension via `/api/escrita-fix-wordcount` (Opus) for any chapter outside the per-cap target ±3%, updating `outputs.escrita` in place; (2) part-total balance via the same endpoint if the Parte total falls outside `partTotalRange(part, category)` (varia por categoria — milionário-1p 11.300-11.700/13.000-13.500, milionário-3p 11.000-12.000/13.000-13.500, máfia 12.300-12.700/13.300-13.700); (3) structured review via `/api/agent/revisor` that streams the markdown report plus an `<erros_detalhados>` XML block parsed into `metadata.errors` for one-click `find+replace` fixes. The escritaSnapshotHash is taken AFTER extension so the UI can detect post-revision edits to the calibrated text. Re-clicking Gerar re-runs all three phases — phase 1/2 are idempotent (chapters already within target are skipped).
 
 ### Escrita word counting — MANDATORY rule
 
 **Always use `countWords` from `@/lib/word-count`.** This is the single source of truth — the same function the UI uses to display word counts in `WordCountBadge`. NEVER write a local `text.split(/\s+/)` counter — naive whitespace splits don't treat `—`, `–`, `-` as separators, which inflates counts by ~3% in romance text full of dialogue (`— Boa tarde.` is 2 words, not 3). Any divergence between backend counter and UI counter creates broken fix-wordcount/balance calls that ask for the wrong expansion.
 
-The structure-prompt rule (which `partTotalRange` in `lib/parse-estrutura-targets.ts` encodes) is:
-- **Parte 1: 11.300–11.700 palavras totais** (alvo 11.500) — see `lib/agents/estrutura1-prompt.ts`
-- **Parte 2: 13.000–13.500 palavras totais** (rigoroso, jamais fora) — see `lib/agents/estrutura2-prompt.ts`
+The structure-prompt rule (which `partTotalRange` in `lib/parse-estrutura-targets.ts` encodes) varies por categoria:
+- **milionário-1p — Parte 1: 11.300–11.700 palavras totais** (alvo 11.500) — see `lib/agents/milionario1p/estrutura1-prompt.ts`
+- **milionário-1p — Parte 2: 13.000–13.500 palavras totais** (rigoroso, jamais fora) — see `lib/agents/milionario1p/estrutura2-prompt.ts`
+- **milionário-3p — Parte 1: 11.000–12.000 palavras totais** (alvo 12.000) — see `lib/agents/milionario3p/estrutura1-prompt.ts`
+- **milionário-3p — Parte 2: 13.000–13.500 palavras totais** (alvo 13.250)
 
 The per-chapter target lives in the structure header itself: `## Capítulo N — [Título] (~X.XXX palavras — ritmo Y)`. The `extractChapterTargets` parser in `lib/parse-estrutura-targets.ts` reads these per-cap targets directly from the headers — that's why `splitChapterBlocks` includes the header line in each block (the `(~X.XXX palavras)` is on the header, not in the body).
 

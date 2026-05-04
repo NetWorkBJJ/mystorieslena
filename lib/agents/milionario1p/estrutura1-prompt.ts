@@ -37,7 +37,7 @@ A Parte 1 tem um erro comum que DEVE ser evitado: gastar palavras demais nos cap
 A regra é:
 - **Capítulos 1 e 2 (início):** ritmo ACELERADO. Apresentar personagens e situação de forma rápida e envolvente. Poucos detalhes descritivos. Foco em ação, diálogo e química. O leitor precisa ser fisgado, não entediado com contexto. Entrar direto na história.
 - **Capítulos 3 e 4 (meio):** ritmo EQUILIBRADO. A tensão cresce, os conflitos se desenvolvem, a relação aprofunda. Aqui pode ter mais camadas e detalhes emocionais.
-- **Capítulos 5 e 6 (final):** ritmo DESENVOLVIDO. A resolução dos conflitos recebe espaço e atenção. A cena íntima tem tempo para respirar. O final satisfatório é construído — nunca apressado. O questionamento sutil da FMC é plantado com cuidado.
+- **Capítulos 5 e 6 (final):** ritmo DESENVOLVIDO. A resolução dos conflitos recebe espaço e atenção. A entrega emocional do casal (e a noite juntos APENAS sugerida por elipse, sem descrição do ato) tem tempo para respirar. O final satisfatório é construído — nunca apressado. O questionamento sutil da FMC é plantado com cuidado.
 
 **Distribuição sugerida de palavras:**
 
@@ -47,12 +47,12 @@ A regra é:
 | 2     | ~14%       | ~1.610          | Rápido — química e tensão                 |
 | 3     | ~18%       | ~2.070          | Equilibrado — conflitos crescem           |
 | 4     | ~20%       | ~2.300          | Equilibrado/intenso — reviravolta         |
-| 5     | ~18%       | ~2.070          | Desenvolvido — resolução + cena íntima    |
+| 5     | ~18%       | ~2.070          | Desenvolvido — resolução dos conflitos    |
 | 6     | ~18%       | ~2.070          | Desenvolvido — final satisfatório         |
 
-⚠️ Capítulos 5 e 6 formam o bloco final: o que antes seria 1 capítulo de resolução agora é dividido em 2 para dar espaço à resolução dos conflitos (Cap. 5) e ao final emocional com cena íntima e encerramento (Cap. 6). Nenhum dos dois pode ser apressado.
+⚠️ Capítulos 5 e 6 formam o bloco final: o que antes seria 1 capítulo de resolução agora é dividido em 2 para dar espaço à resolução dos conflitos (Cap. 5) e ao fechamento emocional com a noite juntos APENAS SUGERIDA por elipse (Cap. 6). Nenhum dos dois pode ser apressado.
 
-⚠️ EXCEÇÃO: Se a cena íntima já aconteceu em capítulo anterior, o Cap. 6 tem NO MÁXIMO 1.000 palavras (encerramento curto e satisfatório). As palavras restantes devem ser redistribuídas nos capítulos 3, 4 e 5 para dar mais corpo ao desenvolvimento e à resolução.
+⚠️ Como a Parte 1 NÃO descreve cena íntima (apenas sugere por elipse — porta fechando, manhã seguinte), todos os 6 capítulos seguem distribuição padrão. Não há mais "exceção do Cap 6 reduzido" — cada capítulo respeita seu percentual.
 
 ⚠️ Esses números são guias. A REGRA é: NUNCA gastar o espaço no início e correr no final.
 
@@ -212,15 +212,16 @@ Aqui os conflitos se resolvem. NÃO apressar.
 - A FMC tem papel ativo na resolução — não fica esperando, ela age
 - O MMC faz algo que prova o que sente — não só com palavras
 - A reconciliação do casal é CONQUISTADA, não dada
-- O capítulo termina com os dois juntos, mas a entrega física ainda não aconteceu — a tensão permanece
+- O capítulo termina com os dois juntos emocionalmente — a noite juntos pode ser sugerida aqui (porta fechando, retomada na manhã seguinte) OU guardada para o Cap. 6
 
 ⚠️ **Capítulo 6 — Final Satisfatório (RITMO DESENVOLVIDO)**
 Capítulo de encerramento. O leitor precisa fechar o livro satisfeito.
-- Se a cena íntima ainda não aconteceu → acontece aqui como consequência emocional de tudo (máx. 500 palavras). Capítulo com tamanho normal.
-- Se a cena íntima já aconteceu antes → este capítulo foca no casal no novo equilíbrio, com leveza e cumplicidade. **MÁXIMO 1.000 palavras.** As palavras economizadas devem ser redistribuídas nos capítulos anteriores (principalmente 4 e 5).
+- Se a noite juntos ainda não foi sugerida nas etapas anteriores → ela é sugerida aqui por elipse narrativa (beijo, ela indo com ele, porta fechando, retomada na manhã seguinte com café compartilhado, olhar trocado, gesto de carinho). NUNCA descrita no ato.
+- Se a sugestão da noite juntos já aconteceu antes → este capítulo foca no casal no novo equilíbrio, com leveza e cumplicidade.
+- Tamanho normal — distribuição padrão (~2.070 palavras).
 - O casal está junto e em paz
 - SEM casamento, SEM filhos
-- Nas últimas linhas: o **questionamento sutil da FMC** — semente de curiosidade para a Parte 2
+- Nas últimas linhas: o **questionamento sutil da FMC** — semente de curiosidade para a Parte 2 (algo que ela percebeu, uma pergunta que não fez, uma sensação leve — não é cliffhanger, não é bomba)
 
 ━━━ FINAL DA PARTE 1 ━━━
 
@@ -248,22 +249,33 @@ O leitor fecha satisfeito com a história, mas com vontade SUTIL de saber o que 
 - Descrição de INTENÇÃO, não de ato: o toque não consumado, a respiração, a aproximação lenta
 - Possessividade, ciúme, proteção — com conflito moral
 - Humor nos momentos de maior tensão
-- ⚠️ Regra inegociável: NUNCA usar palavras +18, palavras obscenas ou vocabulário vulgar
+- ⚠️ Regra inegociável: NUNCA palavrões ou gírias chulas (vulgar/baixo calão). Vocabulário literário sempre.
 
-**POSICIONAMENTO DA CENA ÍNTIMA — REGRA FLEXÍVEL:**
+**REGRA ABSOLUTA DA CENA ÍNTIMA NA PARTE 1:**
 
-| Quando acontece              | Função narrativa                                                                                         | Consequência na história                                                                              |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| No início/meio (Cap. 2, 3 ou 4) | Ponto de virada. Cedem antes de resolver os conflitos. COMPLICA a relação — cria intimidade antes da confiança. | Conflitos posteriores ficam mais intensos porque agora há intimidade. A relação tem mais a perder. |
-| No final (Cap. 5 ou 6)       | Recompensa emocional. Conflitos já resolvidos, o casal se entregou emocionalmente e agora se entrega fisicamente. | Culminação de toda a tensão acumulada. Entrega completa.                                              |
+Na Parte 1 NÃO se descreve cena íntima em nenhum nível. O texto deve apenas DAR A ENTENDER que o casal passou a noite juntos. O que pode aparecer:
+- Beijo prolongado emocional, abraço apertado, mão na cintura, olhar carregado
+- Ela indo com ele para o quarto, ele apagando a luz, a porta se fechando
+- Retomada na manhã seguinte: olhar trocado, ele observando-a ainda dormindo, café compartilhado, gesto de carinho que mostra que algo mudou entre eles
 
-⚠️ **Cena no início ou meio:** completa e detalhada (preliminares, penetração, clímax), elegante e sensorial. **Máximo 500 palavras.** Tem consequências reais na trama. Dinâmica entre os dois MUDA depois — mais vulnerabilidade, medo de perder, complicação. Tensão sexual não desaparece — muda de natureza ("quando vai acontecer?" → "o que isso significa para nós?").
+O que é PROIBIDO em qualquer capítulo da Parte 1:
+- ❌ Descrição corporal do ato (penetração, movimentos íntimos, ritmo)
+- ❌ Sensações físicas íntimas (calor, pressão, peso descrito sensorialmente do ato)
+- ❌ Preliminares descritas, mesmo que "elegantes"
+- ❌ Beijos prolongados de natureza sensual no leito
+- ❌ Toques íntimos, roupas saindo, descrição do despir
+- ❌ Clímax explicitado, sensações de gozo, descrição do orgasmo
 
-⚠️ **Cena no final:** acontece após a resolução dos conflitos — entrega dos dois, física e emocional. Mesmas regras: completa, detalhada, elegante, sensorial, **máx. 500 palavras**.
+A entrega física descrita fica EXCLUSIVAMENTE reservada para a Parte 2.
 
-⚠️ Em algumas histórias a cena íntima NÃO acontecerá na Parte 1 — depende do contexto. Nesse caso, a tensão sexual permanece implícita e crescente até o final.
+**POSICIONAMENTO DA NOITE JUNTOS (sugerida):**
 
-⚠️ **Apenas 1 cena íntima detalhada na Parte 1.** Se houver outro momento íntimo, ele é apenas subentendido ou resumido — nunca mais detalhado que a cena principal.
+Quando a sugestão acontece (cap 2, 3, 4, 5 ou 6) — depende do contexto da premissa:
+
+- Quando acontece no início/meio: tem CONSEQUÊNCIAS reais na trama — mais vulnerabilidade entre os dois, mais a perder, dinâmica muda. A tensão sexual não desaparece — muda de natureza ("quando vai acontecer?" → "o que isso significa para nós?"). Mas mesmo aqui é APENAS SUGERIDA.
+- Quando acontece no final (Cap. 5 ou 6): é a recompensa emocional após a resolução dos conflitos. Sugerida por elipse, sem descrição.
+
+Em algumas histórias a noite juntos pode NÃO acontecer na Parte 1 — depende do contexto. Nesse caso, a tensão sexual permanece implícita e crescente até o final, e a entrega física descrita fica para a Parte 2.
 
 ━━━ HUMOR ━━━
 
@@ -313,7 +325,8 @@ A história precisa ser escrita de forma EXTREMAMENTE simples, direta e sem enro
 ❌ Gastar palavras demais nos capítulos iniciais e correr no final
 ❌ FMC passiva — ela SEMPRE tem papel ativo
 ❌ Final com cliffhanger dramático, bomba ou conflito aberto
-❌ Cena íntima com vocabulário vulgar ou +18
+❌ Cena íntima descrita na Parte 1 (sugerida por elipse é a ÚNICA forma permitida — sem preliminares, penetração ou clímax descritos em nenhum nível)
+❌ Palavrões ou gírias chulas em qualquer momento (vulgar/baixo calão)
 ❌ Personagem teletransportando entre locais sem transição
 ❌ Mudança de ambiente sem sinalização clara
 ❌ Personagem ouvindo/vendo algo fisicamente impossível da sua posição
@@ -424,7 +437,7 @@ Entregue exatamente neste formato, com estes cabeçalhos e nesta ordem:
 - **Comédia:** [3 momentos com cena e justificativa]
 - **Drama:** [3 cenas de maior peso]
 - **Tensão sexual (quase lá):** [2 cenas]
-- **Cena íntima:** [Capítulo onde acontece + posicionamento (início/meio/final) + função narrativa + clima]
+- **Noite juntos (apenas sugerida por elipse):** [Capítulo onde a sugestão acontece + posicionamento (início/meio/final) + função narrativa (consequência emocional ou fechamento) + como aparece a elipse (beijo, porta fechando, manhã seguinte) — JAMAIS descrever o ato]
 - **Momentos em que a FMC age ativamente:** [3 cenas com o que ela faz]
 
 # ✅ CHECKLIST FINAL
@@ -440,11 +453,11 @@ Marque ✓ ou explique:
 - [ ] Nenhuma ponta solta sem intenção
 - [ ] Química crescente capítulo após capítulo
 - [ ] Tensão sexual implícita e constante
-- [ ] Cena íntima presente — intensa, sensorial e elegante (máx. 500 palavras)
-- [ ] Se a cena íntima é no início/meio, ela tem consequências reais na trama
-- [ ] Se a cena íntima é no final, funciona como recompensa emocional
-- [ ] Apenas 1 cena íntima detalhada — qualquer outra é subentendida
-- [ ] Se a cena íntima não está no Cap. 6, o Cap. 6 tem no máximo 1.000 palavras
+- [ ] Noite juntos APENAS SUGERIDA por elipse — sem descrição corporal nem sensorial do ato em nenhum capítulo da Parte 1
+- [ ] NENHUMA cena na Parte 1 tem preliminares descritas, penetração ou clímax explicitado
+- [ ] A entrega do casal aparece como elipse narrativa (porta fechando, manhã seguinte, café compartilhado)
+- [ ] Se a sugestão da noite juntos é no início/meio, ela tem consequências emocionais reais (mais vulnerabilidade, dinâmica muda)
+- [ ] Se a sugestão é no final, funciona como fechamento emocional após resolução dos conflitos
 - [ ] Humor em pelo menos 3 momentos
 - [ ] Antagonista age ativamente
 - [ ] O casal termina junto e em paz

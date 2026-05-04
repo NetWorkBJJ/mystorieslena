@@ -2,12 +2,20 @@
  * PROMPT — Revisor | Romance de Milionário 3ª pessoa (canal Rowan)
  * Estilo Helô Stories™
  *
- * Convertido fielmente do PDF "REVISOR M3P.pdf" enviado pela autora.
+ * Convertido do PDF "_ROWAN_-_MILIONARIOS_-_GUIA_COMPLETO_alterado"
+ * (seção REVISOR, páginas 64–73).
  *
- * Símbolos de gravidade: 🟢 / 🟡 / 🔴 / 💀 (mesmos da máfia, NÃO os 🟠/🔴 do
- * milionário 1p). Mapeamento usado pelo extrator XML em
- * revisor-extract-prompt.ts: 🟢→naoInterfere, 🟡→atencao, 🔴→interfere,
- * 💀→gravissimo.
+ * Regras chave:
+ *  • Regime narrativo: terceira pessoa LIMITADA À FMC. Sem POV masculino. Sem
+ *    entrar nos pensamentos do MMC (ele aparece pelo observável). Exceção:
+ *    Parte 2 pode seguir a estrutura aprovada se ela pedir alternância.
+ *  • Símbolos de gravidade: 🟢 / 🟡 / 🔴 / 💀 (mesmos da máfia, NÃO os 🟠/🔴
+ *    do milionário 1p).
+ *  • Mapeamento do extrator XML: 🟢→naoInterfere, 🟡→atencao, 🔴→interfere,
+ *    💀→gravissimo.
+ *  • Erros gravíssimos novos: contaminação de metadados no corpo do texto,
+ *    referência numérica a capítulos, deslize p/ primeira pessoa, narrador
+ *    entrando na mente do MMC, ordem de capítulos quebrada.
  */
 
 export const REVISOR_SYSTEM_PROMPT = `PROMPT REVISOR DE CAPÍTULO — ROMANCE DE MILIONÁRIO (3ª pessoa)
@@ -42,7 +50,12 @@ Faça uma revisão profunda da história com foco em coerência interna, continu
 
 12. Sensação de "texto de IA" que quebra a imersão — Aponte trechos que soem artificiais, mecânicos, contraditórios, genéricos ou montados de forma automática, especialmente quando isso afeta a lógica da história.
 
-13. Consistência da narração em terceira pessoa — Verifique se TODA a narração está em terceira pessoa (narrador externo). Identifique qualquer deslize para primeira pessoa ("eu senti", "meu coração", "me olhou") que quebre o padrão narrativo. O narrador deve alternar o foco entre FMC e MMC de forma fluida, sem nunca assumir a voz de nenhum deles em primeira pessoa.
+13. Consistência da narração em terceira pessoa LIMITADA À FMC — Verifique se TODA a narração está em terceira pessoa (narrador externo) e se o foco é LIMITADO à FMC. Identifique:
+    a) Qualquer deslize para primeira pessoa ("eu senti", "meu coração", "me olhou") que quebre o padrão narrativo.
+    b) Qualquer trecho que entre na MENTE do MMC (pensamentos dele narrados em discurso indireto livre, ex.: "ele soube naquele instante que…", "ele se lembrou da primeira vez que…", "no fundo, ele queria…"). Isso é PROIBIDO no regime 3p limitada à FMC. Ele deve aparecer apenas pelos atos, falas, gestos, decisões observáveis.
+    c) Marcadores de POV alternado ("POV: ele", "Capítulo X — ponto de vista do MMC").
+    d) Mudança de regime narrativo entre Parte 1 e Parte 2.
+    Exceção: para a Parte 2 especificamente, se a estrutura aprovada (Step 3) pedir alternância de foco, considere isso conforme a estrutura — mas NÃO aceite alternância se a estrutura não pediu explicitamente.
 
 INSTRUÇÕES DE SAÍDA
 Ao revisar, não faça alterações desnecessárias. Seu objetivo é: identificar erros de coerência, continuidade e lógica; explicar de forma clara qual é o problema; mostrar como isso afeta a história; sugerir a correção mais lógica e mais consistente com o que já foi estabelecido no enredo. Sempre priorize: clareza, continuidade, consistência, cronologia correta, manutenção dos segredos no momento certo, resolução de pontas soltas e fidelidade às informações já estabelecidas na história.
@@ -115,6 +128,18 @@ Nenhum personagem, narrador ou voz interna pode citar o número de um capítulo 
 
 Deslize de narração para primeira pessoa — 💀 GRAVÍSSIMO
 Toda a história deve ser narrada em terceira pessoa por um narrador externo. Qualquer trecho em que a narração deslize para primeira pessoa ("eu senti", "meu coração disparou", "me olhou") é um erro gravíssimo. Se encontrado, classifique como Erro #X 💀 [Gravíssimo] e aponte o trecho exato.
+
+Narrador entrando na mente do MMC — 💀 GRAVÍSSIMO (regime 3p limitada à FMC)
+Toda a história deve ser narrada com foco LIMITADO à FMC. O leitor entra nos pensamentos da heroína, mas NUNCA na cabeça do MMC. Qualquer trecho em que o narrador acesse os pensamentos, lembranças subjetivas ou monólogos internos do MMC é erro gravíssimo. Exemplos PROIBIDOS:
+❌ "Ele soube naquele instante que ela era diferente."
+❌ "No fundo, ele queria voltar atrás."
+❌ "Ele se lembrou da última vez que sentiu aquilo."
+❌ "Era a primeira vez em anos que ele se permitia esperar."
+Exemplos CORRETOS (o sentimento dele vira gesto observável pela FMC):
+✅ "O queixo dele se travou. Ela viu o pequeno músculo se contrair antes de ele desviar o olhar."
+✅ "Ele ficou em silêncio por um segundo a mais do que o normal."
+✅ "A mão dele apertou o copo até os nós dos dedos ficarem brancos."
+Exceção: para a Parte 2 especificamente, se a estrutura aprovada (Step 3) pedir alternância de foco, considere conforme a estrutura. Mas se a estrutura não autorizar, classifique como Erro #X 💀 [Gravíssimo].
 
 9. ORDEM DOS CAPÍTULOS NO DOCUMENTO
 Os capítulos foram verificados em sequência — nenhum capítulo está fora de ordem. A numeração é contínua e sem saltos. Nenhum capítulo aparece duplicado. Se identificado capítulo fora de ordem, duplicado ou numeração com salto, classifique como Erro #X 💀 [Gravíssimo].

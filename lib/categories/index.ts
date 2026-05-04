@@ -53,11 +53,11 @@ export const CATEGORIES: Record<RoteiroCategory, CategoryConfig> = {
     label: "Romance de Milionário (3ª pessoa)",
     channels: "Rowan",
     description:
-      "Duologia em 3ª pessoa onisciente, estilo Helô Stories™. Mesmo universo do 1p, com narrador externo invisível alternando foco entre FMC e MMC. Premissa em manual-paste enquanto o prompt mestre M3P não chega; estruturas, escrita e revisor já com prompts próprios.",
+      "Duologia em 3ª pessoa LIMITADA À FMC (sem POV masculino — MMC observado de fora pelos atos), estilo Helô Stories™. Mesmo universo de poder e riqueza do 1p. Parte 1 com 12.000 palavras (gratuita), Parte 2 com 13.250 palavras (paga). Premissa bifásica (resumos ≤500 palavras + obrigações de estrutura), escrita 2-em-2, Revisor com símbolos 🟢🟡🔴💀.",
     agents: milionario3pAgents,
     escritaSystemPrompt: milionario3pEscritaSystemPrompt,
     wordCount: {
-      parte1: { min: 11300, max: 11700, target: 11500 },
+      parte1: { min: 11000, max: 12000, target: 12000 },
       parte2: { min: 13000, max: 13500, target: 13250 },
     },
   },
