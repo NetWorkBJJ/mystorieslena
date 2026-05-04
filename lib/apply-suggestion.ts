@@ -5,14 +5,10 @@
  * Arquitetura:
  *   1. computeApplyScope(error, content, chapters) — calcula escopo SYNC.
  *      Retorna kind/label/conteúdo do trecho a mandar pro Opus.
- *   2. getScopeKey(scope) — chave única do escopo, pra agrupar erros que
- *      afetam o mesmo trecho numa única chamada Opus.
- *   3. applySuggestionsToScope(scope, errors, ...) — faz a chamada (stream)
+ *   2. applySuggestionsToScope(scope, errors, ...) — faz a chamada (stream)
  *      e retorna o roteiro/chapters atualizados.
- *
- * Otimização: vários erros de mesmo escopo (ex: 3 erros no Cap 4 da Parte 2)
- * viram UMA chamada Opus com lista de sugestões — em vez de N chamadas
- * sequenciais. Reduz drasticamente o tempo total.
+ *   3. applySuggestionToScope(error, ...) — wrapper pra aplicar UM erro
+ *      (calcula escopo internamente). Chamado pelo botão da UI.
  */
 
 import type { EscritaChapter, RevisorError } from "@/types/roteiro";
@@ -112,21 +108,6 @@ export function computeApplyScope(
     content: escritaContent,
     label: "roteiro inteiro",
   };
-}
-
-/**
- * Chave única de um escopo pra agrupar erros que afetam o mesmo trecho.
- * Erros com mesma chave podem ser aplicados em UMA chamada Opus.
- */
-export function getScopeKey(scope: ApplyScope): string {
-  if (scope.kind === "full") return "full";
-  if (scope.kind === "part") {
-    const part = scope.chapters[0]?.part ?? "?";
-    return `part:${part}`;
-  }
-  // chapter
-  const c = scope.chapters[0];
-  return `chapter:${c?.part ?? "?"}:${c?.number ?? "?"}`;
 }
 
 /**
@@ -430,30 +411,4 @@ export async function applySuggestionToScope(params: {
  */
 export function isInformativoError(e: RevisorError): boolean {
   return !e.trechoOriginal?.trim() || !e.trechoCorrigido?.trim();
-}
-
-/**
- * Agrupa uma lista de erros por escopo. Cada grupo pode ser aplicado em
- * uma chamada Opus única.
- */
-export function groupErrorsByScope(
-  errors: RevisorError[],
-  escritaContent: string,
-  chapters: EscritaChapter[],
-): Array<{ scope: ApplyScope; errors: RevisorError[]; key: string }> {
-  const map = new Map<
-    string,
-    { scope: ApplyScope; errors: RevisorError[]; key: string }
-  >();
-  for (const err of errors) {
-    const scope = computeApplyScope(err, escritaContent, chapters);
-    const key = getScopeKey(scope);
-    const existing = map.get(key);
-    if (existing) {
-      existing.errors.push(err);
-    } else {
-      map.set(key, { scope, errors: [err], key });
-    }
-  }
-  return Array.from(map.values());
 }

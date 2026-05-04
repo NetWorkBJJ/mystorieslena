@@ -1,31 +1,16 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  CheckCircle2,
-  AlertTriangle,
-  Wand2,
-  Loader2,
-} from "lucide-react";
+import { CheckCircle2, AlertTriangle, Wand2, Loader2 } from "lucide-react";
 import type { RevisorError } from "@/types/roteiro";
 import {
   gravityLabel,
   hashEscritaContent,
   inferPartFromContent,
 } from "@/lib/parse-revisor-output";
-import {
-  applySuggestionToScope,
-  isInformativoError,
-} from "@/lib/apply-suggestion";
+import { isInformativoError } from "@/lib/apply-suggestion";
 import { useWizard } from "@/store/wizard";
 import { cn } from "@/lib/utils";
 
@@ -52,10 +37,7 @@ const GRAVITY_PILL: Record<RevisorError["gravidade"], string> = {
 export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
   const applyOne = useWizard((s) => s.applyRevisorCorrection);
   const applyMany = useWizard((s) => s.applyRevisorCorrections);
-  const setOutput = useWizard((s) => s.setOutput);
-  const pushOutputToHistory = useWizard((s) => s.pushOutputToHistory);
   const escritaOutput = useWizard((s) => s.roteiro?.outputs.escrita);
-  const revisorOutput = useWizard((s) => s.roteiro?.outputs.revisor);
   const escritaContent = escritaOutput?.content ?? "";
 
   const pendingErrors = useMemo(
@@ -66,89 +48,14 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
     () => errors.filter((e) => e.applied),
     [errors],
   );
-  // Erros aplicáveis automaticamente — têm trecho_original/trecho_corrigido.
-  // Erros transversais (sem trecho) viram "sugestão da IA" — também aplicáveis,
-  // mas via reescrita LLM em vez de find+replace.
+  // Erros aplicáveis: têm trecho_original/trecho_corrigido literais. Erros sem
+  // trechos só caem aqui em caso raro de modelo não obedecer o prompt — viram
+  // cards informativos com botão desabilitado.
   const pendingApplicable = useMemo(
     () => pendingErrors.filter((e) => !isInformativoError(e)),
     [pendingErrors],
   );
-  const informativeCount = useMemo(
-    () => errors.filter(isInformativoError).length,
-    [errors],
-  );
 
-  /**
-   * Aplica uma sugestão de erro transversal manualmente (botão "Aplicar
-   * sugestão" — fallback caso a aplicação automática durante a geração
-   * tenha falhado). Usa o mesmo helper compartilhado que o fluxo automático.
-   */
-  const applySuggestion = useCallback(
-    async (
-      errorId: string,
-      opts: { signal?: AbortSignal; onChunk?: (acc: string) => void } = {},
-    ): Promise<{ applied: boolean; validationMessage?: string }> => {
-      const err = errors.find((e) => e.id === errorId);
-      if (!err || !escritaOutput?.content || !revisorOutput) {
-        return { applied: false };
-      }
-
-      pushOutputToHistory(
-        "escrita",
-        `Antes da sugestão IA do Erro #${err.numero}`,
-      );
-
-      const result = await applySuggestionToScope({
-        error: err,
-        escritaContent: escritaOutput.content,
-        chapters: escritaOutput.metadata?.chapters ?? [],
-        signal: opts.signal,
-        onChunk: opts.onChunk,
-      });
-
-      if (
-        !result.applied ||
-        !result.newContent ||
-        !result.newChapters
-      ) {
-        return {
-          applied: false,
-          validationMessage: result.validationFailed
-            ? result.validationMessage
-            : undefined,
-        };
-      }
-
-      const now = new Date().toISOString();
-
-      setOutput("escrita", {
-        ...escritaOutput,
-        content: result.newContent,
-        metadata: {
-          ...escritaOutput.metadata,
-          chapters: result.newChapters,
-        },
-        edited: true,
-        editedAt: now,
-      });
-
-      const updatedErrors = errors.map((e) =>
-        e.id === errorId ? { ...e, applied: true, appliedAt: now } : e,
-      );
-      setOutput("revisor", {
-        ...revisorOutput,
-        metadata: {
-          ...revisorOutput.metadata,
-          errors: updatedErrors,
-        },
-      });
-
-      return { applied: true };
-    },
-    [errors, escritaOutput, revisorOutput, setOutput, pushOutputToHistory],
-  );
-
-  // Detecta se a Escrita foi editada depois da revisão.
   const escritaChangedSinceRevisor = useMemo(() => {
     if (!escritaSnapshotHash || !escritaContent) return false;
     return hashEscritaContent(escritaContent) !== escritaSnapshotHash;
@@ -235,7 +142,6 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
               error={enrichedErr}
               disabled={!escritaContent}
               onApply={() => applyOne(err.id)}
-              onApplySuggestion={(opts) => applySuggestion(err.id, opts)}
             />
           );
         })}
@@ -299,70 +205,55 @@ interface CardProps {
   error: RevisorError;
   disabled: boolean;
   onApply: () => { applied: boolean; found: boolean };
-  onApplySuggestion: (opts: {
-    signal: AbortSignal;
-    onChunk: (acc: string) => void;
-  }) => Promise<{ applied: boolean; validationMessage?: string }>;
 }
 
-function ErrorCard({
-  error,
-  disabled,
-  onApply,
-  onApplySuggestion,
-}: CardProps) {
+/**
+ * Detecta se uma correção é de INSERÇÃO (técnica do âncora): o trecho_corrigido
+ * começa idêntico ao trecho_original e adiciona conteúdo novo logo depois.
+ * Diferenciar isso de uma SUBSTITUIÇÃO normal muda o tom da UI — inserção é
+ * aditiva (não destrói nada), substituição troca um trecho por outro.
+ */
+function detectInsertion(
+  err: RevisorError,
+): { kind: "insertion"; addedText: string } | { kind: "replacement" } | null {
+  const orig = err.trechoOriginal?.trim();
+  const fix = err.trechoCorrigido?.trim();
+  if (!orig || !fix) return null;
+  if (fix.startsWith(orig) && fix.length > orig.length + 20) {
+    return { kind: "insertion", addedText: fix.slice(orig.length).trimStart() };
+  }
+  return { kind: "replacement" };
+}
+
+function ErrorCard({ error, disabled, onApply }: CardProps) {
   const { emoji, label } = gravityLabel(error.gravidade);
   const [pending, startTransition] = useTransition();
-  const [suggestionPending, setSuggestionPending] = useState(false);
   const [localFailed, setLocalFailed] = useState(false);
-  const [validationMessage, setValidationMessage] = useState<string | null>(null);
-  const [livePreview, setLivePreview] = useState("");
-  const abortRef = useRef<AbortController | null>(null);
 
-  // Erro "transversal" — sem trecho_original literal pra fazer find+replace.
-  // O botão de aplicar dispara a reescrita LLM com a sugestão da IA (e o
-  // card visualmente enfatiza que é uma SUGESTÃO). Pode demorar — por isso
-  // o botão vira "Cancelar correção" enquanto a chamada está em curso.
+  // Caminho raro: modelo não obedeceu o prompt e emitiu trecho vazio. Sem
+  // âncora literal não dá pra fazer find+replace seguro — vira card informativo
+  // sem botão de aplicar (a roteirista edita manualmente no Step 4).
   const isInformativo = isInformativoError(error);
+  const variant = useMemo(() => detectInsertion(error), [error]);
+  const isInsertion = variant?.kind === "insertion";
+
+  // Convenção: o Revisor começa <por_que_alterado> com "AVISO: " quando a
+  // correção é parcial / o problema se repete em outros pontos / a roteirista
+  // precisa revisar manualmente. A UI destaca isso pra ela não perder.
+  const avisoText = useMemo(() => {
+    const txt = error.porqueAlterado?.trim();
+    if (!txt) return null;
+    const m = txt.match(/^aviso\s*:\s*([\s\S]+)/i);
+    return m ? m[1].trim() : null;
+  }, [error.porqueAlterado]);
+  const hasAviso = !!avisoText;
 
   const handleApply = () => {
     setLocalFailed(false);
-    setValidationMessage(null);
     startTransition(() => {
       const result = onApply();
       if (!result.applied) setLocalFailed(true);
     });
-  };
-
-  const handleApplySuggestion = async () => {
-    setLocalFailed(false);
-    setValidationMessage(null);
-    setLivePreview("");
-    setSuggestionPending(true);
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    try {
-      const result = await onApplySuggestion({
-        signal: ctrl.signal,
-        onChunk: (acc) => {
-          if (!ctrl.signal.aborted) setLivePreview(acc);
-        },
-      });
-      if (!result.applied && !ctrl.signal.aborted) {
-        setLocalFailed(true);
-        if (result.validationMessage) {
-          setValidationMessage(result.validationMessage);
-        }
-      }
-    } finally {
-      abortRef.current = null;
-      setSuggestionPending(false);
-      setLivePreview("");
-    }
-  };
-
-  const handleCancelSuggestion = () => {
-    abortRef.current?.abort();
   };
 
   // Append "(Parte N)" no título se a parte é conhecida E o agente ainda
@@ -412,6 +303,16 @@ function ErrorCard({
                 Cap. {error.capitulo}
               </span>
             )}
+            {isInsertion && !error.applied && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wide bg-sky-100 text-sky-900 border-sky-300">
+                ✏️ Inserção
+              </span>
+            )}
+            {hasAviso && !error.applied && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wide bg-amber-100 text-amber-900 border-amber-400">
+                ⚠ Aviso
+              </span>
+            )}
             {error.applied && (
               <Badge className="bg-emerald-100 text-emerald-900 border-emerald-400 font-semibold gap-1.5 text-[11px] px-2 py-0.5">
                 <CheckCircle2 className="size-3.5" />
@@ -439,21 +340,84 @@ function ErrorCard({
       </summary>
 
       <div className="px-4 sm:px-5 py-4 flex flex-col gap-4 border-t">
+        {hasAviso && !error.applied && (
+          <div className="rounded-md border-2 border-amber-400 bg-amber-50 px-3 py-2.5 flex items-start gap-2">
+            <AlertTriangle className="size-4 text-amber-700 mt-0.5 shrink-0" />
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs font-bold text-amber-900 uppercase tracking-wide">
+                Aviso da revisora
+              </span>
+              <span className="text-xs text-amber-900 leading-relaxed">
+                {avisoText}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {isInsertion && !error.applied && (
+          <div className="rounded-md border border-sky-300 bg-sky-50 px-3 py-2.5 flex items-start gap-2">
+            <Wand2 className="size-4 text-sky-700 mt-0.5 shrink-0" />
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs font-bold text-sky-900 uppercase tracking-wide">
+                Inserção de novo trecho
+              </span>
+              <span className="text-xs text-sky-900 leading-relaxed">
+                Esta correção ADICIONA um trecho novo após a âncora abaixo, sem
+                alterar nada do que já está escrito antes ou depois. Aplicar
+                apenas insere o conteúdo novo no ponto certo.
+                {typeof error.parte === "number" && typeof error.capitulo === "number" && (
+                  <> Posição: Cap. {error.capitulo} da Parte {error.parte}.</>
+                )}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {isInformativo && !error.applied && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 flex items-start gap-2">
+            <AlertTriangle className="size-4 text-amber-700 mt-0.5 shrink-0" />
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs font-bold text-amber-900 uppercase tracking-wide">
+                Revisão manual necessária
+              </span>
+              <span className="text-xs text-amber-900 leading-relaxed">
+                A revisora não conseguiu propor um trecho literal pra aplicar
+                automaticamente. Leia a sugestão abaixo e edite o roteiro
+                manualmente no Step 4.
+              </span>
+            </div>
+          </div>
+        )}
+
         {error.trechoOriginal?.trim() && (
           <Section
-            label="📍 Trecho original"
+            label={
+              isInsertion
+                ? "📍 Trecho âncora (não muda — só serve pra localizar onde inserir)"
+                : "📍 Trecho original"
+            }
             content={error.trechoOriginal}
             tone="original"
           />
         )}
-        {error.trechoCorrigido?.trim() && (
+        {isInsertion && variant.addedText ? (
           <Section
-            label={isInformativo ? "🛠️ Ação sugerida" : "✏️ Trecho corrigido"}
-            content={error.trechoCorrigido}
+            label="✏️ Texto a inserir após o âncora"
+            content={variant.addedText}
             tone="fixed"
           />
+        ) : (
+          error.trechoCorrigido?.trim() && (
+            <Section
+              label={
+                isInformativo ? "🛠️ Ação sugerida" : "✏️ Trecho corrigido"
+              }
+              content={error.trechoCorrigido}
+              tone="fixed"
+            />
+          )
         )}
-        {error.porqueAlterado && (
+        {error.porqueAlterado && !hasAviso && (
           <Section
             label="💡 Por que foi alterado"
             content={error.porqueAlterado}
@@ -472,34 +436,28 @@ function ErrorCard({
               <CheckCircle2 className="size-4" />
               Correção aplicada no roteiro
             </Button>
-          ) : suggestionPending ? (
+          ) : isInformativo ? (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              onClick={handleCancelSuggestion}
-              className="gap-2 border-amber-400 text-amber-900 hover:bg-amber-50"
-              title="Cancela a reescrita em andamento — o roteiro do Step 4 não é alterado"
+              disabled
+              className="gap-2 text-muted-foreground"
+              title="Sem trecho âncora literal — edite manualmente no Step 4"
             >
-              <Loader2 className="size-4 animate-spin" />
-              Cancelar correção
+              <AlertTriangle className="size-4" />
+              Aplicar manualmente no Step 4
             </Button>
           ) : (
             <Button
               size="sm"
-              onClick={isInformativo ? handleApplySuggestion : handleApply}
+              onClick={handleApply}
               disabled={disabled || pending}
               className="gap-2"
               title={
                 disabled
                   ? "Gere o roteiro no Step 4 primeiro"
-                  : isInformativo &&
-                    error.parte &&
-                    typeof error.capitulo === "number"
-                  ? `Opus reescreve só o Cap. ${error.capitulo} da Parte ${error.parte} aplicando a sugestão (preview ao vivo no card)`
-                  : isInformativo && error.parte
-                  ? `Opus reescreve só a Parte ${error.parte} aplicando a sugestão (preview ao vivo no card)`
-                  : isInformativo
-                  ? "Opus reescreve o roteiro inteiro aplicando a sugestão (preview ao vivo no card)"
+                  : isInsertion
+                  ? "Insere o trecho novo após o âncora no roteiro do Step 4"
                   : "Substitui o trecho original pelo corrigido no roteiro do Step 4"
               }
             >
@@ -508,64 +466,23 @@ function ErrorCard({
               ) : (
                 <Wand2 className="size-4" />
               )}
-              {pending ? "Aplicando…" : "Aplicar essa correção"}
+              {pending
+                ? "Aplicando…"
+                : isInsertion
+                ? "Inserir esse trecho"
+                : "Aplicar essa correção"}
             </Button>
           )}
-          {localFailed && !error.applied && !isInformativo && (
+          {localFailed && !error.applied && (
             <span className="text-xs text-amber-800 leading-relaxed">
-              O trecho original não foi encontrado no roteiro (mesmo com match
+              O trecho âncora não foi encontrado no roteiro (mesmo com match
               tolerante). Pode ter sido editado depois da revisão — aplique
               manualmente ou regere a revisão.
             </span>
           )}
-          {localFailed && !error.applied && isInformativo && (
-            <span className="text-xs text-amber-800 leading-relaxed">
-              {validationMessage
-                ? `${validationMessage} Tente aplicar de novo.`
-                : "Falha ao aplicar a correção — verifique o console e tente novamente, ou aplique manualmente no Step 4."}
-            </span>
-          )}
         </div>
-
-        {suggestionPending && (
-          <LivePreviewBox text={livePreview} />
-        )}
       </div>
     </details>
-  );
-}
-
-function LivePreviewBox({ text }: { text: string }) {
-  // Mantém a última linha visível conforme Opus escreve. Sem auto-scroll
-  // o usuário fica olhando o início travado enquanto o texto cresce.
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const charCount = text.length;
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [text]);
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
-          ✨ Opus reescrevendo ao vivo
-        </span>
-        <span className="text-[10px] text-muted-foreground tabular-nums">
-          {charCount.toLocaleString("pt-BR")} caracteres
-        </span>
-      </div>
-      <div
-        ref={scrollRef}
-        className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words font-sans text-[12px] leading-relaxed border-l-2 border-l-primary/40 bg-primary/5 text-foreground/80 pl-4 pr-3 py-2.5 rounded-r-md"
-      >
-        {text || (
-          <span className="italic text-muted-foreground">
-            Aguardando primeiro chunk do Opus…
-          </span>
-        )}
-      </div>
-    </div>
   );
 }
 

@@ -250,4 +250,12 @@ Mapeamento de gravidade (Romance de Milionário 3p):
 - 🔴 → "interfere"
 - 💀 → "gravissimo"
 
-Se o erro for transversal (não tem trecho específico — ex.: "Ordem de capítulos quebrada", "Inconsistência de nome entre premissa e roteiro"), deixe <trecho_original></trecho_original> VAZIO. Use trecho_corrigido pra descrever a AÇÃO necessária. NÃO INVENTE trecho_original.`;
+REGRAS INVIOLÁVEIS pros trechos:
+
+- trecho_original PRECISA ser literal SEMPRE — copie letra-por-letra do roteiro (pontuação, travessões, quebras de linha intactos). PROIBIDO emitir <trecho_original></trecho_original> VAZIO.
+
+- Para erros que pedem ADIÇÃO de cena/parágrafo (ex: "salto temporal sem ponte", "lacuna emocional", "epílogo ausente"), use a técnica do ÂNCORA: trecho_original = último parágrafo literal do roteiro ANTES do ponto onde a nova cena entra; trecho_corrigido = a âncora copiada idêntica + a nova cena/parágrafo escrita por inteiro logo depois (3-15 parágrafos). A engine substitui o âncora pelo âncora+inserção, mantendo o resto do roteiro intacto.
+
+- Para erros transversais documentais (ex: "Inconsistência de nome entre premissa e roteiro"), ache uma OCORRÊNCIA LITERAL do problema no roteiro e use como trecho_original; trecho_corrigido = a versão corrigida dessa ocorrência. Se o problema se repete em vários pontos, comece o <por_que_alterado> com "AVISO: " explicando que a roteirista deve aplicar a mesma lógica nos demais pontos manualmente.
+
+- PROIBIDO sugerir "reescrever capítulo inteiro" ou "regenerar a parte". Toda correção tem escopo CIRÚRGICO — inserção âncora ou substituição local.`;

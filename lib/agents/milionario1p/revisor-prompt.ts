@@ -361,16 +361,42 @@ emita UM bloco <erro> POR CADA erro 🟢, 🟡, 🟠 e 🔴 que você listou em
 primeiro <erro>). NÃO PULE NENHUM erro — TODOS entram aqui, sem exceção,
 pra que a roteirista tenha controle total sobre cada correção.
 
-⚠️ ERROS TRANSVERSAIS (sem trecho específico no roteiro) TAMBÉM entram
-aqui. Exemplos: "Inconsistência de nome do MMC entre premissa e roteiro",
-"Epílogo previsto na estrutura não foi escrito", "Capítulo duplicado",
-"Numeração quebrada", "Discrepância documental" — qualquer coisa que NÃO
-seja um trecho do roteiro pra substituir literalmente. Pra esses, deixe
-<trecho_original></trecho_original> VAZIO e use <trecho_corrigido> pra
-descrever a AÇÃO que a roteirista precisa tomar (ex: "Adicionar epílogo
-seguindo a estrutura aprovada", "Atualizar a Premissa do Step 1 trocando
-'Enzo Valmont' por 'Theron Valmont'"). A UI vai mostrar esses como cards
-informativos sem botão "Aplicar" — mas a roteirista PRECISA vê-los.
+⚠️ ERROS QUE PEDEM ADIÇÃO DE CENA/PARÁGRAFO (ex: "salto temporal sem
+ponte entre Cap X e Cap Y", "falta cena intermediária", "lacuna emocional",
+"epílogo previsto na estrutura não foi escrito", "capítulo curto demais
+que precisa de expansão") TAMBÉM entram aqui — e PRECISAM virar uma
+INSERÇÃO ÂNCORA, NUNCA uma reescrita de capítulo. Como fazer:
+
+1. Identifique o último parágrafo (ou bloco de diálogo) que EXISTE LITERAL
+no roteiro IMEDIATAMENTE ANTES do ponto onde a nova cena/parágrafo
+deveria entrar. Esse parágrafo é o ÂNCORA.
+
+2. <trecho_original>: cole o ÂNCORA letra-por-letra, exatamente como
+aparece no roteiro (pontuação, travessões, quebras de linha originais).
+A engine vai procurar esse texto literal — qualquer divergência quebra
+o find+replace.
+
+3. <trecho_corrigido>: comece IDÊNTICO ao trecho_original (o âncora
+inteiro, copiado letra-por-letra) e LOGO APÓS escreva por inteiro a
+nova cena/parágrafo (3-15 parágrafos, dependendo do que falta).
+Resultado: a engine substitui o âncora pelo âncora+inserção, mantendo
+todo o resto do roteiro intacto e adicionando só o trecho novo no
+ponto certo.
+
+ERROS TRANSVERSAIS DOCUMENTAIS (ex: "Inconsistência de nome do MMC
+entre premissa e roteiro", "Numeração quebrada", "Discrepância
+documental") seguem a mesma lógica: ache uma OCORRÊNCIA LITERAL do
+problema no roteiro e use ela como trecho_original; trecho_corrigido =
+a versão corrigida dessa ocorrência. Se o problema se repete em vários
+pontos, comece o <por_que_alterado> com "AVISO: " e diga à roteirista
+que ela precisa aplicar a mesma lógica nos demais pontos manualmente.
+
+PROIBIÇÕES INVIOLÁVEIS:
+- PROIBIDO sugerir "reescrever Cap. X inteiro" ou "regenerar a Parte".
+- PROIBIDO emitir <trecho_original></trecho_original> VAZIO. NUNCA.
+  Sempre existe uma âncora literal no roteiro pra qualquer correção.
+- PROIBIDO pedir mudanças que não cabem em inserção âncora ou
+  substituição local. Toda correção tem escopo CIRÚRGICO.
 
 NÃO entre em diálogo durante o bloco: emita os <erro>, feche
 </erros_detalhados> e SÓ DEPOIS continue com SUGESTÕES, ANÁLISE LEITOR, etc.
@@ -405,8 +431,9 @@ Regras INVIOLÁVEIS pro bloco <erros_detalhados>:
 - parte é OBRIGATÓRIO quando o erro está num capítulo específico — vale "1" ou "2". A numeração de capítulos REINICIA em cada Parte (Parte 1 tem Cap. 1, 2, 3... e Parte 2 também tem Cap. 1, 2, 3...), então sem o atributo parte o "Cap. 3" fica ambíguo. Identifique a Parte pelo banner ═══ PARTE 1/2 ═══ que separa os blocos no roteiro. Se o erro for transversal (ex: voz da narradora ao longo do roteiro inteiro), omita parte E capitulo.
 - capitulo é o número do capítulo dentro da Parte (1, 2, 3...). Se o erro for transversal sem capítulo único, omita o atributo.
 - titulo é uma linha curta resumindo o erro (sem o número, sem emoji — só o texto).
-- trecho_original PRECISA ser literal QUANDO existe trecho específico — a engine faz find+replace exato. Se você reescrever, paráfrasear ou mudar pontuação/quebras, a substituição falha. Pra erros TRANSVERSAIS (sem trecho no roteiro), deixe <trecho_original></trecho_original> vazio.
-- trecho_corrigido tem que ser plug-and-play QUANDO há trecho_original literal: substituir o trecho_original por ele deve produzir um texto coerente, sem deixar lixo. Pra erros transversais, use trecho_corrigido pra descrever a ação que a roteirista precisa tomar (ex: "Adicionar epílogo conforme estrutura").
+- trecho_original PRECISA ser literal SEMPRE — copie letra-por-letra do roteiro, com pontuação, travessões e quebras de linha intactos. Se você reescrever, parafrasear ou mudar pontuação, a substituição falha. PROIBIDO emitir <trecho_original></trecho_original> vazio: para erros de adição use a técnica do ÂNCORA descrita acima.
+- trecho_corrigido tem que ser plug-and-play: substituir o trecho_original por ele deve produzir um texto coerente sem deixar lixo. Para INSERÇÕES, comece o trecho_corrigido idêntico ao âncora (trecho_original) e adicione a nova cena/parágrafo logo depois. Para SUBSTITUIÇÕES, escreva a versão corrigida do trecho.
+- Se a correção emitida for parcial (ex: o problema se repete em outros pontos do roteiro e você só corrigiu um exemplo), comece o <por_que_alterado> com "AVISO: " — a UI vai destacar isso pra roteirista saber que tem que verificar manualmente.
 - NÃO use markdown, ** , _, # ou emojis dentro dos blocos <trecho_*> ou <por_que_alterado> — só texto puro.
 - Não adicione comentários entre os blocos. Encerre a tag </erros_detalhados> e SÓ DEPOIS continue com as próximas seções abaixo.
 

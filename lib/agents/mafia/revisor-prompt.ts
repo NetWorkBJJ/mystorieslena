@@ -243,7 +243,15 @@ Identificação de parte e capítulo:
 - O roteiro é separado por banners ═══ PARTE 1 ═══ e ═══ PARTE 2 ═══. Numeração de capítulos REINICIA em cada Parte. parte="1" ou parte="2" obrigatório quando o erro tem capítulo específico.
 - Se o erro for transversal, omitir parte E capitulo.
 
-Trechos transversais (sem trecho específico — ex.: epílogo ausente, inconsistência entre premissa e roteiro, capítulo duplicado): deixar <trecho_original></trecho_original> VAZIO. Em <trecho_corrigido>, descrever a AÇÃO que a roteirista precisa tomar.
+REGRAS INVIOLÁVEIS pros trechos:
+
+- trecho_original PRECISA ser literal SEMPRE — copie letra-por-letra do roteiro (pontuação, travessões, quebras de linha intactos). PROIBIDO emitir <trecho_original></trecho_original> VAZIO.
+
+- Para erros que pedem ADIÇÃO de cena/parágrafo (ex: "salto temporal sem ponte", "lacuna emocional", "epílogo ausente"), use a técnica do ÂNCORA: trecho_original = último parágrafo literal do roteiro ANTES do ponto onde a nova cena entra; trecho_corrigido = a âncora copiada idêntica + a nova cena/parágrafo escrita por inteiro logo depois (3-15 parágrafos). A engine substitui o âncora pelo âncora+inserção, mantendo o resto do roteiro intacto.
+
+- Para erros transversais documentais (ex: "Inconsistência entre premissa e roteiro", "Capítulo duplicado"), ache uma OCORRÊNCIA LITERAL do problema no roteiro e use como trecho_original; trecho_corrigido = a versão corrigida dessa ocorrência. Se o problema se repete em vários pontos, comece o <por_que_alterado> com "AVISO: " explicando que a roteirista deve aplicar a mesma lógica nos demais pontos manualmente.
+
+- PROIBIDO sugerir "reescrever capítulo inteiro" ou "regenerar a parte". Toda correção tem escopo CIRÚRGICO — inserção âncora ou substituição local.
 
 NÃO use markdown, **, _, # ou emojis dentro de <trecho_*> ou <por_que_alterado>. Só texto puro.
 
