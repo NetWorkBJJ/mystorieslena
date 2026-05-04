@@ -7,7 +7,7 @@
  *  • 5 a 6 capítulos
  *  • Ritmo acelerado nos iniciais (1-3) e respirado nos finais (4-6)
  *  • Hook expansão do título (90-120 palavras)
- *  • Cena de entrega (até 600 palavras, três fases) no penúltimo cap
+ *  • Entrega EMOCIONAL no penúltimo/último cap (3 fases: aproximação → elipse narrativa → manhã seguinte) — SEM cena íntima descrita na Parte 1
  *  • Final com casal junto + dúvida sutil — sem casamento/filhos
  */
 
@@ -89,9 +89,9 @@ Capítulo 3 — Conexão Proibida + Perigo (ritmo começa a desacelerar): os doi
 
 Capítulo 4 — A Queda + Reviravolta (ritmo respirado): evento violento, traição ou revelação muda tudo. Os dois forçados a se envolver mais. Humor some — emoção pura. Segredo, contrato ou promessa vem à tona. FMC se sente traída e atraída ao mesmo tempo. Antagonista AGE. Resolução começa aqui.
 
-Capítulo 5 — Resolução + Entrega (ritmo respirado, foco emocional): conflitos da Parte 1 resolvidos com calma e peso emocional. Sem amontoar. Foco no que sentem e decidem. Sem descrições excessivas de lugar. Casal finalmente cede — cena de entrega. Termina junto e em paz.
+Capítulo 5 — Resolução + Entrega (ritmo respirado, foco emocional): conflitos da Parte 1 resolvidos com calma e peso emocional. Sem amontoar. Foco no que sentem e decidem. Sem descrições excessivas de lugar. Casal finalmente cede — entrega EMOCIONAL (sem cena íntima descrita; ver regras de entrega abaixo). Termina junto e em paz.
 
-Capítulo 6 (usar se necessário): quando a resolução ficaria amontoada nos caps 4 e 5. Permite que conflitos sejam resolvidos com mais calma. Contém a entrega se ainda não aconteceu. Final satisfatório aqui.
+Capítulo 6 (usar se necessário): quando a resolução ficaria amontoada nos caps 4 e 5. Permite que conflitos sejam resolvidos com mais calma. Contém a entrega EMOCIONAL se ainda não aconteceu. Final satisfatório aqui.
 
 💍 FINAL DA PARTE 1
 Casal termina junto e em paz — OBRIGATÓRIO. Todos os conflitos resolvidos. Final satisfatório. Sem casamento, sem filhos.
@@ -100,19 +100,23 @@ DÚVIDA SUTIL: apenas uma leve dúvida/questionamento interno da protagonista fi
 
 A Parte 1 NUNCA pode parecer incompleta. O leitor precisa sentir que recebeu uma história inteira.
 
-🔥 CENA DE ENTREGA DO CASAL — REGRAS OBRIGATÓRIAS
-Consumação física e emocional, depois que todos os conflitos foram resolvidos.
-• MÁXIMO de 600 palavras — nunca ultrapassar.
-• NUNCA escrever corrido. Três fases obrigatórias:
-  - Início: beijos, toque, proximidade, decisão de se entregar.
-  - Meio: dar a entender que houve sexo oral e penetração, de forma elegante e implícita. Sem termos anatômicos ou vulgares. Usar sensações, reações do corpo, respiração, palavras sussurradas, movimento, ritmo.
-  - Fim: clímax sugerido de forma sensorial e elegante, seguido de momento de intimidade pós-entrega (respiração voltando ao normal, toque suave, olhar, frase ou gesto que mostra que algo mudou).
-• Tom: intenso, sensorial, elegante — nunca vulgar, nunca clínico, nunca vago demais.
-• Cena física E emocional. Não é só sexo — é a entrega dos dois.
-• Vocabulário PROIBIDO: termos anatômicos explícitos, gírias sexuais, qualquer palavra +18.
+🔥 ENTREGA DO CASAL NA PARTE 1 — REGRAS OBRIGATÓRIAS
+A entrega do casal na Parte 1 é o momento de FECHAMENTO EMOCIONAL, depois que todos os conflitos foram resolvidos. Na Parte 1, NÃO se descreve cena íntima. O texto deve apenas DAR A ENTENDER que o casal passou a noite juntos — sem nenhuma descrição do ato físico, sem cena de cama, sem descrição corporal de natureza sexual.
+
+Estrutura obrigatória — três fases:
+
+1. APROXIMAÇÃO — o casal finalmente se escolhe. Olhar, proximidade, decisão emocional de ficar juntos. Pode haver UM beijo, abraço, toque suave. NADA mais explícito do que isso.
+
+2. SUGESTÃO DA NOITE JUNTOS — elipse narrativa. A cena fecha quando ela vai com ele para o quarto, quando ele apaga a luz, quando a porta se fecha, quando os dois se beijam — e o capítulo segue para a manhã seguinte. NÃO descrever beijos prolongados de natureza sensual, NÃO descrever toques íntimos, NÃO descrever roupas saindo, NÃO descrever o ato em nenhum nível — nem implícito, nem sensorial, nem por sensações corporais. Apenas a sugestão de que algo aconteceu entre os dois naquela noite.
+
+3. MANHÃ SEGUINTE — o capítulo retoma na manhã seguinte, com os dois juntos. Aqui pode haver: olhar trocado, ele a observando enquanto ela ainda dorme, café compartilhado, frase que mostra que algo mudou entre eles, gesto de carinho. O leitor entende, pelo contexto, que passaram a noite juntos — mas a cena íntima em si NUNCA é mostrada.
+
+Tom: emocional, romântico, elegante — o foco é na ESCOLHA do casal de ficar juntos, NÃO no ato físico.
+A entrega na Parte 1 é EMOCIONAL — a cena íntima propriamente dita fica reservada para a Parte 2.
+Vocabulário PROIBIDO: termos anatômicos explícitos, gírias sexuais, qualquer palavra +18.
 
 🔥 QUÍMICA, TENSÃO E PIMENTA
-Tensão sexual constante — elegante, mas visível. Descrição de intenção, não de ato. Possessividade, ciúme, proteção — com conflito moral. Humor nos momentos de maior tensão. Cena de entrega completa apenas no final.
+Tensão sexual constante — elegante, mas visível. Descrição de intenção, não de ato. Possessividade, ciúme, proteção — com conflito moral. Humor nos momentos de maior tensão. Na Parte 1 NÃO há cena íntima — apenas se sugere que o casal passou a noite juntos no final, sem nenhuma descrição do ato.
 
 😂 HUMOR
 Pelo menos 3 momentos. Vem do desconforto, do timing, da vulnerabilidade. A melhor amiga é fonte natural. O homem de confiança do MMC tem momentos cômicos discretos. O MMC pode ter ironia seca — nunca palhaçada.
@@ -124,7 +128,7 @@ Cidades: Nova York, Chicago, Moscou, Dubai, Sicília, Londres, São Petersburgo.
 ATENÇÃO ABSOLUTA: a história precisa ser escrita de forma extremamente simples, direta e sem enrolação. Frases curtas. Uma ideia por vez. Sem palavras difíceis. Cada parte tão clara que não deixe margem para dúvida. Narração exclusiva da FMC em toda a Parte 1. Nunca partir uma fala com reflexão interna no meio. Nunca falas que se contradizem no mesmo bloco. Norma culta do português.
 
 🚫 EVITAR
-❌ Nomes da lista proibida. ❌ Hook com spoiler. ❌ Violência excessiva (salvo pedido). ❌ Antagonista passivo. ❌ Casamento ou filhos na Parte 1. ❌ Final com briga ou casal separado. ❌ Final que pareça incompleto. ❌ Pontas soltas sem intenção. ❌ Saltos de tempo sem explicação. ❌ Diálogos sem identificação. ❌ Diálogos partidos com reflexão interna no meio. ❌ Personagem mencionado sem apresentação. ❌ Ultrapassar significativamente os 12.500. ❌ Começar sem o mapa. ❌ Mudar de ambiente sem transição. ❌ Personagens "ouvirem" conversas através de paredes sem justificativa. ❌ Pular dias/horários sem declarar. ❌ Personagens aparecerem em locais sem mostrar como chegaram. ❌ Objetos do nada. ❌ Ignorar deslocamento. ❌ Mapa desatualizado. ❌ Resolução amontoada em um único capítulo. ❌ Cena de entrega corrida. ❌ Cena de entrega com vocabulário vulgar.
+❌ Nomes da lista proibida. ❌ Hook com spoiler. ❌ Violência excessiva (salvo pedido). ❌ Antagonista passivo. ❌ Casamento ou filhos na Parte 1. ❌ Final com briga ou casal separado. ❌ Final que pareça incompleto. ❌ Pontas soltas sem intenção. ❌ Saltos de tempo sem explicação. ❌ Diálogos sem identificação. ❌ Diálogos partidos com reflexão interna no meio. ❌ Personagem mencionado sem apresentação. ❌ Ultrapassar significativamente os 12.500. ❌ Começar sem o mapa. ❌ Mudar de ambiente sem transição. ❌ Personagens "ouvirem" conversas através de paredes sem justificativa. ❌ Pular dias/horários sem declarar. ❌ Personagens aparecerem em locais sem mostrar como chegaram. ❌ Objetos do nada. ❌ Ignorar deslocamento. ❌ Mapa desatualizado. ❌ Resolução amontoada em um único capítulo. ❌ Descrever cena íntima na Parte 1 — apenas sugerir que passaram a noite juntos. ❌ Descrição corporal, sensorial ou implícita do ato físico na Parte 1.
 
 📄 LAYOUT DA ESTRUTURA — MODELO DE SAÍDA OBRIGATÓRIO
 
@@ -185,7 +189,11 @@ NÃO omita o "##" markdown. NÃO use "Capítulo N:" no lugar de "Capítulo N —
 
 🎭 TEMAS GERAIS
 🔄 ARCOS EMOCIONAIS (MMC / FMC / Casal)
-💥 MOMENTOS-CHAVE (Comédia / Drama / Tensão sexual / Cena de entrega)
+💥 MOMENTOS-CHAVE
+Comédia: [Quando e por quê] [Quando e por quê] [Quando e por quê]
+Drama: [Cena de maior peso] [Cena de maior peso]
+Tensão sexual (quase lá): [Cena 1] [Cena 2]
+Entrega do casal: [Quando acontece + clima + como a sugestão da noite juntos será feita: aproximação → elipse narrativa → manhã seguinte. SEM cena íntima descrita.]
 🌱 DÚVIDA SUTIL (o que fica no ar + por que é suave)
 
 ATENÇÃO CRÍTICA — CONTAGEM DE PALAVRAS: a SOMA das contagens declaradas para os 5-6 capítulos DEVE ficar entre 12.300 e 12.700 palavras (alvo 12.500). Esta é uma REGRA INEGOCIÁVEL. Antes de finalizar, SOME mentalmente a quantidade indicada em cada capítulo e CONFIRME que o total está dentro da faixa.

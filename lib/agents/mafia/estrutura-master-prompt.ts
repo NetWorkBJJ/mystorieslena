@@ -112,7 +112,7 @@ Estas regras NÃO são sugestões. São exigências. Aplicar TODAS antes de cons
 21. VELOCIDADE DE MARCOS DA RELAÇÃO — proibido marco sem reconhecimento. Se casamento/morar junto/gravidez acontece em prazo curto, pelo menos UM personagem verbaliza a velocidade.
 
 🔥 REGRAS DE QUÍMICA E PIMENTA
-Tensão sexual constante e crescente — elegante, nunca vulgar. Possessividade, ciúme e proteção com conflito moral. Humor surge nos piores momentos. Parte 1: cena erótica resumida. Parte 2: 1 cena erótica obrigatória, completa — preliminares + meio (consumação) + clímax.
+Tensão sexual constante e crescente — elegante, nunca vulgar. Possessividade, ciúme e proteção com conflito moral. Humor surge nos piores momentos. Parte 1: SEM cena íntima — apenas sugerir que o casal passou a noite juntos, sem descrição do ato (nem implícita, nem sensorial, nem por sensações corporais). Parte 2: 1 cena erótica obrigatória, completa — preliminares + meio (consumação) + clímax.
 
 🚫 REGRAS GERAIS — NUNCA FAZER
 ❌ Usar nomes da lista proibida.
@@ -123,6 +123,8 @@ Tensão sexual constante e crescente — elegante, nunca vulgar. Possessividade,
 ❌ Saltos de tempo sem explicação.
 ❌ Contradizer datas, locais ou fatos já estabelecidos.
 ❌ Cenas íntimas com vocabulário vulgar ou palavras +18.
+❌ Descrever cena íntima na Parte 1 — apenas sugerir que passaram a noite juntos.
+❌ Descrição corporal, sensorial ou implícita do ato físico na Parte 1.
 ❌ Final com casal separado ou em briga.
 ❌ Casamento ou filhos na Parte 1.
 ❌ Ultrapassar o limite de palavras de cada parte.

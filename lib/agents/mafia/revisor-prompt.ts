@@ -103,13 +103,15 @@ Erros de tempo e cronologia — sequência lógica, dia respeitado, saltos sinal
 
 Erros de contexto e continuidade — cada personagem identificado, cenário estabelecido, objetos coerentes, estado de conhecimento verificado, motivações coerentes.
 
-8. ERROS ESPECÍFICOS DA PARTE 2
+8. ERROS ESPECÍFICOS POR PARTE
+
+Cena íntima descrita na Parte 1 — 💀 GRAVÍSSIMO. A Parte 1 NÃO pode conter descrição física do ato (nem implícita, nem sensorial, nem por sensações corporais). A entrega do casal na Parte 1 é EMOCIONAL — apenas se SUGERE que passaram a noite juntos via elipse narrativa (aproximação → corte → manhã seguinte). Permitido: olhar, proximidade, decisão emocional, UM beijo simples, abraço, toque suave, ela indo com ele para o quarto, porta se fechando, retomada na manhã seguinte. PROIBIDO na Parte 1: beijos prolongados sensuais, toques íntimos, roupas saindo, descrição corporal/sensorial do ato em qualquer nível. Se houver qualquer descrição além do permitido, classificar 💀 [Gravíssimo] e apontar o trecho.
 
 Contaminação de metadados no corpo do texto — 💀 GRAVÍSSIMO. Texto varrido em busca de elementos que não pertencem à narrativa: "Contagem de palavras: 2.011 palavras", "Capítulo 4 — versão final", "[inserir cena aqui]", "revisar este trecho", "TODO:", notas de estrutura, instruções de escrita, marcações de rascunho. Se encontrado: classificar 💀 [Gravíssimo], apontar trecho e localização.
 
 Referência numérica a capítulos anteriores — 💀 GRAVÍSSIMO E IMPERDOÁVEL. Nenhum personagem/narrador/voz interna pode citar número de capítulo. Proibido: "quando eu o encontrei pela primeira vez no capítulo 1…", "como aconteceu no capítulo 3…", "desde o capítulo anterior…", "na parte 1". Quebra a quarta parede. Referências por contexto narrativo: "desde a noite em que o encontrei pela primeira vez…".
 
-Narração do protagonista masculino — teste de relevância obrigatório. Cada bloco avaliado: "isso avança a história, revela algo novo, ou aumenta a tensão — ou está apenas ocupando espaço?". Enchimento de narração masculina é tão grave quanto erro de ritmo.
+Narração do protagonista masculino (Parte 2) — teste de relevância obrigatório. Cada bloco avaliado: "isso avança a história, revela algo novo, ou aumenta a tensão — ou está apenas ocupando espaço?". Enchimento de narração masculina é tão grave quanto erro de ritmo.
 
 9. ORDEM DOS CAPÍTULOS NO DOCUMENTO — capítulos em sequência, numeração contínua sem saltos, sem duplicatas, arco respeitando sequência. Capítulo fora de ordem/duplicado/numeração com salto → 💀 [Gravíssimo].
 
@@ -204,6 +206,12 @@ Procure tudo que pode fazer o leitor reclamar, irritar, abandonar, falar mal nos
 🟡 MÉDIO → pode gerar críticas
 🔴 ALTO → grande chance de hate / abandono
 Explique o motivo.
+
+═══════════════════════════════════════════════════════
+CRITÉRIO PARA CENAS ERÓTICAS (PARTE 2)
+═══════════════════════════════════════════════════════
+
+Personagem masculino que as leitoras querem nas cenas eróticas: dominante, possessivo, verbal — mas com a linguagem dele, não de um personagem genérico. Ele MANDA, não pede. É bruto na medida certa sem virar doce. Falas curtas e cortantes. Se a fala do MMC na cena íntima soar genérica, doce ou pedinte, classificar como erro 🔴 [Interfere] e indicar como reescrever no tom dominante/possessivo/verbal exigido.
 
 ═══════════════════════════════════════════════════════
 BLOCO ESTRUTURADO <erros_detalhados> — APÓS A REVISÃO MARKDOWN

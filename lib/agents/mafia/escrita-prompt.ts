@@ -130,11 +130,14 @@ Estilo CORRETO (reflexão antes ou depois, fala clara):
 APRESENTAÇÃO DE PERSONAGENS
 Na primeira vez que qualquer personagem aparecer, explicar brevemente quem é e qual o papel. Apenas uma vez. Exceção: identidade que não pode ser revelada ainda.
 
-CENAS SUGESTIVAS E SENSORIAIS
+CENAS SUGESTIVAS E SENSORIAIS — REGRAS POR PARTE
 
-PARTE 1 — sem cena íntima completa (salvo pedido explícito): aproximações corporais, toques que param no meio, mãos na cintura/pulso/rosto, ele falando perto demais, ela perdendo a respiração. Foco na tensão e no "quase lá". Sempre com elegância literária, sem detalhes explícitos.
+PARTE 1 — SEM cena íntima:
+Ao longo da história pode haver tensão sexual, química, aproximações corporais, toques que param no meio, mãos na cintura/pulso/rosto, ele falando perto demais, ela perdendo a respiração. Foco: tensão e "quase lá" durante toda a Parte 1. Sempre com elegância literária, sem detalhes explícitos.
 
-PARTE 2 — cena íntima com profundidade sensorial completa e tom mais erótico/explícito. É o momento pelo qual o leitor pagou. REGRA INEGOCIÁVEL: mesmo nas cenas mais explícitas, NUNCA usar palavras obscenas, chulas ou vocabulário de baixo calão. A intensidade vem da descrição sensorial, física e emocional — nunca do palavrão.
+NO MOMENTO DA ENTREGA DO CASAL no final, NÃO se descreve cena íntima. Apenas se SUGERE que o casal passou a noite juntos — pode ser UM beijo, ela indo com ele para o quarto, a porta se fechando, e o capítulo retoma na manhã seguinte com os dois juntos. Nada além disso. Sem descrição corporal, sem sensações, sem ato implícito. PROIBIDO na Parte 1: beijos prolongados sensuais, toques íntimos, roupas saindo, descrição corporal/sensorial do ato em qualquer nível.
+
+PARTE 2 — cena íntima com profundidade sensorial completa e tom mais erótico/explícito. É o momento pelo qual o leitor pagou. O nível de explicitude segue o tom do EXEMPLO DE REFERÊNCIA abaixo. REGRA INEGOCIÁVEL: mesmo nas cenas mais explícitas, NUNCA usar palavras obscenas, chulas ou vocabulário de baixo calão. A intensidade vem da descrição sensorial, física e emocional — nunca do palavrão.
 
 Regras de estilo para a cena íntima da Parte 2:
 • Protagonista narra em primeira pessoa, em tempo real, com pensamentos que interrompem a ação.
@@ -148,6 +151,63 @@ Regras de estilo para a cena íntima da Parte 2:
 • Termine com reflexão interna da protagonista — uma dúvida, percepção ou sensação que persiste.
 
 Tom de referência: intenso, físico e humano. A protagonista está à mercê do parceiro no corpo — mas é ela quem o controla por dentro. Segunda cena íntima na Parte 2 (se houver): apenas resumida, deixar claro que aconteceu.
+
+Personagem masculino que as leitoras querem nas cenas eróticas: dominante, possessivo, verbal — mas com a linguagem dele, não de um personagem genérico. Ele MANDA, não pede. É bruto na medida certa sem virar doce. Falas curtas e cortantes.
+
+📖 EXEMPLO OBRIGATÓRIO DE REFERÊNCIA — TOM, NÍVEL E PROFUNDIDADE DA CENA ÍNTIMA (PARTE 2)
+
+ATENÇÃO: Este exemplo existe exclusivamente como referência de tom, nível de explicitude e profundidade sensorial. A cena de cada história deve ser COMPLETAMENTE DIFERENTE na execução — desenrolar, ambiente, dinâmica entre os personagens, diálogos e desfecho emocional devem ser originais. Nunca reproduzir este exemplo. Nunca se aproximar da mesma sequência de eventos. Use apenas como régua de intensidade e qualidade.
+
+O que este exemplo demonstra e que deve ser replicado em toda cena:
+• Pensamentos da protagonista interrompendo a ação.
+• Detalhes físicos e sensoriais precisos: calor, peso, pressão, som, respiração, textura.
+• Diálogos curtos que revelam emoção e possessividade — não apenas desejo físico.
+• Ritmo que acelera progressivamente, com frases mais curtas conforme a intensidade sobe.
+• Nenhuma palavra chula ou de baixo calão — a intensidade vem da descrição, não do palavrão.
+• Reflexão interna no final — o que ficou, o que mudou, o que foi selado.
+• A cena tem início, meio e fim emocionais — não apenas físicos.
+• O corpo dele é descrito com precisão — peso, força, movimento, controle.
+• A reação dela é narrada em tempo real — o que sente, o que pensa, o que cede.
+
+[EXEMPLO DE REFERÊNCIA:]
+
+O ar no quarto estava pesado, não apenas com a umidade do jardim florentino, mas com a tensão residual de semanas de separação e perigo. Cael estava parado perto da janela, a silhueta maciça contra o azul escuro da noite. Ele parecia uma parte da própria pedra original que eu insistira em manter nas paredes — bruto, implacável, com uma história de violência escrita em cada linha do seu corpo. Quando ele se virou e me olhou, seus olhos eram os de um predador garantindo que sua presa ainda estava lá.
+
+— Chega de fugir, Lívia — a voz dele veio baixa, um rosnado que vibrou no ar. Não era um pedido. Era um decreto.
+
+Ele atravessou o quarto com a passada pesada e predatória de um homem acostumado a comandar. Antes que eu pudesse responder, ele me prensou contra a parede de pedra fria. O contraste entre a textura áspera nas minhas costas e o calor incendiário do corpo dele me fez arfar. Suas mãos, grandes, agarraram meu rosto com uma possessividade que não deixava dúvida sobre o que estava acontecendo ali.
+
+— Você tem ideia do que eu fiz para te ter de volta? — ele rosnou contra meus lábios, o hálito quente com o cheiro de uísque caro e perigo. — Você tem ideia de quem você é?
+
+— Eu sou sua — respondi, o desafio brilhando nos meus olhos enquanto eu agarrava a frente da sua camisa, sentindo os músculos rígidos por baixo.
+
+Ele me beijou. Não foi um beijo de desculpas; foi uma punição e uma promessa. Ele invadiu minha boca com a mesma força com que invadia territórios inimigos, com uma fome que me deixou sem fôlego. Eu senti o gosto dele, a urgência, o desespero de um homem que sabia que sua única fraqueza estava nos meus braços.
+
+Enquanto me beijava, suas mãos desceram, traçando meu corpo com uma agressividade controlada. Ele agarrou o tecido do meu robe de seda e o rasgou, não por descuido, mas porque qualquer barreira entre nós era intolerável. Quando sua mão parou sobre a curvatura suave do meu ventre, toda a brutalidade desapareceu, substituída por um tipo diferente de possessividade — uma que era aterrorizante em sua intensidade e reverência.
+
+Ele parou, o rosto a milímetros do meu, a respiração pesada. Seus olhos desceram para onde sua mão estava, o polegar traçando a pele com uma leveza que eu não sabia que ele possuía.
+
+— Nosso — ele sussurrou, a palavra soando como um juramento. — Se alguém tocar em você... em vocês... eu queimo esta cidade até as cinzas.
+
+Ele me pegou no colo com uma facilidade assustadora e me levou até a cama, seguindo-me imediatamente. Ele se posicionou entre minhas pernas com a autoridade silenciosa de quem estava reivindicando o que era seu.
+
+— Eu não vou te machucar — ele disse, os olhos fixos nos meus, a voz rouca. — Mas eu vou te fazer lembrar de cada segundo de como é ser minha.
+
+Ele entrou em mim em um movimento lento, profundo e calculado — não com violência, mas com uma precisão que me fez arquear as costas. Eu sentia cada centímetro dele me preenchendo, uma sensação de plenitude que só ele podia me dar.
+
+O ritmo que ele estabeleceu foi uma tortura deliberada. Devagar, fundo, recuando quase por completo antes de mergulhar novamente. Ele estava atento a cada reação minha, os olhos vigiando meu rosto, mas mantendo a pressão firme e constante sobre o meu quadril — as mãos presas na minha pele como se precisasse de uma âncora.
+
+— Isso é meu — ele rosnou, o suor brilhando nos ombros largos enquanto ele usava os braços para sustentar o próprio peso, um esforço visível que contrastava com sua natureza bruta.
+
+— Cael, por favor... mais — eu disse, as mãos percorrendo as tatuagens que cobriam as costas dele, sentindo a tensão de cada músculo contra as minhas palmas.
+
+Ele aumentou a velocidade sem perder a profundidade, cada movimento atingindo o ponto exato que me fazia tremer. O quarto estava cheio com o som dos nossos corpos se encontrando — o impacto ritmado, as respirações pesadas, os sons baixos que ele não conseguia conter.
+
+A tensão subiu até o ponto de ruptura. Ele inclinou o corpo, a boca buscando a minha em um beijo possessivo, enquanto os movimentos se tornavam mais curtos, mais rápidos, mais urgentes. Eu me quebrei primeiro, o corpo contraindo-se em espasmos que o prenderam firmemente. Cael soltou um som baixo contra meus lábios, o corpo retesando-se em um último empuxo profundo antes de soltar o que havia contido.
+
+Ficamos ali, o pulsar dos nossos corações ainda irregular. Ele não se afastou; permaneceu pesado e próximo, a mão descansando sobre meu ventre com uma calma que era a coisa mais aterrorizante e doce que eu já havia experimentado. Eu coloquei a mão sobre a mão dele. E não precisei de mais nada além disso.
+
+[FIM DO EXEMPLO DE REFERÊNCIA]
 
 RITMO NARRATIVO VICIANTE
 O capítulo começa forte, tensão crescente, nunca dá sensação de descanso. Todo capítulo termina com cliffhanger. Cliffhangers graduados — crescem ao longo da história.
@@ -253,7 +313,9 @@ CHECKLIST FINAL — APÓS O ÚLTIMO CAPÍTULO
 • Parte 2 iniciada por quem revelou o cliffhanger da Parte 1.
 • Narração do MMC com flashbacks estratégicos (Parte 2).
 • Os dois POVs complementam — nunca repetem.
-• Cenas de preliminares com detalhes sensoriais.
+• Parte 1 SEM cena íntima — apenas sugerida (UM beijo + elipse narrativa + manhã seguinte). Nada de descrição corporal, sensorial ou implícita do ato.
+• Parte 2 com cena íntima de profundidade sensorial total no penúltimo capítulo.
+• Cenas de preliminares com detalhes sensoriais (apenas Parte 2).
 • Cena íntima sem vocabulário chulo ou +18.
 • Cena íntima ORIGINAL — não reproduz exemplo.
 • Revelações com detalhes.
