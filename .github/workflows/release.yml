@@ -18,26 +18,21 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      # CRITICO: max-parallel=1 evita race condition na criacao da release no
-      # GitHub. Os jobs antes rodavam em paralelo e ambos tentavam fazer
-      # POST /releases com a mesma tag -> 422 already_exists. Agora rodam
-      # serializados: o primeiro garante que a release existe, o segundo
-      # apenas anexa assets.
-      max-parallel: 1
+      # max-parallel=2: Windows e macOS rodam EM PARALELO pra cortar ~10min
+      # do tempo total. A race condition antiga (ambos tentando POST /releases
+      # com mesma tag -> 422 already_exists) ja foi resolvida pelo step
+      # "Garantir release no GitHub" que faz `view || create || re-view`.
+      max-parallel: 2
       matrix:
         include:
-          # 1) Windows roda PRIMEIRO: cria a release no GitHub se nao existir
-          # ainda (`gh release create` idempotente) e anexa os assets do .exe
-          # + latest.yml.
+          # Windows: NSIS .exe + latest.yml
           - os: windows-latest
             label: windows
-          # 2) macOS roda DEPOIS num Apple Silicon runner (macos-latest) e
-          # cross-compila AMBAS archs (arm64 + x64) num só job. Evita o
-          # problema do macos-13 (Intel) que está com fila gigante e em
-          # processo de descontinuacao pela GitHub.
-          # O electron-builder le `mac.target.arch` do package.json
+          # macOS Apple Silicon runner cross-compila AMBAS archs (arm64 + x64)
+          # num só job. O electron-builder le `mac.target.arch` do package.json
           # (["arm64","x64"]) e gera os dois .dmg/.zip + um latest-mac.yml
-          # consolidado com ambas as entradas em `files[]`.
+          # consolidado com ambas as entradas em `files[]`, entao o auto-updater
+          # escolhe o asset certo conforme a arch do Mac do usuario.
           - os: macos-latest
             label: macos
 
@@ -56,6 +51,24 @@ jobs:
         env:
           npm_config_optional: "true"
 
+      # Cache dos downloads do electron-builder (binario electron arm64+x64,
+      # winCodeSign, nsis, nsis-resources). Sem cache, cada job rebaixa
+      # ~150-200MB toda vez. Key inclui SO + lockfile (lockfile muda quando
+      # versao do electron-builder/electron muda no package.json).
+      - name: Cache electron-builder downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: ${{ runner.os }}-electron-builder-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-builder-
+
       - name: Gerar ícones (todos os formatos)
         # build-icon.js gera .ico, .icns e .png numa só chamada — funciona
         # em qualquer plataforma porque png2icons e sharp são puros JS.
@@ -64,9 +77,11 @@ jobs:
       - name: Build Next.js standalone
         run: npm run build
 
-      # Garante que a release existe antes de qualquer upload manual. Idempotente:
-      # se a release ja foi criada (por outro job ou por uma re-execucao), o
-      # `gh release view` passa e o `gh release create` e pulado.
+      # Garante que a release existe antes de qualquer upload manual.
+      # Idempotente E tolerante a corrida (com max-parallel=2, ambos os jobs
+      # podem chegar aqui simultaneamente): se `view` nao acha, tenta `create`;
+      # se `create` falhar (outro job criou no meio-tempo -> 422), re-checa
+      # `view` -- se passar, esta tudo OK; se nao, ai sim falha de verdade.
       - name: Garantir release no GitHub
         shell: bash
         run: |
@@ -74,7 +89,8 @@ jobs:
             gh release create "${GITHUB_REF_NAME}" \
               --repo "${GITHUB_REPOSITORY}" \
               --title "${GITHUB_REF_NAME}" \
-              --notes "Release ${GITHUB_REF_NAME}"
+              --notes "Release ${GITHUB_REF_NAME}" \
+              || gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
