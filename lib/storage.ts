@@ -1,7 +1,26 @@
-import type { Roteiro } from "@/types/roteiro";
+import { compressToUTF16, decompressFromUTF16 } from "lz-string";
+
+import type { Roteiro, StepGenerationSnapshot, StepId } from "@/types/roteiro";
 import { DEFAULT_CATEGORY } from "@/types/roteiro";
 
 const KEY = "veludo:roteiros";
+
+/**
+ * Sentinel que marca um valor comprimido com lz-string. Sem isso, não dá pra
+ * distinguir um JSON cru (formato legado, escrito por versões ≤ 1.0.51) de
+ * uma string UTF-16 comprimida — leitura quebraria pra qualquer um dos dois.
+ * Backward-compat: roteiros antigos seguem sendo lidos como JSON cru, e o
+ * próximo `saveRoteiro` regrava comprimido.
+ */
+const COMPRESSED_PREFIX = "LZ1:";
+
+/**
+ * Cap de snapshots por step no histórico. Antes era 20, mas com o texto
+ * completo da Escrita (~200KB) salvo em cada snapshot sem dedup, isso
+ * sozinho enchia o localStorage (4MB por roteiro só de histórico). 5 é o
+ * suficiente pra dar undo confortável sem estourar o quota.
+ */
+const HISTORY_CAP = 5;
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -20,14 +39,69 @@ function migrateLegacy(r: Roteiro): Roteiro {
   return r;
 }
 
+/**
+ * Trunca qualquer pilha de history que esteja acima do HISTORY_CAP. Roteiros
+ * salvos por versões antigas podem ter até 20 snapshots — esse prune roda na
+ * leitura pra que a primeira gravação após a atualização já saia enxuta.
+ */
+function pruneHistory(r: Roteiro): Roteiro {
+  if (!r.history) return r;
+  let changed = false;
+  const newHistory: Partial<Record<StepId, StepGenerationSnapshot[]>> = {};
+  for (const [step, stack] of Object.entries(r.history) as [
+    StepId,
+    StepGenerationSnapshot[] | undefined,
+  ][]) {
+    if (!stack) continue;
+    if (stack.length > HISTORY_CAP) {
+      newHistory[step] = stack.slice(0, HISTORY_CAP);
+      changed = true;
+    } else {
+      newHistory[step] = stack;
+    }
+  }
+  return changed ? { ...r, history: newHistory } : r;
+}
+
+function serialize(roteiros: Roteiro[]): string {
+  const json = JSON.stringify(roteiros);
+  // Tenta comprimir; se algo bizarro acontecer (lz-string nunca lança em uso
+  // normal, mas mantemos o fallback), grava cru — perder dados é pior do
+  // que gravar maior.
+  try {
+    const compressed = compressToUTF16(json);
+    if (compressed && compressed.length > 0) {
+      return COMPRESSED_PREFIX + compressed;
+    }
+  } catch (e) {
+    console.warn("[storage] falha na compressão, gravando cru:", e);
+  }
+  return json;
+}
+
+function deserialize(raw: string): Roteiro[] {
+  if (raw.startsWith(COMPRESSED_PREFIX)) {
+    const compressed = raw.slice(COMPRESSED_PREFIX.length);
+    const json = decompressFromUTF16(compressed);
+    if (!json) {
+      console.error("[storage] falha ao descomprimir localStorage");
+      return [];
+    }
+    return JSON.parse(json) as Roteiro[];
+  }
+  // Formato legado (JSON cru, versões ≤ 1.0.51). Próximo save vira comprimido.
+  return JSON.parse(raw) as Roteiro[];
+}
+
 export function listRoteiros(): Roteiro[] {
   if (!isBrowser()) return [];
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as Roteiro[];
+    const parsed = deserialize(raw);
     return parsed
       .map(migrateLegacy)
+      .map(pruneHistory)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   } catch {
     return [];
@@ -74,13 +148,13 @@ export function saveRoteiro(roteiro: Roteiro) {
   const updated: Roteiro = { ...roteiro, updatedAt: new Date().toISOString() };
   if (idx >= 0) all[idx] = updated;
   else all.push(updated);
-  safeSetItem(JSON.stringify(all));
+  safeSetItem(serialize(all));
 }
 
 export function deleteRoteiro(id: string) {
   if (!isBrowser()) return;
   const all = listRoteiros().filter((r) => r.id !== id);
-  safeSetItem(JSON.stringify(all));
+  safeSetItem(serialize(all));
 }
 
 export function newRoteiroId(): string {

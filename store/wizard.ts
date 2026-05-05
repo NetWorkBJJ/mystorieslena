@@ -252,8 +252,11 @@ export const useWizard = create<WizardState>((set, get) => ({
       const history = { ...(s.roteiro.history ?? {}) };
       const stack = history[step] ? [...history[step]!] : [];
       stack.unshift(snapshotFromOutput(current, customLabel));
-      // Limite de 20 snapshots por step para não estourar localStorage.
-      if (stack.length > 20) stack.length = 20;
+      // Limite de 5 snapshots por step pra não estourar localStorage. Antes
+      // era 20, mas o texto da Escrita (~200KB por snapshot) sozinho enchia
+      // os 5MB. O prune correspondente em listRoteiros() trunca pilhas
+      // antigas (até 20) na primeira leitura após a atualização.
+      if (stack.length > 5) stack.length = 5;
       history[step] = stack;
 
       return {
@@ -275,7 +278,7 @@ export const useWizard = create<WizardState>((set, get) => ({
       if (current?.content?.trim()) {
         newHistoryStack.unshift(snapshotFromOutput(current));
       }
-      if (newHistoryStack.length > 20) newHistoryStack.length = 20;
+      if (newHistoryStack.length > 5) newHistoryStack.length = 5;
 
       const restoredOutput: StepOutput = {
         content: snapshot.content,
