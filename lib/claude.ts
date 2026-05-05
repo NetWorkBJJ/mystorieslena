@@ -71,6 +71,67 @@ export interface ClaudeImageInput {
   mimeType: ClaudeImageMime;
 }
 
+/**
+ * Item content possível em um SDKUserMessage. Suporta imagem multimodal
+ * e texto com cache_control ephemeral pra prompt caching da Anthropic.
+ */
+export type UserContentBlock =
+  | {
+      type: "image";
+      source: { type: "base64"; media_type: ClaudeImageMime; data: string };
+    }
+  | {
+      type: "text";
+      text: string;
+      cache_control?: { type: "ephemeral" };
+    };
+
+/**
+ * Constrói o AsyncIterable<SDKUserMessage> que vai pro `query()`. Sempre
+ * usa a forma estruturada (content array) — a forma de string simples
+ * não permite cache_control. Anexa cache_control: ephemeral no último
+ * text block, marcando system prompt + user message inteiros como
+ * cacheáveis. Segunda chamada idêntica em 5 min lê do cache (Revisor
+ * cai de ~2.5min cold pra ~32s warm).
+ *
+ * Exportada pra ser testável em isolamento.
+ */
+export function buildPromptInput(params: {
+  userMessage: string;
+  image?: ClaudeImageInput;
+}): AsyncGenerator<{
+  type: "user";
+  parent_tool_use_id: null;
+  message: { role: "user"; content: UserContentBlock[] };
+}> {
+  const userContent: UserContentBlock[] = [];
+  if (params.image) {
+    userContent.push({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: params.image.mimeType,
+        data: params.image.base64Data,
+      },
+    });
+  }
+  userContent.push({
+    type: "text",
+    text: params.userMessage,
+    cache_control: { type: "ephemeral" },
+  });
+  return (async function* () {
+    yield {
+      type: "user" as const,
+      parent_tool_use_id: null,
+      message: {
+        role: "user" as const,
+        content: userContent,
+      },
+    };
+  })();
+}
+
 export interface StreamClaudeParams {
   systemPrompt: string;
   userMessage: string;
@@ -140,33 +201,7 @@ export async function* streamClaudeText(
   // dirname(process.execPath). Em modo packaged, cwd === resources/app/.
   const pathToClaudeCodeExecutable = resolveClaudeExecutable();
 
-  // Quando ha imagem anexada, monta o prompt como AsyncIterable<SDKUserMessage>
-  // com content array (imagem + texto). Sem imagem, prompt eh string simples.
-  const promptInput = params.image
-    ? (async function* () {
-        yield {
-          type: "user" as const,
-          parent_tool_use_id: null,
-          message: {
-            role: "user" as const,
-            content: [
-              {
-                type: "image" as const,
-                source: {
-                  type: "base64" as const,
-                  media_type: params.image!.mimeType,
-                  data: params.image!.base64Data,
-                },
-              },
-              {
-                type: "text" as const,
-                text: params.userMessage,
-              },
-            ],
-          },
-        };
-      })()
-    : params.userMessage;
+  const promptInput = buildPromptInput(params);
 
   try {
     const iter = query({
@@ -200,9 +235,26 @@ export async function* streamClaudeText(
         ) {
           yield ev.delta.text;
         }
-      } else if (msg.type === "result" && msg.subtype !== "success") {
-        const errMsg = msg.errors?.join("; ") || msg.subtype;
-        throw new Error(`Claude Agent SDK falhou: ${errMsg}`);
+      } else if (msg.type === "result") {
+        // Loga usage stats — útil pra confirmar que prompt caching está
+        // funcionando. Se cache_creation_input_tokens > 0 na 1ª chamada
+        // e cache_read_input_tokens > 0 na 2ª, o cache_control está
+        // sendo honrado. Sem isso, só temos timing como evidência indireta.
+        const u = (msg as { usage?: Record<string, unknown> }).usage;
+        if (u && typeof u === "object") {
+          const inp = (u as Record<string, unknown>).input_tokens;
+          const out = (u as Record<string, unknown>).output_tokens;
+          const cw = (u as Record<string, unknown>).cache_creation_input_tokens;
+          const cr = (u as Record<string, unknown>).cache_read_input_tokens;
+          console.log(
+            `[claude.ts] usage: input=${inp ?? "?"} output=${out ?? "?"} cache_write=${cw ?? 0} cache_read=${cr ?? 0}` +
+              (typeof cr === "number" && cr > 0 ? "  ← CACHE HIT" : ""),
+          );
+        }
+        if (msg.subtype !== "success") {
+          const errMsg = msg.errors?.join("; ") || msg.subtype;
+          throw new Error(`Claude Agent SDK falhou: ${errMsg}`);
+        }
       }
     }
   } finally {
