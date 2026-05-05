@@ -19,6 +19,13 @@ contextBridge.exposeInMainWorld("mystorieslena", {
   /** Pergunta o modo de runtime atual: "live" | "packaged" | "external-dev". */
   getRuntimeInfo: () => ipcRenderer.invoke("runtime:info"),
 
+  /**
+   * Retorna { tail, elapsedMs, logPath } com as ultimas N (default 15) linhas
+   * do log do servidor interno. Usado pela tela de loading pra mostrar
+   * progresso real durante boots demorados (compilacao do Next em LIVE).
+   */
+  getBootLogTail: (n) => ipcRenderer.invoke("boot:get-log-tail", n),
+
   /** Dispara verificação de update no GitHub Releases. */
   checkForUpdates: () => ipcRenderer.invoke("updater:check"),
 

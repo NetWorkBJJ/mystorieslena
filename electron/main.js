@@ -12,7 +12,31 @@
  *     colegas que recebem o instalador).
  */
 
-const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
+const electronApi = require("electron");
+const { BrowserWindow, ipcMain, shell, dialog } = electronApi;
+const app = electronApi.app;
+
+// Se o shell pai tinha ELECTRON_RUN_AS_NODE setado, o binario Electron
+// inicializou como Node puro (sem APIs de janela) antes do JS rodar — nao
+// da pra recuperar disso aqui. Detectamos cedo e damos uma mensagem util
+// em vez do TypeError opaco "Cannot read properties of undefined".
+//
+// Esse cenario aparece quando o ambiente do Claude Code (e alguns shells de
+// CI) deixa essa env var herdada. O fix permanente eh limpar antes de
+// invocar o Electron — ver script `electron:dev` no package.json (que ja
+// forca `ELECTRON_RUN_AS_NODE=` na invocacao).
+if (!app) {
+  process.stderr.write(
+    "\n[boot] ERRO FATAL: Electron iniciou em modo Node puro.\n" +
+      "  Causa provavel: ELECTRON_RUN_AS_NODE setado no ambiente do shell pai.\n" +
+      "  Limpe a env var antes de rodar o app:\n" +
+      "    PowerShell:  Remove-Item Env:\\ELECTRON_RUN_AS_NODE\n" +
+      "    CMD:         set ELECTRON_RUN_AS_NODE=\n" +
+      "    Mac/Linux:   unset ELECTRON_RUN_AS_NODE\n\n",
+  );
+  process.exit(1);
+}
+
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
@@ -47,10 +71,21 @@ try {
   console.warn("[boot] electron-log indisponivel:", e?.message || e);
 }
 
+// Sem isso, qualquer throw assincrono no main process derrubava o app
+// silenciosamente — usuaria so via a janela morrer sem nenhuma pista no log.
+process.on("uncaughtException", (e) => {
+  try { log.error("[uncaught]", e); } catch { /* log indisponivel */ }
+});
+process.on("unhandledRejection", (e) => {
+  try { log.error("[unhandled-rejection]", e); } catch { /* log indisponivel */ }
+});
+
 // Renderer com heap default ~1.5-2GB estoura em batches longos de Escrita
-// (streaming acumula strings + history + imagem inline). 4GB cobre folgado
-// um roteiro inteiro. Precisa estar setado antes de app.whenReady().
-app.commandLine.appendSwitch("js-flags", "--max-old-space-size=4096");
+// (streaming acumula strings + history + imagem inline). 8GB é folga extra
+// pra cenários de pior caso: vários roteiros no localStorage + imagem inline
+// pesada + history de 20 snapshots/step. Precisa estar setado antes de
+// app.whenReady().
+app.commandLine.appendSwitch("js-flags", "--max-old-space-size=8192");
 
 const isDev = !!process.env.NEXT_DEV_URL;
 const DEV_URL = process.env.NEXT_DEV_URL || "";
@@ -65,6 +100,61 @@ let serverRestartCount = 0;
 let serverIsRespawning = false;
 const MAX_SERVER_RESTARTS = 3;
 const SERVER_RESTART_BACKOFF_MS = [1000, 3000, 7000];
+
+// === Buffer de logs do servidor interno ====================================
+// Sem isso, stdout/stderr do `next dev` (LIVE) ou `node server.js` (PACKAGED)
+// iam pra process.stdout.write direto e sumiam em app empacotado. Resultado:
+// quando o boot dava timeout, o usuario via "reinstale o app" sem nenhuma
+// pista do que aconteceu. Agora mantemos as ultimas N linhas em memoria (pra
+// mostrar no loading screen e no dialogo de erro) e tambem escrevemos em
+// arquivo dedicado pra post-mortem.
+const SERVER_LOG_RING_MAX = 200;
+const serverLogRing = [];
+let serverLogFileStream = null;
+let serverLogFilePath = null;
+
+function getServerLogPath() {
+  if (serverLogFilePath) return serverLogFilePath;
+  try {
+    const dir = app.getPath("logs");
+    fs.mkdirSync(dir, { recursive: true });
+    serverLogFilePath = path.join(dir, "next-server.log");
+  } catch {
+    serverLogFilePath = path.join(os.tmpdir(), "mystorieslena-next-server.log");
+  }
+  return serverLogFilePath;
+}
+
+function appendServerLog(prefix, chunk) {
+  const text = String(chunk);
+  // Quebra em linhas pra ring buffer (cada linha vira entry separada).
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    if (!line) continue;
+    const stamped = `${new Date().toISOString().slice(11, 19)} ${prefix} ${line}`;
+    serverLogRing.push(stamped);
+    if (serverLogRing.length > SERVER_LOG_RING_MAX) {
+      serverLogRing.shift();
+    }
+  }
+  // Escreve no arquivo (best-effort, sem await — se falhar, continua sem o arquivo).
+  try {
+    if (!serverLogFileStream) {
+      serverLogFileStream = fs.createWriteStream(getServerLogPath(), { flags: "a" });
+      serverLogFileStream.on("error", () => {
+        serverLogFileStream = null;
+      });
+    }
+    serverLogFileStream.write(text);
+  } catch { /* ignore */ }
+  // Tambem manda pro electron-log pra ficar no main.log (com truncamento).
+  log.info(prefix, text.replace(/\n+$/, ""));
+}
+
+function getServerLogTail(n = 30) {
+  const start = Math.max(0, serverLogRing.length - n);
+  return serverLogRing.slice(start).join("\n");
+}
 
 function findFreePort(start = 17310) {
   return new Promise((resolve) => {
@@ -211,10 +301,84 @@ function prepareNativeBinary(claudeExe) {
 }
 
 /**
+ * Mata processos `next dev` orfaos cujo cwd bate com sourceDir.
+ *
+ * Por que: em modo LIVE, o spawn eh detached:true (pra Turbopack workers nao
+ * abrirem console no Windows). Se o app crasha sem rodar before-quit (OOM
+ * do main, force-kill via Task Manager, etc), o `next dev` fica orfao
+ * segurando a porta + .next/cache locks. No proximo boot, findFreePort acha
+ * outra porta, mas o orfao continua compilando em background, comendo RAM e
+ * travando file-watcher do Turbopack do novo processo.
+ *
+ * Best-effort: roda com timeout curto, log warning se falhar, NUNCA bloqueia
+ * o boot. Em Windows usa CIM (PowerShell). Em Mac/Linux usa pgrep + cwd check.
+ */
+function killOrphanNextDev(sourceDir) {
+  if (!sourceDir) return;
+  try {
+    if (process.platform === "win32") {
+      const { execFileSync } = require("child_process");
+      // Escapa aspas simples no path pra Where-Object — sourceDir vem do
+      // env, mas nunca confiamos cegamente em path do usuario num shell.
+      const safeDir = sourceDir.replace(/'/g, "''");
+      // NOTA: nao filtramos por Name='node.exe' porque em LIVE/packaged o
+      // child spawnado com ELECTRON_RUN_AS_NODE herda o nome do executavel
+      // Electron (MyStoriesLena.exe). O match por command line ja eh
+      // restritivo o suficiente — exige "next", "dev" E o sourceDir todos
+      // presentes na linha de comando.
+      const cmd =
+        "$ErrorActionPreference='SilentlyContinue';" +
+        "$killed=0;" +
+        "Get-CimInstance Win32_Process | " +
+        `Where-Object { $_.CommandLine -like '*next*' -and $_.CommandLine -like '*dev*' -and $_.CommandLine -like '*${safeDir.replace(/\\/g, "\\\\")}*' -and $_.ProcessId -ne ${process.pid} } | ` +
+        `ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force; $killed++ } catch {} };` +
+        "Write-Host \"killed=$killed\"";
+      const out = execFileSync("powershell.exe", ["-NoProfile", "-Command", cmd], {
+        windowsHide: true,
+        timeout: 8000,
+        encoding: "utf-8",
+      });
+      const m = /killed=(\d+)/.exec(String(out));
+      const n = m ? parseInt(m[1], 10) : 0;
+      if (n > 0) {
+        console.log(`[boot] killed ${n} orphan next dev process(es)`);
+      }
+    } else {
+      // Mac/Linux: pgrep -af "next dev" lista candidatos; depois pra cada
+      // PID lemos o cwd via /proc (Linux) ou lsof (Mac) e comparamos.
+      const { execSync } = require("child_process");
+      const isLinux = process.platform === "linux";
+      const cwdCmd = isLinux
+        ? "readlink /proc/$pid/cwd 2>/dev/null"
+        : "lsof -p $pid -d cwd -Fn 2>/dev/null | awk '/^n/ { print substr($0,2); exit }'";
+      const safeDir = sourceDir.replace(/"/g, '\\"');
+      const script =
+        `pgrep -af "next.*dev" 2>/dev/null | awk '{print $1}' | while read pid; do ` +
+        `cwd="$(${cwdCmd})"; ` +
+        `if [ "$cwd" = "${safeDir}" ]; then kill -9 "$pid" 2>/dev/null; echo "killed:$pid"; fi; ` +
+        `done`;
+      const out = execSync(script, {
+        shell: "/bin/bash",
+        timeout: 8000,
+        encoding: "utf-8",
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      const n = (String(out).match(/killed:/g) || []).length;
+      if (n > 0) {
+        console.log(`[boot] killed ${n} orphan next dev process(es)`);
+      }
+    }
+  } catch (e) {
+    console.warn("[boot] killOrphanNextDev falhou (best-effort):", e?.message || e);
+  }
+}
+
+/**
  * Modo LIVE: spawn `next dev` a partir da pasta-fonte. Mudanças no código
  * aparecem na próxima abertura do app — basta fechar e abrir.
  */
 async function startServerFromSource(sourceDir) {
+  killOrphanNextDev(sourceDir);
   const port = await findFreePort();
   const nextBin = path.join(
     sourceDir,
@@ -262,11 +426,19 @@ async function startServerFromSource(sourceDir) {
       detached: true,
     },
   );
+  serverProc.lastActivityMs = Date.now();
 
-  serverProc.stdout.on("data", (d) => process.stdout.write(`[next] ${d}`));
-  serverProc.stderr.on("data", (d) => process.stderr.write(`[next] ${d}`));
+  serverProc.stdout.on("data", (d) => {
+    serverProc.lastActivityMs = Date.now();
+    appendServerLog("[next]", d);
+  });
+  serverProc.stderr.on("data", (d) => {
+    serverProc.lastActivityMs = Date.now();
+    appendServerLog("[next:err]", d);
+  });
   serverProc.on("exit", (code) => {
     console.log(`[next] exited code=${code}`);
+    appendServerLog("[next]", `\nProcess exited with code=${code}\n`);
     serverProc = null;
   });
 
@@ -315,11 +487,19 @@ async function startServerPackaged() {
     stdio: "pipe",
     windowsHide: true,
   });
+  serverProc.lastActivityMs = Date.now();
 
-  serverProc.stdout.on("data", (d) => process.stdout.write(`[next] ${d}`));
-  serverProc.stderr.on("data", (d) => process.stderr.write(`[next] ${d}`));
+  serverProc.stdout.on("data", (d) => {
+    serverProc.lastActivityMs = Date.now();
+    appendServerLog("[server]", d);
+  });
+  serverProc.stderr.on("data", (d) => {
+    serverProc.lastActivityMs = Date.now();
+    appendServerLog("[server:err]", d);
+  });
   serverProc.on("exit", (code) => {
     console.log(`[next] exited code=${code}`);
+    appendServerLog("[server]", `\nProcess exited with code=${code}\n`);
     serverProc = null;
     // Watchdog: se a janela ainda esta aberta e o exit foi anormal, tenta
     // respawnar. Sem isso, qualquer crash do server (OOM, exception nao
@@ -356,7 +536,7 @@ async function respawnServer() {
       serverRestartCount += 1;
       try {
         appUrl = await startServerPackaged();
-        await waitForHealth(appUrl, 30000);
+        await waitForHealth(appUrl, 30000, makeLivenessProbe(serverProc));
         console.log(`[watchdog] server respondeu em ${appUrl}, recarregando janela`);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.loadURL(appUrl);
@@ -385,10 +565,43 @@ async function respawnServer() {
   }
 }
 
-function waitForHealth(baseUrl, timeoutMs = 60000) {
-  const deadline = Date.now() + timeoutMs;
+/**
+ * Polling em /api/health ate o servidor subir ou estourar o deadline.
+ *
+ * @param {string} baseUrl
+ * @param {number} timeoutMs deadline inicial — pode ser estendido se o
+ *   livenessProbe indicar que o servidor esta vivo e ativamente fazendo coisa
+ *   (compilando, p.ex.). Cap absoluto eh 2x o timeoutMs.
+ * @param {() => { exitCode: number | null, lastActivityMs: number } | null} livenessProbe
+ *   opcional — se retornar exitCode != null, falha imediatamente (servidor
+ *   morreu, nao adianta esperar). Se atividade recente (<5s), estende deadline.
+ */
+function waitForHealth(baseUrl, timeoutMs = 60000, livenessProbe = null) {
+  let deadline = Date.now() + timeoutMs;
+  const maxDeadline = Date.now() + timeoutMs * 2;
   return new Promise((resolve, reject) => {
     const tick = () => {
+      // Liveness check: se o processo morreu, falha agora em vez de esperar
+      // o deadline inteiro retornando ECONNREFUSED.
+      if (livenessProbe) {
+        const probe = livenessProbe();
+        if (probe && probe.exitCode != null) {
+          reject(new Error(`Servidor morreu durante boot (exit=${probe.exitCode})`));
+          return;
+        }
+        // Estende deadline se prestes a estourar mas o servidor logou algo
+        // recente (provavelmente Turbopack ainda compilando). Cap em 2x o
+        // timeout original — sem cap, um servidor preso em loop de log iria
+        // travar a janela infinitamente.
+        if (
+          probe &&
+          Date.now() > deadline - 5000 &&
+          Date.now() - probe.lastActivityMs < 5000 &&
+          deadline < maxDeadline
+        ) {
+          deadline = Math.min(Date.now() + 30000, maxDeadline);
+        }
+      }
       const req = http.get(`${baseUrl}/api/health`, (res) => {
         if (res.statusCode === 200) {
           res.resume();
@@ -412,6 +625,13 @@ function waitForHealth(baseUrl, timeoutMs = 60000) {
       req.setTimeout(3000, () => req.destroy());
     };
     tick();
+  });
+}
+
+function makeLivenessProbe(proc) {
+  return () => ({
+    exitCode: proc?.exitCode ?? null,
+    lastActivityMs: proc?.lastActivityMs ?? Date.now(),
   });
 }
 
@@ -451,10 +671,44 @@ function createWindow() {
     return { action: "deny" };
   });
 
+  // No app empacotado, bloqueia TODOS os atalhos que abrem DevTools (F12,
+  // Ctrl+Shift+I/J/C, Cmd+Opt+I/J/C). A roteirista não é desenvolvedora —
+  // DevTools aparecendo (seja por crash anterior, atalho acidental ou menu
+  // View → Toggle Developer Tools) só causa confusão. Em dev/live mode
+  // mantém liberado pra debug do autor.
+  if (app.isPackaged && runtimeMode === "packaged") {
+    mainWindow.webContents.on("before-input-event", (event, input) => {
+      if (input.type !== "keyDown") return;
+      const k = (input.key || "").toLowerCase();
+      const isF12 = k === "f12";
+      const isCtrlShiftDevKey =
+        input.control && input.shift && (k === "i" || k === "j" || k === "c");
+      const isMacDevKey =
+        input.meta && input.alt && (k === "i" || k === "j" || k === "c");
+      if (isF12 || isCtrlShiftDevKey || isMacDevKey) {
+        event.preventDefault();
+      }
+    });
+    // Belt-and-suspenders: se algum caminho ainda chamar openDevTools (ex:
+    // hook de extensão, código futuro), fechamos imediatamente. Nunca deixa
+    // DevTools visível pra roteirista no app empacotado.
+    mainWindow.webContents.on("devtools-opened", () => {
+      try {
+        mainWindow.webContents.closeDevTools();
+      } catch {
+        // ignore
+      }
+    });
+  }
+
   // Crash handlers: sem isso, quando o renderer morre (OOM, exception fatal)
   // ou o load falha (server caiu), a janela fica branca silenciosamente.
-  // 1ª queda em 60s → reload silencioso (não tira a roteirista do fluxo).
-  // 2+ quedas em 60s → diálogo Recarregar/Sair (problema recorrente).
+  //
+  // Política: SEMPRE silent-reload, NUNCA abrir DevTools. A roteirista não
+  // é desenvolvedora — DevTools aparecendo é confusão pura. Damos até 5
+  // tentativas silenciosas em 60s; só depois disso mostramos um diálogo
+  // amigável Recarregar/Sair (sem DevTools junto).
+  const MAX_SILENT_RELOADS = 5;
   let crashCount = 0;
   let lastCrashAt = 0;
   let crashResetTimer = null;
@@ -468,40 +722,48 @@ function createWindow() {
 
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
-    if (crashCount === 1 && appUrl) {
-      console.warn("[crash] auto-reload silencioso (1ª queda em 60s)");
+    if (crashCount <= MAX_SILENT_RELOADS && appUrl) {
+      console.warn(
+        `[crash] auto-reload silencioso (queda ${crashCount}/${MAX_SILENT_RELOADS} em 60s)`,
+      );
+      // Backoff modesto: 1ª queda 500ms; depois cresce ligeiramente pra dar
+      // tempo do que estava em flight terminar de liberar memória.
+      const delay = Math.min(500 + (crashCount - 1) * 700, 3000);
       setTimeout(() => {
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadURL(appUrl);
-      }, 500);
+      }, delay);
       return;
     }
 
-    if (app.isPackaged) {
-      try {
-        mainWindow.webContents.openDevTools({ mode: "detach" });
-      } catch {
-        // ignore
-      }
-    }
+    // Estourou o limite de reloads silenciosos — algo está sistematicamente
+    // quebrando. Aí sim mostramos diálogo amigável (sem DevTools). NUNCA
+    // chamar openDevTools aqui: a roteirista não usa DevTools e a janela
+    // dele assustando ela já causou ruído suficiente.
     dialog
       .showMessageBox(mainWindow, {
         type: "error",
         title: "MyStoriesLena travou",
         message: "Ocorreu um erro interno na interface.",
-        detail: `Motivo: ${details?.reason ?? "desconhecido"} (exit ${details?.exitCode ?? "?"}).\n\nPosso recarregar a janela.`,
-        buttons: ["Recarregar", "Sair"],
+        detail: `Tentei recarregar ${MAX_SILENT_RELOADS} vezes mas continua quebrando. Posso tentar mais uma, ou você pode fechar e abrir o app de novo (seus roteiros estão salvos).`,
+        buttons: ["Recarregar", "Fechar app"],
         defaultId: 0,
         cancelId: 1,
+        noLink: true,
       })
       .then((r) => {
         if (r.response === 0 && appUrl && mainWindow && !mainWindow.isDestroyed()) {
+          // Reset do contador — ela escolheu tentar de novo, dá folga total.
+          crashCount = 0;
           mainWindow.loadURL(appUrl);
         } else {
           app.quit();
         }
       })
       .catch(() => {
-        // Dialog falhou — best effort.
+        // Dialog falhou — best effort: tenta reload mesmo assim.
+        if (mainWindow && !mainWindow.isDestroyed() && appUrl) {
+          mainWindow.loadURL(appUrl);
+        }
       });
   });
 
@@ -577,7 +839,115 @@ function createWindow() {
   });
 }
 
+/**
+ * Mata o serverProc atual (best-effort), incluindo a arvore de filhos.
+ * Usado em retries de boot e tambem em before-quit. Nao zera serverProc —
+ * o handler "exit" do spawn faz isso.
+ */
+function killServerTree() {
+  if (!serverProc || serverProc.killed) return;
+  try {
+    if (process.platform === "win32") {
+      const { execSync } = require("child_process");
+      execSync(`taskkill /pid ${serverProc.pid} /T /F`, { windowsHide: true });
+    } else {
+      try {
+        process.kill(-serverProc.pid, "SIGTERM");
+      } catch {
+        serverProc.kill();
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Dialogo de erro mode-aware com botoes de acao reais.
+ *
+ * LIVE: mensagem tecnica + tail dos logs + botao que limpa .next/cache.
+ * PACKAGED: mensagem amigavel + botao "Tentar de novo" (sem mexer em arquivos).
+ *
+ * O botao "Abrir log" abre o arquivo no editor padrao e re-mostra o dialogo
+ * (usuario continua precisando escolher entre tentar/sair).
+ */
+async function showBootFailureDialog(err, mode, sourceDir) {
+  const logPath = getServerLogPath();
+  const tail = getServerLogTail(30);
+
+  let title;
+  let message;
+  let detail;
+  let buttons;
+  if (mode === "live") {
+    title = "Modo LIVE — falha do dev server";
+    message = `O Next dev nao respondeu a tempo:\n\n${err?.message || err}`;
+    detail =
+      (tail ? `Ultimas linhas do servidor:\n${tail}\n\n` : "") +
+      `Log completo: ${logPath}\n\n` +
+      "Causas comuns: cache do Turbopack corrompido, processo orfao segurando recursos, erro de compilacao no codigo fonte.";
+    buttons = ["Tentar de novo (limpa .next/cache)", "Abrir log", "Sair"];
+  } else {
+    title = "Falha ao iniciar o MyStoriesLena";
+    message = `O servidor interno nao respondeu:\n\n${err?.message || err}`;
+    detail =
+      `Log: ${logPath}\n\n` +
+      "Tente novamente. Se persistir, reinstale o aplicativo ou entre em contato com o suporte.";
+    buttons = ["Tentar de novo", "Abrir log", "Sair"];
+  }
+
+  const target = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  const opts = {
+    type: "error",
+    title,
+    message,
+    detail,
+    buttons,
+    defaultId: 0,
+    cancelId: 2,
+    noLink: true,
+  };
+  const result = target
+    ? await dialog.showMessageBox(target, opts)
+    : await dialog.showMessageBox(opts);
+
+  const choice = result.response;
+  if (choice === 0) {
+    // Tentar de novo — em LIVE limpa .next/cache (cirurgico, preserva
+    // outras coisas em .next que sejam baratas de regenerar).
+    if (mode === "live" && sourceDir) {
+      try {
+        const cacheDir = path.join(sourceDir, ".next", "cache");
+        if (fs.existsSync(cacheDir)) {
+          fs.rmSync(cacheDir, { recursive: true, force: true });
+          console.log(`[boot] limpou ${cacheDir}`);
+        }
+      } catch (e) {
+        console.warn("[boot] falha ao limpar .next/cache:", e?.message || e);
+      }
+    }
+    serverRestartCount = 0;
+    void boot();
+    return;
+  }
+  if (choice === 1) {
+    // Abrir log e re-mostrar o dialogo — usuario ainda precisa decidir
+    // entre tentar/sair, e shell.openPath nao bloqueia.
+    try {
+      await shell.openPath(logPath);
+    } catch { /* ignore */ }
+    return showBootFailureDialog(err, mode, sourceDir);
+  }
+  // Sair
+  app.quit();
+}
+
 async function boot() {
+  // Reentrante: se estamos retentando apos falha, pode haver serverProc
+  // morto-vivo (spawn ok mas health check falhou). Limpa antes.
+  killServerTree();
+  appUrl = null;
+
   // Decide qual modo usar antes de criar a janela (afeta a tela de loading).
   const sourceDir = detectSourceDir();
   if (isDev) {
@@ -588,22 +958,34 @@ async function boot() {
     runtimeMode = "packaged";
   }
 
-  createWindow();
+  // Primeira chamada: cria a janela. Retry: reaproveita a janela existente
+  // recarregando o loading.html (preserva position/size/devtools state).
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+  } else {
+    const loadingPath = path.join(__dirname, "loading.html");
+    const fileUrl = `file:///${loadingPath.replace(/\\/g, "/")}`;
+    mainWindow.loadURL(`${fileUrl}?mode=${runtimeMode}`);
+  }
 
   try {
     if (isDev) {
       appUrl = DEV_URL;
       await waitForHealth(appUrl, 15000).catch(() => null);
     } else if (sourceDir) {
-      // MODO LIVE: roda Next dev da pasta-fonte. Pode demorar 5-15s na primeira
-      // vez (Next compila os módulos), mas mudanças no código aparecem na hora
-      // sem precisar reinstalar nada.
+      // MODO LIVE: Next dev compila on-demand. Timeout generoso (180s default,
+      // overridable via MYSTORIESLENA_BOOT_TIMEOUT_MS) porque o first-build
+      // apos crash pode levar minutos com .next/cache parcialmente corrompido.
+      // O livenessProbe estende o deadline se Next ainda esta logando — entao
+      // 180s eh um piso, nao um teto, ate o cap absoluto de 2x.
       appUrl = await startServerFromSource(sourceDir);
-      await waitForHealth(appUrl, 90000);
+      const liveTimeout =
+        Number(process.env.MYSTORIESLENA_BOOT_TIMEOUT_MS) || 180_000;
+      await waitForHealth(appUrl, liveTimeout, makeLivenessProbe(serverProc));
     } else {
       // Modo padrão (empacotado).
       appUrl = await startServerPackaged();
-      await waitForHealth(appUrl, 60000);
+      await waitForHealth(appUrl, 60000, makeLivenessProbe(serverProc));
     }
 
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -611,12 +993,7 @@ async function boot() {
     }
   } catch (err) {
     console.error("Falha no boot:", err);
-    dialog.showErrorBox(
-      "Falha ao iniciar o MyStoriesLena",
-      `O servidor interno não respondeu:\n\n${err.message}\n\nReinstale o aplicativo ou entre em contato com o suporte.`,
-    );
-    app.quit();
-    return;
+    return showBootFailureDialog(err, runtimeMode, sourceDir);
   }
 
   if (autoUpdater && app.isPackaged && runtimeMode === "packaged") {
@@ -703,6 +1080,23 @@ function wireUpdaterEvents() {
 }
 
 // IPC handlers — endpoints que o renderer chama via preload.js (window.mystorieslena).
+
+/**
+ * Retorna as ultimas N linhas do log do servidor interno + ms decorridos
+ * desde o spawn (pra o loading screen mostrar timer real). Se o servidor
+ * ainda nao spawnou, retorna tail vazio e elapsedMs=0.
+ */
+ipcMain.handle("boot:get-log-tail", (_event, n) => {
+  const linesRequested = Math.max(1, Math.min(50, Number(n) || 15));
+  const tail = getServerLogTail(linesRequested);
+  const spawnedAt = serverProc?.lastActivityMs ?? null;
+  return {
+    tail,
+    elapsedMs: spawnedAt ? Date.now() - spawnedAt : 0,
+    logPath: getServerLogPath(),
+  };
+});
+
 ipcMain.handle("runtime:info", () => {
   const isMacAdhoc =
     process.platform === "darwin" && !process.env.CSC_LINK;
@@ -1211,25 +1605,11 @@ app.on("activate", () => {
 
 app.on("before-quit", () => {
   // Sinaliza pro watchdog NAO tentar respawnar quando o server morrer durante
-  // shutdown (kill abaixo dispara `exit` com code != 0).
+  // shutdown (kill abaixo dispara `exit` com code != 0). Tambem fecha o
+  // arquivo de log do servidor pra flush final do buffer.
   app.isQuitting = true;
-  if (serverProc && !serverProc.killed) {
-    try {
-      // Em modo detached:true, kill() só mata o processo direto — os
-      // workers do Turbopack ficariam orfãos. taskkill /T mata a árvore
-      // toda. Em outros OSes usa kill no process group.
-      if (process.platform === "win32") {
-        const { execSync } = require("child_process");
-        execSync(`taskkill /pid ${serverProc.pid} /T /F`, { windowsHide: true });
-      } else {
-        try {
-          process.kill(-serverProc.pid, "SIGTERM");
-        } catch {
-          serverProc.kill();
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
+  killServerTree();
+  try {
+    serverLogFileStream?.end();
+  } catch { /* ignore */ }
 });

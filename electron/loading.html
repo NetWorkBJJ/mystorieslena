@@ -76,6 +76,49 @@
       .mode.live {
         color: var(--gold);
       }
+      /* Painel de progresso — so aparece se o boot demorar mais que ~5s,
+         pra nao poluir a tela em boots normais. */
+      .boot-progress {
+        margin-top: 18px;
+        width: min(720px, calc(100% - 48px));
+        background: rgba(0, 0, 0, 0.32);
+        border: 1px solid rgba(201, 161, 74, 0.18);
+        border-radius: 8px;
+        padding: 12px 14px;
+        font-family: "JetBrains Mono", "Consolas", "Courier New", monospace;
+        font-size: 11px;
+        color: var(--muted);
+        opacity: 0;
+        transition: opacity 0.35s ease-out;
+        pointer-events: none;
+      }
+      .boot-progress.show {
+        opacity: 1;
+      }
+      .boot-progress .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        color: var(--gold-soft);
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      .boot-progress pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 132px;
+        overflow-y: auto;
+        line-height: 1.45;
+        color: var(--text);
+        opacity: 0.78;
+      }
+      .boot-progress pre:empty::before {
+        content: "Aguardando o servidor inicializar…";
+        opacity: 0.5;
+      }
     </style>
   </head>
   <body>
@@ -88,6 +131,13 @@
       </div>
       <div class="spinner"></div>
       <div class="mode" id="mode-label"></div>
+      <div class="boot-progress" id="boot-progress">
+        <div class="header">
+          <span>Logs do servidor</span>
+          <span id="boot-timer">0s</span>
+        </div>
+        <pre id="boot-tail"></pre>
+      </div>
     </div>
     <script>
       // Modo enviado pelo main.js via query param.
@@ -100,6 +150,43 @@
       } else if (mode === "external-dev") {
         label.textContent = "Modo DEV · servidor externo";
         label.classList.add("live");
+      }
+
+      // Painel de progresso: aparece apos 5s sem que a janela tenha
+      // navegado pra fora do loading.html (boot rapido = nem aparece).
+      // Em LIVE faz mais sentido (next dev pode levar minutos compilando);
+      // em packaged tambem ajuda em casos raros de spawn lento. Em
+      // external-dev nao mostra (o servidor eh outro processo, nao temos
+      // logs dele).
+      if ((mode === "live" || mode === "packaged") && window.mystorieslena?.getBootLogTail) {
+        const startTime = Date.now();
+        const progressEl = document.getElementById("boot-progress");
+        const tailEl = document.getElementById("boot-tail");
+        const timerEl = document.getElementById("boot-timer");
+
+        async function tick() {
+          try {
+            const data = await window.mystorieslena.getBootLogTail(15);
+            if (data && typeof data.tail === "string") {
+              const wasAtBottom =
+                tailEl.scrollTop + tailEl.clientHeight >= tailEl.scrollHeight - 8;
+              tailEl.textContent = data.tail;
+              if (wasAtBottom) tailEl.scrollTop = tailEl.scrollHeight;
+            }
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            timerEl.textContent = `${elapsed}s`;
+          } catch {
+            /* IPC pode falhar se a janela esta sendo destruida — ignora */
+          }
+        }
+
+        // Aparece o painel apos 5s. Se o boot acabar antes, a janela
+        // navega pra fora e nada disso eh visto.
+        setTimeout(() => {
+          progressEl.classList.add("show");
+          tick();
+          setInterval(tick, 1000);
+        }, 5000);
       }
     </script>
   </body>

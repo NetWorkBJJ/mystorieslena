@@ -554,20 +554,16 @@ export function StepShell({ step }: Props) {
           return;
         }
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let acc = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          acc += decoder.decode(value, { stream: true });
-          const display = stripErrosDetalhados(acc);
-          setDraft(display);
-          setOutput(step, {
-            content: display,
-            generatedAt: startedAt,
-          });
-        }
+        // Throttle via RAF + escreve em liveStream (state local, sem persist).
+        // Sem isso, cada chunk disparava setOutput → saveRoteiro → JSON.parse +
+        // stringify do localStorage inteiro, OOM no renderer em outputs grandes
+        // (Revisor escreve ~14k tokens). Custom setter mantém o XML
+        // <erros_detalhados> escondido do preview ao vivo.
+        const acc = await readStreamThrottled(
+          res,
+          (raw) => setLiveStream(stripErrosDetalhados(raw)),
+          ctrl.signal,
+        );
 
         if (ctrl.signal.aborted) {
           setLiveStream("");
@@ -729,31 +725,14 @@ export function StepShell({ step }: Props) {
         return;
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let acc = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        acc += decoder.decode(value, { stream: true });
-        if (isRefine) {
-          // Em correção pontual (qualquer step) o output corrente fica
-          // intacto — só atualizamos o liveStream (área secundária)
-          // mostrando o que o agente está emitindo (caps na Escrita,
-          // <alteracao> blocks nos demais). A finalização aplica.
-          setLiveStream(acc);
-          continue;
-        }
-        // Geração do zero: stream em tempo real no output principal.
-        // Display: Revisor esconde o XML <erros_detalhados>.
-        let display = acc;
-        if (step === "revisor") display = stripErrosDetalhados(acc);
-        setDraft(display);
-        setOutput(step, {
-          content: display,
-          generatedAt: startedAt,
-        });
-      }
+      // Throttle via RAF + escreve em liveStream (state local). Cobre tanto
+      // refine (mostra patches/<alteracao> chegando) quanto generate-do-zero
+      // de Estrutura 1/2. Sem isso, cada chunk persistia o roteiro inteiro
+      // no localStorage e o renderer estourava OOM em outputs grandes —
+      // mesma classe de bug que derrubou Escrita antes do throttle.
+      // Finalização (parsers/setOutput) acontece nos blocos abaixo, com `acc`
+      // já completo.
+      const acc = await readStreamThrottled(res, setLiveStream, ctrl.signal);
 
       if (ctrl.signal.aborted) {
         setIsGenerating(false);
@@ -1016,6 +995,20 @@ export function StepShell({ step }: Props) {
             );
           }
         }
+      } else if (
+        !isRefine &&
+        (step === "estrutura1" || step === "estrutura2") &&
+        acc.trim()
+      ) {
+        // Geração do zero pra Estrutura 1/2: o conteúdo final do throttle
+        // vira o output em uma única gravação (sem persist per-chunk que
+        // causava o OOM no renderer com roteiros grandes/imagem inline).
+        setOutput(step, {
+          content: acc,
+          generatedAt: startedAt,
+        });
+        setDraft(acc);
+        setLiveStream("");
       }
 
       setIsGenerating(false);
@@ -1331,6 +1324,27 @@ export function StepShell({ step }: Props) {
               </span>
             </div>
           )
+        ) : isGenerating ? (
+          // Estrutura 1/2 generating do zero: o stream não persiste mais por
+          // chunk no output (evita OOM), então mostramos o texto crescendo no
+          // painel ao vivo e só comitamos no output quando termina.
+          <div className="rounded-lg border-2 border-primary/40 bg-primary/[0.03] px-4 sm:px-5 py-4 flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <Loader2 className="size-4 animate-spin text-primary" />
+              <span className="text-sm font-semibold text-primary">
+                Gerando {agent.label}…
+              </span>
+            </div>
+            {liveStream ? (
+              <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-foreground/85 max-h-[55vh] overflow-auto border-t border-primary/20 pt-3">
+                {liveStream}
+              </pre>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                Conectando ao agente…
+              </p>
+            )}
+          </div>
         ) : hasContent ? (
           <div className="rounded-lg border bg-card p-4 sm:p-6 max-h-[50vh] overflow-auto">
             <Prose>{output?.content ?? ""}</Prose>
