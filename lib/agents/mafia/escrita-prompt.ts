@@ -256,7 +256,7 @@ INSTRUÇÕES DE EXECUÇÃO
 • O tamanho de cada capítulo é definido pela estrutura aprovada.
 • Parágrafos de no máximo 5 linhas.
 • Evite descrições excessivas nos primeiros 5 parágrafos — entre direto na cena.
-• Informar a contagem de palavras ao final de cada capítulo.
+• PROIBIDO escrever a contagem de palavras em qualquer lugar do corpo da narrativa (do começo ao fim de cada capítulo) em QUALQUER formato — exemplos vetados: '(2.097 palavras)', '*2.103 palavras*', '2103 palavras', '(Contagem: 1.764 palavras)', 'Contagem de palavras: 1764', 'Total: 2103 palavras', 'Total de palavras: 1764'. Quebra de 4ª parede.
 • Quero frases bem conectadas, com amplo uso de conectivos e artigos definidos.
 
 REGRAS DE TAMANHO POR PAR DE CAPÍTULOS (do START MAFIA — preservar fielmente):
@@ -294,7 +294,7 @@ CHECKLIST POR CAPÍTULO (executar mentalmente antes de entregar):
 • Erros de conjugação verbal — tempo verbal predominante consistente, irregulares conjugados corretamente, imperfeito do subjuntivo nas condicionais.
 • Erros de contexto e continuidade — leitor sabe quem é cada personagem, cenário estabelecido, objetos coerentes, estado de conhecimento de cada personagem verificado.
 
-11. VERIFICAÇÃO FINAL DE ENTREGA: contagem de palavras informada e dentro do tamanho da estrutura, nenhuma ponta solta, easter eggs sem citar número de capítulo, protocolo de continuidade aplicado (3 passadas).
+11. VERIFICAÇÃO FINAL DE ENTREGA: total de palavras dentro do tamanho da estrutura (sem JAMAIS escrever a contagem no corpo do capítulo), nenhuma ponta solta, easter eggs sem citar número de capítulo, protocolo de continuidade aplicado (3 passadas).
 
 CHECKLIST FINAL — APÓS O ÚLTIMO CAPÍTULO
 • Nenhum Hook escrito antes do Capítulo 1.
@@ -328,7 +328,7 @@ CHECKLIST FINAL — APÓS O ÚLTIMO CAPÍTULO
 • Norma culta.
 • Todos os capítulos terminam com cliffhanger.
 • Cliffhanger final da Parte 1 é o mais poderoso de todos.
-• Contagem de palavras informada ao final de cada capítulo.
+• Nenhuma linha de contagem de palavras escrita no corpo do capítulo (ex.: "(2.097 palavras)", "*2103 palavras*"). Total deve apenas BATER com o alvo da estrutura — não anunciar.
 • Estrutura aprovada seguida fielmente.
 • Nenhum easter egg cita número de capítulo.
 

@@ -1,3 +1,5 @@
+import { countWords } from "./word-count.ts";
+
 /**
  * Helpers de exportação HTML do roteiro.
  *
@@ -68,29 +70,27 @@ function preprocessRoteiro(raw: string): string {
       return `### ✦ ${formatted}`;
     },
   );
+  // Formato máfia (lib/agents/mafia/escrita-prompt.ts:46) — POV vem como
+  // linha isolada `✦ NOME` (com possível **negrito**), sem heading markdown.
+  // Promove para `### ✦ NOME` pra ser tratado pelo walker e pelo detector
+  // de MMC. Não casa quando já tem `### ` na frente (esse prefixo bloqueia
+  // o `^[ \t]*` por causa do `#`).
+  preprocessed = preprocessed.replace(
+    /^[ \t]*\*{0,2}✦[ \t]+([^\n*]+?)\*{0,2}[ \t]*$/gm,
+    (_m, name) => `### ✦ ${name.trim()}`,
+  );
   return preprocessed;
 }
 
 /**
- * Detecta o nome do MMC pra aplicar o highlight verde nos parágrafos do
- * POV masculino na Parte 2.
+ * Detecta MMC dado um trecho qualquer (sem garantia de Parte 1 + Parte 2).
  *
- * Regra do prompt da Escrita (lib/agents/milionario1p/escrita-prompt.ts:74):
- *   "Quando o capítulo da Parte 2 começa, coloque sempre o ### ✦ [Nome] do
- *    narrador inicial logo abaixo do título do capítulo, mesmo que seja a FMC."
- *
- * Ou seja: o PRIMEIRO `### ✦ Nome` do roteiro é SEMPRE a FMC. Como o formato
- * Helô só tem 2 POVs em primeira pessoa (FMC + MMC), qualquer POV diferente
- * que apareça depois do primeiro é o MMC.
- *
- * Essa heurística é determinística e funciona em qualquer recorte — roteiro
- * inteiro, só Parte 2, ou um único capítulo da Parte 2 — porque não depende
- * de contagem de palavras (a tentativa anterior usava "quem tem menos
- * palavras = MMC" e invertia o highlight quando a FMC tinha menos palavras
- * num recorte específico).
- *
- * Retorna `null` quando não dá pra decidir: roteiro sem `### ✦` nenhum
- * (Parte 1 isolada) ou só com 1 POV (FMC narrando sozinha).
+ * Heurística "primeiro vs. segundo POV diferente": o primeiro `### ✦ Nome`
+ * é tratado como FMC e o próximo nome distinto é o MMC. Funciona em
+ * `milionario-1p` porque o prompt da Escrita força a Parte 2 a sempre
+ * começar pelo POV da FMC. Para `milionario-3p` (onde Parte 2 pode começar
+ * pelo MMC) essa regra inverte e/ou retorna nada — use
+ * `detectMaleLeadFromFullRoteiro` quando o roteiro inteiro está disponível.
  */
 export function detectMaleLeadName(raw: string): string | null {
   const normalized = preprocessRoteiro(raw);
@@ -120,22 +120,209 @@ export function detectMaleLeadName(raw: string): string | null {
   return mmcDisplay;
 }
 
+const IMPLICIT_POV_KEY = "__implicit__";
+
+/**
+ * Linha standalone que o LLM da Escrita injeta no fim de capítulos com a
+ * contagem de palavras (ex.: `(2.097 palavras)`, `*(2.103 palavras)*`,
+ * `(Contagem: 1.764 palavras)`, `Total de palavras: 1764`). Não devem ir
+ * pra exportação (PDF, HTML, clipboard) em nenhuma categoria nem Parte.
+ *
+ * Estratégia: a linha é considerada metadata se, depois de remover marcadores
+ * markdown, parênteses, sinais, números e palavras-chave conhecidas (contagem,
+ * total, palavra(s), de, aproximadamente, etc.), sobrar STRING VAZIA. Frases
+ * de prosa que mencionam "palavras" no meio (ex.: "Ela escreveu 200 palavras
+ * antes de parar.") deixam tokens normais sobrando, então não casam.
+ *
+ * Exige presença simultânea de dígito e da palavra "palavra(s)" — sem isso,
+ * é prosa normal.
+ */
+function isWordCountLine(rawLine: string): boolean {
+  const trimmed = rawLine.trim();
+  if (!trimmed) return false;
+  if (!/\d/.test(trimmed)) return false;
+  // Não usa \b pq `_` é word char (regex JS), e o LLM emite italico com
+  // underscore tipo `_2.103 palavras_`. Boundary explícito por não-letra.
+  if (
+    !/(?:^|[^a-záéíóúâêôãõçñ])palavras?(?:$|[^a-záéíóúâêôãõçñ])/i.test(trimmed)
+  )
+    return false;
+  const stripped = trimmed
+    .replace(/[*_()~≈]/g, " ")
+    .replace(/[:\-—,.]/g, " ")
+    .replace(/\d+/g, " ")
+    .toLowerCase()
+    .replace(
+      /\b(?:contagem|total|de|palavras|palavra|aproximadamente|cerca|aprox|aproximado)\b/g,
+      " ",
+    )
+    .replace(/\s+/g, "");
+  return stripped === "";
+}
+
+/**
+ * Extrai o PRIMEIRO NOME do MMC do output da Estrutura1 (ou Estrutura2).
+ *
+ * Em todas as 3 categorias (`milionario-1p`, `milionario-3p`, `mafia`) os
+ * prompts da Estrutura têm uma seção rotulada `PROTAGONISTA MASCULINO (MMC)`
+ * seguida de um campo `Nome: <nome>` (ou `- Nome: <nome>`, com bullet
+ * markdown opcional, e cabeçalho podendo vir com `#` ou emoji 👤/🤵 antes).
+ *
+ * Esta é a fonte CONFIÁVEL — não depende de heurística de palavras (que
+ * quebra em máfia, onde MMC pode ter mais palavras que FMC).
+ *
+ * Retorna só o PRIMEIRO nome ("Saverio" de "Saverio Aldobrandini") porque
+ * é assim que o `✦ NOME` aparece no roteiro da Escrita.
+ *
+ * Retorna `null` se a estrutura não foi gerada, foi editada quebrando o
+ * padrão, ou não é parseável.
+ */
+export function extractMaleLeadNameFromEstrutura(
+  estruturaContent: string | undefined | null,
+): string | null {
+  if (!estruturaContent) return null;
+  const re =
+    /PROTAGONISTA\s+MASCULINO\s*\(MMC\)[^\n]*\n(?:[^\n]*\n){0,5}?\s*(?:[-•*]\s*)?\*{0,2}Nome\*{0,2}\s*[:\-—]\s*([^\n,([]+)/i;
+  const m = estruturaContent.match(re);
+  if (!m) return null;
+  const fullName = m[1]
+    .trim()
+    .replace(/^\*+|\*+$/g, "")
+    .trim();
+  if (!fullName) return null;
+  const firstName = fullName.split(/\s+/)[0];
+  return firstName || null;
+}
+
+/**
+ * Detecta o MMC a partir do roteiro COMPLETO (Parte 1 + Parte 2).
+ *
+ * Sinais combinados (em ordem):
+ *   1. **Parte 1 marcou FMC e Parte 2 introduz nome novo** (`milionario-3p`):
+ *      Se Parte 1 tem `### ✦` cobrindo a maior parte da prosa de P1 (ou seja,
+ *      o bucket implícito de P1 é pequeno), o set de nomes de P1 é o conjunto
+ *      FMC. MMC = primeiro nome em P2 que NÃO está nesse set.
+ *   2. **FMC tem mais palavras que MMC** (sinal universal — vale para `1p`,
+ *      `mafia` e como tiebreaker de `3p`): Conta palavras por bucket de POV
+ *      no roteiro inteiro (incluindo um bucket "implícito" para a prosa
+ *      antes de qualquer `### ✦`, típico da Parte 1 de `1p` e `mafia`). Se
+ *      o bucket implícito é grande (>= 1000 palavras), ele representa a FMC
+ *      narrando sem header. Entre os nomes marcados, MMC = quem tem MENOS
+ *      palavras totais. Cobre o caso da máfia onde Parte 1 é toda implícita
+ *      e o MMC só aparece num cliffhanger curto + na Parte 2.
+ *   3. **Apenas 1 nome marcado**: Se há narração implícita substantiva mais
+ *      um único nome com `### ✦`, esse nome é o MMC.
+ *
+ * Retorna `null` quando não há `### ✦` algum (não dá pra destacar nada).
+ */
+export function detectMaleLeadFromFullRoteiro(raw: string): string | null {
+  const normalized = preprocessRoteiro(raw);
+
+  type Bucket = { display: string; words: number };
+  const buckets = new Map<string, Bucket>();
+  const parte1Names: string[] = [];
+  const parte2Names: string[] = [];
+
+  let currentPovCanonical: string = IMPLICIT_POV_KEY;
+  let inParte2 = false;
+
+  const ensureBucket = (canonical: string, display: string) => {
+    if (!buckets.has(canonical)) {
+      buckets.set(canonical, { display, words: 0 });
+    }
+  };
+  ensureBucket(IMPLICIT_POV_KEY, "");
+
+  for (const rawLine of normalized.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    if (/^#\s+PARTE 2\s*$/.test(line)) {
+      inParte2 = true;
+      // Reseta o POV: prosa logo após `# PARTE 2` sem `### ✦` é implícita
+      // de novo (raro, mas evita herdar POV de cliffhanger da P1).
+      currentPovCanonical = IMPLICIT_POV_KEY;
+      continue;
+    }
+    if (/^#\s+PARTE 1\s*$/.test(line)) {
+      inParte2 = false;
+      currentPovCanonical = IMPLICIT_POV_KEY;
+      continue;
+    }
+
+    const h3 = line.match(/^###\s+(.+)$/);
+    if (h3) {
+      const display = h3[1].replace(/^✦\s*/, "").trim();
+      if (display) {
+        currentPovCanonical = display.toLowerCase();
+        ensureBucket(currentPovCanonical, display);
+        if (inParte2) parte2Names.push(currentPovCanonical);
+        else parte1Names.push(currentPovCanonical);
+      }
+      continue;
+    }
+
+    // Pula `## Capítulo` e `# OutraCoisa` (não conta como prosa).
+    if (/^##?\s+/.test(line)) continue;
+
+    buckets.get(currentPovCanonical)!.words += countWords(line);
+  }
+
+  const namedBuckets = [...buckets.entries()].filter(
+    ([canonical]) => canonical !== IMPLICIT_POV_KEY,
+  );
+
+  if (namedBuckets.length === 0) return null;
+  if (namedBuckets.length === 1) return namedBuckets[0][1].display;
+
+  const implicitWords = buckets.get(IMPLICIT_POV_KEY)!.words;
+  const parte1Set = new Set(parte1Names);
+
+  // Sinal 1: Parte 1 marcou a FMC com cobertura significativa (implícito
+  // pequeno). Vale pra milionario-3p (P1 narrada limitada à FMC com header).
+  if (parte1Set.size > 0 && implicitWords < 1000) {
+    for (const canonical of parte2Names) {
+      if (!parte1Set.has(canonical)) {
+        return buckets.get(canonical)!.display;
+      }
+    }
+    return null;
+  }
+
+  // Sinal 2: FMC tem mais palavras (universal). Quando a P1 é implícita
+  // (bucket "__implicit__" grande) ou nenhum dos sinais determinísticos
+  // resolveu, o nome marcado com MENOS palavras é o MMC.
+  namedBuckets.sort((a, b) => a[1].words - b[1].words);
+  return namedBuckets[0][1].display;
+}
+
 /**
  * Converte o output cru da Escrita em HTML formatado, com hierarquia
  * de headings adequada pra Google Docs e PDF.
  */
 export function escritaContentToHtml(
   raw: string,
-  options?: { maleLeadName?: string | null },
+  options?: {
+    maleLeadName?: string | null;
+    /**
+     * Quando o `raw` é só Parte 2 (sem o header `# PARTE 2` no início, caso do
+     * `CopyPartButton` exportando "Parte 2"), passar `forceParte2: true` pra
+     * aplicar o destaque do MMC desde o começo. Default `false`: o walker
+     * espera ver `# PARTE 2` antes de habilitar o destaque, garantindo que
+     * trechos da Parte 1 (ex.: cliffhanger MMC da máfia) não sejam pintados.
+     */
+    forceParte2?: boolean;
+  },
 ): string {
   const out: string[] = [];
   let inCodeBlock = false;
   let paraBuffer: string[] = [];
   let currentPov: string | null = null;
+  let inParte2 = options?.forceParte2 === true;
 
   const maleLeadName =
     options?.maleLeadName === undefined
-      ? detectMaleLeadName(raw)
+      ? detectMaleLeadFromFullRoteiro(raw)
       : options.maleLeadName;
   const maleLeadCanonical = maleLeadName ? nomeCanonico(maleLeadName) : null;
 
@@ -147,7 +334,9 @@ export function escritaContentToHtml(
     if (text) {
       const inner = inlineFormat(text);
       const isMmcPov =
-        maleLeadCanonical !== null && currentPov === maleLeadCanonical;
+        inParte2 &&
+        maleLeadCanonical !== null &&
+        currentPov === maleLeadCanonical;
       const content = isMmcPov
         ? `<span style="${STYLE_HIGHLIGHT_MMC}">${inner}</span>`
         : inner;
@@ -181,6 +370,11 @@ export function escritaContentToHtml(
       continue;
     }
 
+    if (isWordCountLine(line)) {
+      flushPara();
+      continue;
+    }
+
     const h1 = line.match(/^#\s+(.+)$/);
     const h2 = line.match(/^##\s+(.+)$/);
     const h3 = line.match(/^###\s+(.+)$/);
@@ -208,6 +402,12 @@ export function escritaContentToHtml(
       // adiciona page-break antes da PARTE 2+.
       flushPara();
       currentPov = null;
+      const partLabel = h1[1].trim().toUpperCase();
+      if (/^PARTE\s+2\b/.test(partLabel)) {
+        inParte2 = true;
+      } else if (/^PARTE\s+1\b/.test(partLabel)) {
+        inParte2 = false;
+      }
       const isFirstPart = !out.some((s) => /class="part-divider"/.test(s));
       const breakStyle = isFirstPart ? "" : "; page-break-before: always";
       out.push(

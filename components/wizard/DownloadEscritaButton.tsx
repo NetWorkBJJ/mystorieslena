@@ -6,7 +6,9 @@ import { Check, Download, Loader2 } from "lucide-react";
 import type { Roteiro } from "@/types/roteiro";
 import {
   buildEscritaHtmlDocument,
+  detectMaleLeadFromFullRoteiro,
   escritaContentToHtml,
+  extractMaleLeadNameFromEstrutura,
 } from "@/lib/export-html";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +45,14 @@ export function DownloadEscritaButton({
     setState("loading");
     try {
       const title = roteiro.title || "Roteiro";
-      const bodyHtml = escritaContentToHtml(escritaContent);
+      // Fonte primária: campo `Nome:` da seção "PROTAGONISTA MASCULINO
+      // (MMC)" da Estrutura1/2. Fallback: heurística baseada nos POVs
+      // marcados no roteiro inteiro.
+      const maleLeadName =
+        extractMaleLeadNameFromEstrutura(roteiro.outputs.estrutura1?.content) ??
+        extractMaleLeadNameFromEstrutura(roteiro.outputs.estrutura2?.content) ??
+        detectMaleLeadFromFullRoteiro(escritaContent);
+      const bodyHtml = escritaContentToHtml(escritaContent, { maleLeadName });
       const html = buildEscritaHtmlDocument(title, bodyHtml);
       const safeName =
         (title || "roteiro").replace(/[^\w\s-]/g, "").trim() || "roteiro";

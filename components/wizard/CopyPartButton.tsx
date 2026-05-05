@@ -6,7 +6,9 @@ import { Check, Copy, Loader2 } from "lucide-react";
 import type { Roteiro } from "@/types/roteiro";
 import {
   buildEscritaHtmlDocument,
+  detectMaleLeadFromFullRoteiro,
   escritaContentToHtml,
+  extractMaleLeadNameFromEstrutura,
   splitRoteiroByParts,
 } from "@/lib/export-html";
 import { cn } from "@/lib/utils";
@@ -54,7 +56,29 @@ export function CopyPartButton({
 
     setState("loading");
     try {
-      const bodyHtml = escritaContentToHtml(partContent);
+      // Destaque verde do MMC sai só na Parte 2. Quando o usuário copia a
+      // Parte 1, desativa via `maleLeadName: null`. Quando copia a Parte 2,
+      // o conteúdo já vem sem o header `# PARTE 2` (`splitRoteiroByParts`
+      // remove ele) — `forceParte2: true` garante que o walker já comece
+      // tratando o conteúdo como Parte 2.
+      // Fonte primária do nome do MMC: o campo `Nome:` da seção
+      // "PROTAGONISTA MASCULINO (MMC)" da Estrutura1 (rótulo explícito,
+      // garantido nas 3 categorias). Fallback: heurística que conta POVs
+      // marcados no roteiro inteiro. Parte 1 não destaca nada.
+      const maleLeadName =
+        part === 2
+          ? extractMaleLeadNameFromEstrutura(
+              roteiro.outputs.estrutura1?.content,
+            ) ??
+            extractMaleLeadNameFromEstrutura(
+              roteiro.outputs.estrutura2?.content,
+            ) ??
+            detectMaleLeadFromFullRoteiro(escritaContent)
+          : null;
+      const bodyHtml = escritaContentToHtml(partContent, {
+        maleLeadName,
+        forceParte2: part === 2,
+      });
       const html = buildEscritaHtmlDocument("", bodyHtml);
       const text = partContent;
 

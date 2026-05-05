@@ -16,7 +16,6 @@ interface WizardState {
   roteiro: Roteiro | null;
   isGenerating: boolean;
   autoAdvance: boolean;
-  skipCalibration: boolean;
   setRoteiro: (r: Roteiro) => void;
   setCurrentStep: (step: StepId) => void;
   setOutput: (step: StepId, output: StepOutput) => void;
@@ -51,7 +50,6 @@ interface WizardState {
   setTitle: (title: string) => void;
   setIsGenerating: (v: boolean) => void;
   setAutoAdvance: (v: boolean) => void;
-  setSkipCalibration: (v: boolean) => void;
   /** Salva o output atual do step no histórico (se houver conteúdo). */
   pushOutputToHistory: (step: StepId, customLabel?: string) => void;
   /** Restaura uma versão do histórico para o output atual.
@@ -120,7 +118,6 @@ export const useWizard = create<WizardState>((set, get) => ({
   roteiro: null,
   isGenerating: false,
   autoAdvance: false,
-  skipCalibration: false,
 
   setRoteiro: (r) => set({ roteiro: r }),
 
@@ -244,8 +241,6 @@ export const useWizard = create<WizardState>((set, get) => ({
   setIsGenerating: (v) => set({ isGenerating: v }),
 
   setAutoAdvance: (v) => set({ autoAdvance: v }),
-
-  setSkipCalibration: (v) => set({ skipCalibration: v }),
 
   pushOutputToHistory: (step, customLabel) =>
     set((s) => {

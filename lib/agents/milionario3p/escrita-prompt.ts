@@ -366,7 +366,7 @@ ERROS QUE QUEBRAM A EXPERIÊNCIA: Sem repetição de informações já reveladas
 - Comece sempre pelo capítulo solicitado pelo contexto. NÃO escreva HOOK.
 - O tamanho de cada capítulo é definido pela estrutura aprovada.
 - Parágrafos de no máximo 5 linhas.
-- Informar a contagem de palavras ao final de cada capítulo (aceitável dentro do bloco ═══ SINOPSES ═══, fora do corpo da narrativa).
+- PROIBIDO escrever a contagem de palavras em qualquer parte do capítulo (inclusive no fim) em QUALQUER formato — exemplos vetados: '(2.097 palavras)', '*2.103 palavras*', '2103 palavras', '(Contagem: 1.764 palavras)', 'Contagem de palavras: 1764', 'Total: 2103 palavras', 'Total de palavras: 1764'. Quebra de 4ª parede. O total deve apenas BATER com o alvo da estrutura — sem anunciar.
 - Margem por capítulo: ±3% do alvo declarado na estrutura. Antes de fechar cada capítulo, contar palavra-por-palavra.
 - Se ficar abaixo, EXPANDA cenas existentes (não invente novas) com mais detalhe sensorial e diálogo. Se ficar acima, ENCURTE redundâncias.
 `;

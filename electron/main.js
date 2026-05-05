@@ -47,6 +47,11 @@ try {
   console.warn("[boot] electron-log indisponivel:", e?.message || e);
 }
 
+// Renderer com heap default ~1.5-2GB estoura em batches longos de Escrita
+// (streaming acumula strings + history + imagem inline). 4GB cobre folgado
+// um roteiro inteiro. Precisa estar setado antes de app.whenReady().
+app.commandLine.appendSwitch("js-flags", "--max-old-space-size=4096");
+
 const isDev = !!process.env.NEXT_DEV_URL;
 const DEV_URL = process.env.NEXT_DEV_URL || "";
 
@@ -448,17 +453,36 @@ function createWindow() {
 
   // Crash handlers: sem isso, quando o renderer morre (OOM, exception fatal)
   // ou o load falha (server caiu), a janela fica branca silenciosamente.
-  // Agora logamos, abrimos DevTools (em packaged) e damos opcao de recarregar.
+  // 1ª queda em 60s → reload silencioso (não tira a roteirista do fluxo).
+  // 2+ quedas em 60s → diálogo Recarregar/Sair (problema recorrente).
+  let crashCount = 0;
+  let lastCrashAt = 0;
+  let crashResetTimer = null;
+
   mainWindow.webContents.on("render-process-gone", (_e, details) => {
     console.error("[crash] render-process-gone:", JSON.stringify(details));
-    if (app.isPackaged && mainWindow && !mainWindow.isDestroyed()) {
+    const now = Date.now();
+    if (now - lastCrashAt > 60_000) crashCount = 0;
+    lastCrashAt = now;
+    crashCount++;
+
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    if (crashCount === 1 && appUrl) {
+      console.warn("[crash] auto-reload silencioso (1ª queda em 60s)");
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadURL(appUrl);
+      }, 500);
+      return;
+    }
+
+    if (app.isPackaged) {
       try {
         mainWindow.webContents.openDevTools({ mode: "detach" });
       } catch {
         // ignore
       }
     }
-    if (!mainWindow || mainWindow.isDestroyed()) return;
     dialog
       .showMessageBox(mainWindow, {
         type: "error",
@@ -481,6 +505,13 @@ function createWindow() {
       });
   });
 
+  mainWindow.webContents.on("did-finish-load", () => {
+    if (crashResetTimer) clearTimeout(crashResetTimer);
+    crashResetTimer = setTimeout(() => {
+      crashCount = 0;
+    }, 30_000);
+  });
+
   mainWindow.webContents.on("did-fail-load", (_e, code, desc, url) => {
     // Ignora canceled (usuario navegou pra outra coisa antes da load terminar)
     // e o load inicial do loading.html (file:// pode falhar em alguns cenarios).
@@ -494,8 +525,51 @@ function createWindow() {
     }
   });
 
+  // Sem prompt, GC longo / freeze ficavam invisíveis pra usuária — ela só via
+  // a janela "morta" e tentava forçar o fechamento. Agora damos a opção de
+  // reload depois de 10s sem resposta.
+  let unresponsiveTimer = null;
   mainWindow.on("unresponsive", () => {
     console.warn("[window] janela unresponsive");
+    if (unresponsiveTimer) return;
+    unresponsiveTimer = setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        unresponsiveTimer = null;
+        return;
+      }
+      dialog
+        .showMessageBox(mainWindow, {
+          type: "warning",
+          title: "MyStoriesLena travou",
+          message: "A janela parou de responder.",
+          detail:
+            "Posso forçar um reload? Você pode perder o que estava sendo gerado agora, mas os roteiros já salvos ficam intactos.",
+          buttons: ["Recarregar", "Esperar mais"],
+          defaultId: 0,
+          cancelId: 1,
+        })
+        .then((r) => {
+          unresponsiveTimer = null;
+          if (
+            r.response === 0 &&
+            appUrl &&
+            mainWindow &&
+            !mainWindow.isDestroyed()
+          ) {
+            mainWindow.loadURL(appUrl);
+          }
+        })
+        .catch(() => {
+          unresponsiveTimer = null;
+        });
+    }, 10_000);
+  });
+
+  mainWindow.on("responsive", () => {
+    if (unresponsiveTimer) {
+      clearTimeout(unresponsiveTimer);
+      unresponsiveTimer = null;
+    }
   });
 
   mainWindow.on("closed", () => {

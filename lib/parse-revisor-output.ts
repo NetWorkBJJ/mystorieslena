@@ -144,18 +144,30 @@ export function parseMarkdownErrorList(content: string): RevisorError[] {
   if (!principaisMatch) return [];
   const scope = principaisMatch[1] ?? "";
 
-  // Captura cada bloco "🟢|🟡|🟠|🔴 Erro #N [grau] — descrição (com ou sem
-  // emoji, com sufixo letra opcional)". O bloco vai até o próximo emoji
-  // de erro ou fim do escopo.
-  const errorRe =
-    /(🟢|🟡|🟠|🔴)\s*\*{0,2}\s*Erro\s*#?\s*(\d+[a-z]?)\s*(?:\[([^\]]+)\])?\s*\*{0,2}\s*[—–-]\s*([\s\S]*?)(?=\n\s*(?:🟢|🟡|🟠|🔴)\s*\*{0,2}\s*Erro|\n\s*#+\s|$)/gi;
+  // Cabeçalhos de erro variam de formato entre rodadas do modelo:
+  //   "🔴 Erro #1 [Gravíssimo] — desc"           (spec do prompt)
+  //   "Erro 1 🔴 [Interfere] — desc"             (model drift, sem #)
+  //   "**Erro #3** 🟠 [Interfere] — desc"        (com markdown bold)
+  //   "Erro 3a 🔴 [Gravíssimo] — desc"           (sufixo letra)
+  // O regex aceita o emoji ANTES ou DEPOIS de "Erro N", # opcional, bold
+  // opcional. `💀` cai no mesmo grupo gravissimo (categoria mafia).
+  const headerRe =
+    /(?:^|\n)\s*\*{0,2}\s*(🟢|🟡|🟠|🔴|💀)?\s*\*{0,2}\s*Erro\s*#?\s*(\d+[a-z]?)\s*\*{0,2}\s*(🟢|🟡|🟠|🔴|💀)?\s*\*{0,2}\s*(?:\[([^\]]+)\])?\s*[—–-]\s*/gi;
+
+  const matches = Array.from(scope.matchAll(headerRe));
+  if (matches.length === 0) return [];
 
   const out: RevisorError[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = errorRe.exec(scope)) !== null) {
-    const emoji = m[1]!;
-    const numero = m[2]!.toLowerCase();
-    const description = (m[4] ?? "").trim().replace(/\s+/g, " ");
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i]!;
+    const emoji = m[1] ?? m[3] ?? "";
+    const numero = (m[2] ?? "").toLowerCase();
+    if (!numero) continue;
+
+    const start = (m.index ?? 0) + m[0].length;
+    const next = matches[i + 1];
+    const end = next ? (next.index ?? scope.length) : scope.length;
+    const description = scope.slice(start, end).trim().replace(/\s+/g, " ");
     if (!description) continue;
 
     const gravidade: RevisorErrorGravity =
@@ -165,7 +177,9 @@ export function parseMarkdownErrorList(content: string): RevisorError[] {
         ? "atencao"
         : emoji === "🟠"
         ? "interfere"
-        : "gravissimo";
+        : emoji === "🔴" || emoji === "💀"
+        ? "gravissimo"
+        : "atencao";
 
     // Título = primeira frase ou primeiros ~100 chars; resto = porqueAlterado.
     const sentenceMatch = /^([^.!?]+[.!?])\s*([\s\S]*)$/.exec(description);

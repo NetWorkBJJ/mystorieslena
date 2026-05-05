@@ -6,7 +6,13 @@ import { ImagePlus, Trash2, AlertCircle } from "lucide-react";
 import type { RoteiroReferenceImage } from "@/types/roteiro";
 import { useWizard } from "@/store/wizard";
 
-const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
+const MAX_BYTES = 2 * 1024 * 1024; // 2 MB (limite de upload)
+// Acima disso ou de COMPRESS_MAX_DIM, recomprime pra JPEG. A imagem só é
+// usada como referência visual pelos agentes — alta resolução/peso só
+// inflava localStorage e payload das chamadas /api/agent/*.
+const COMPRESS_MAX_BYTES = 400 * 1024; // 400 KB
+const COMPRESS_MAX_DIM = 1024;
+const COMPRESS_QUALITY = 0.85;
 const ACCEPTED_MIME: RoteiroReferenceImage["mimeType"][] = [
   "image/jpeg",
   "image/png",
@@ -27,6 +33,65 @@ function readFileAsDataURL(file: File): Promise<string> {
     reader.onerror = () => reject(new Error("Falha ao ler imagem."));
     reader.readAsDataURL(file);
   });
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Falha ao decodificar imagem."));
+    img.src = src;
+  });
+}
+
+// Tamanho aproximado do payload de um data URL base64 (cada 4 chars = 3 bytes).
+function dataUrlByteLength(dataUrl: string): number {
+  const comma = dataUrl.indexOf(",");
+  const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+  const padding = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+  return Math.floor((b64.length * 3) / 4) - padding;
+}
+
+// Se a imagem já está pequena (≤400KB) e em dimensão razoável (≤1024px),
+// devolve original. Senão, renderiza num canvas com no máximo 1024×1024 e
+// exporta JPEG q0.85. GIF animado fica reduzido a um único frame — aceitável
+// pra uso como referência visual estática.
+async function compressIfNeeded(
+  file: File,
+  originalDataUrl: string,
+): Promise<{
+  dataUrl: string;
+  mimeType: RoteiroReferenceImage["mimeType"];
+  size: number;
+}> {
+  const originalMime = file.type as RoteiroReferenceImage["mimeType"];
+  let img: HTMLImageElement;
+  try {
+    img = await loadImage(originalDataUrl);
+  } catch {
+    return { dataUrl: originalDataUrl, mimeType: originalMime, size: file.size };
+  }
+  const maxDim = Math.max(img.width, img.height);
+  if (file.size <= COMPRESS_MAX_BYTES && maxDim <= COMPRESS_MAX_DIM) {
+    return { dataUrl: originalDataUrl, mimeType: originalMime, size: file.size };
+  }
+  const scale = Math.min(1, COMPRESS_MAX_DIM / maxDim);
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return { dataUrl: originalDataUrl, mimeType: originalMime, size: file.size };
+  }
+  ctx.drawImage(img, 0, 0, w, h);
+  const compressedDataUrl = canvas.toDataURL("image/jpeg", COMPRESS_QUALITY);
+  return {
+    dataUrl: compressedDataUrl,
+    mimeType: "image/jpeg",
+    size: dataUrlByteLength(compressedDataUrl),
+  };
 }
 
 export function ReferenceImageUpload() {
@@ -69,12 +134,13 @@ export function ReferenceImageUpload() {
         return;
       }
       try {
-        const dataUrl = await readFileAsDataURL(file);
+        const originalDataUrl = await readFileAsDataURL(file);
+        const compressed = await compressIfNeeded(file, originalDataUrl);
         setReferenceImage({
-          dataUrl,
-          mimeType: mime,
+          dataUrl: compressed.dataUrl,
+          mimeType: compressed.mimeType,
           filename: file.name,
-          size: file.size,
+          size: compressed.size,
           uploadedAt: new Date().toISOString(),
         });
         e.target.value = "";

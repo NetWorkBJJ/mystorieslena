@@ -25,7 +25,6 @@ import {
   Pencil,
   RotateCcw,
   Send,
-  SkipForward,
   Sparkles,
   Wand2,
   Zap,
@@ -67,23 +66,58 @@ import {
   planBatches,
 } from "@/lib/parse-estrutura-chapters";
 import { parseEscritaBatch } from "@/lib/parse-escrita-batch";
-import {
-  extractChapterTargets,
-  isWithinTarget,
-  partTotalRange,
-} from "@/lib/parse-estrutura-targets";
+import { extractChapterTargets } from "@/lib/parse-estrutura-targets";
 import { MemoryVivaCard } from "@/components/wizard/MemoryVivaCard";
 import { WordCountBadge } from "@/components/wizard/WordCountBadge";
 // countWords sempre da lib canônica — mesmo contador que a UI usa pra
 // exibir os totais. Ver CLAUDE.md seção "Contagem de palavras".
 import { countWords } from "@/lib/word-count";
-import { validateRewrite } from "@/lib/validate-rewrite";
 import { HistoryPanel } from "@/components/wizard/HistoryPanel";
 import { DownloadEscritaButton } from "@/components/wizard/DownloadEscritaButton";
 import { CopyPartButton } from "@/components/wizard/CopyPartButton";
 import { ReferenceImageUpload } from "@/components/wizard/ReferenceImageUpload";
 import { Prose } from "@/components/ui/prose";
 import { cn } from "@/lib/utils";
+
+// Lê um stream do servidor acumulando o texto e atualizando o liveStream no
+// máximo 1×/frame (~60Hz). Sem o throttle, cada chunk disparava setState com
+// a string crescendo + re-render do React — em batches longos da Escrita isso
+// virava pressão de memória O(n²) que crashava o renderer (OOM exit -36861).
+async function readStreamThrottled(
+  res: Response,
+  setLive: (v: string) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (!res.body) throw new Error("Stream sem corpo");
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let acc = "";
+  let pending: string | null = null;
+  let rafId: number | null = null;
+  const flush = () => {
+    if (pending !== null) setLive(pending);
+    pending = null;
+    rafId = null;
+  };
+  try {
+    while (true) {
+      if (signal?.aborted) break;
+      const { done, value } = await reader.read();
+      if (done) break;
+      acc += decoder.decode(value, { stream: true });
+      pending = acc;
+      if (rafId === null && typeof requestAnimationFrame !== "undefined") {
+        rafId = requestAnimationFrame(flush);
+      }
+    }
+  } finally {
+    if (rafId !== null && typeof cancelAnimationFrame !== "undefined") {
+      cancelAnimationFrame(rafId);
+    }
+    setLive(acc);
+  }
+  return acc;
+}
 
 type WizardProgress =
   | {
@@ -94,77 +128,12 @@ type WizardProgress =
       chapters: number[];
     }
   | {
-      kind: "preparing";
-      chaptersCount: number;
-    }
-  | {
-      kind: "extending-chapter";
-      chapterNumber: number;
-      part: "Parte 1" | "Parte 2";
-      currentWords: number;
-      targetWords: number;
-      direction: "expand" | "shrink";
-    }
-  | {
-      kind: "balancing-part";
-      part: "Parte 1" | "Parte 2";
-      partTotal: number;
-      targetTotal: number;
-      direction: "expand" | "shrink";
-    }
-  | {
       kind: "revising";
       chaptersCount: number;
     };
 
 const PART_BANNER = (part: string) =>
   `═══════════════════════════════════════\n${part.toUpperCase()}\n═══════════════════════════════════════`;
-
-/**
- * Parser leve do output do revisor gramatical: extrai capítulos pela
- * mesma regex do batch normal. Cada cap volta SEM `part` — o caller
- * (que tem a lista original) faz o merge por número.
- */
-function parseRevisedChapters(
-  raw: string,
-): Array<{ number: number; title?: string; content: string }> {
-  const trimmed = raw.trim();
-  if (!trimmed) return [];
-  type Hit = { number: number; title?: string; index: number; headerEnd: number };
-  const hits: Hit[] = [];
-  // Markdown opcional + bold opcional — tolera variações que o modelo emite.
-  const titledRe = /^#{0,4}\s*\*{0,2}\s*Cap[ií]tulo\s+(\d+)\s*(?:—|–|-)\s*(.+?)\s*\*{0,2}\s*$/gim;
-  const noTitleRe = /^#{0,4}\s*\*{0,2}\s*Cap[ií]tulo\s+(\d+)\s*\*{0,2}\s*$/gim;
-  let m: RegExpExecArray | null;
-  while ((m = titledRe.exec(trimmed)) !== null) {
-    hits.push({
-      number: parseInt(m[1]!, 10),
-      title: m[2]!.trim(),
-      index: m.index,
-      headerEnd: m.index + m[0].length,
-    });
-  }
-  while ((m = noTitleRe.exec(trimmed)) !== null) {
-    if (hits.some((h) => h.index === m!.index)) continue;
-    hits.push({
-      number: parseInt(m[1]!, 10),
-      index: m.index,
-      headerEnd: m.index + m[0].length,
-    });
-  }
-  hits.sort((a, b) => a.index - b.index);
-  const result: Array<{ number: number; title?: string; content: string }> = [];
-  for (let i = 0; i < hits.length; i++) {
-    const cur = hits[i]!;
-    const nextStart = i + 1 < hits.length ? hits[i + 1]!.index : trimmed.length;
-    result.push({
-      number: cur.number,
-      title: cur.title,
-      content: trimmed.slice(cur.headerEnd, nextStart).trim(),
-    });
-  }
-  return result;
-}
 
 // Contador de palavras: SEMPRE `countWords` de @/lib/word-count.
 // Importado acima. NUNCA criar outro contador local — split(/\s+/) ingênuo
@@ -197,8 +166,6 @@ export function StepShell({ step }: Props) {
   const isGenerating = useWizard((s) => s.isGenerating);
   const autoAdvance = useWizard((s) => s.autoAdvance);
   const setAutoAdvance = useWizard((s) => s.setAutoAdvance);
-  const skipCalibration = useWizard((s) => s.skipCalibration);
-  const setSkipCalibration = useWizard((s) => s.setSkipCalibration);
   const setIsGenerating = useWizard((s) => s.setIsGenerating);
   const setOutput = useWizard((s) => s.setOutput);
   const updateOutputContent = useWizard((s) => s.updateOutputContent);
@@ -236,6 +203,15 @@ export function StepShell({ step }: Props) {
     setLiveStream("");
   }, [step]);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Em caso de auto-reload do Electron (ver crash handler em main.js), aborta
+  // streams em flight pra liberar a memória que o renderer estava acumulando
+  // antes de morrer. Sem isso, o reload partiria com requests órfãs ao server.
+  useEffect(() => {
+    const handler = () => abortRef.current?.abort();
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
 
   const previousOutputsSummary = useMemo(() => {
     if (!roteiro) return [];
@@ -406,18 +382,8 @@ export function StepShell({ step }: Props) {
       const accSynopses: EscritaSynopsis[] = [];
 
       // ─── helpers locais ──────────────────────────────────────────────
-      const readStreamFully = async (res: Response): Promise<string> => {
-        const reader = res.body!.getReader();
-        const decoder = new TextDecoder();
-        let acc = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          acc += decoder.decode(value, { stream: true });
-          setLiveStream(acc);
-        }
-        return acc;
-      };
+      const readStreamFully = (res: Response) =>
+        readStreamThrottled(res, setLiveStream, ctrl.signal);
 
       const persist = () => {
         const newContent = concatenateChapters(accChapters);
@@ -538,26 +504,13 @@ export function StepShell({ step }: Props) {
       return;
     }
 
-    // ─── Branch Revisor: pré-fase de extensão + revisão XML ─────────────
-    // Etapas:
-    //   1) Lê os capítulos da Escrita e re-extrai targets das estruturas.
-    //   2) Para cada cap fora do alvo (±3%), dispara fix-wordcount e atualiza
-    //      o output da Escrita imediatamente.
-    //   3) Para cada Parte, checa total e dispara balance compensatório se
-    //      fora de partTotalRange.
-    //   4) Tira escritaSnapshotHash do roteiro já calibrado.
-    //   5) Roda /api/agent/revisor (XML estruturado) e parseia erros + fallback.
-    //
-    // Em modo correção, pulamos a pré-fase de extensão/balance e caímos no
-    // branch padrão (1 chamada com refineMode: true). O agente do Revisor
-    // devolve a revisão completa atualizada com apenas a correção pedida.
+    // ─── Branch Revisor: revisão XML estruturada ─────────────────────────
+    // Em modo correção, caímos no branch padrão (1 chamada com refineMode).
     if (step === "revisor" && mode !== "refine") {
       const escritaOutput = roteiro.outputs.escrita;
       const accChapters: EscritaChapter[] = escritaOutput?.metadata?.chapters
         ? [...escritaOutput.metadata.chapters]
         : [];
-      const accSynopses: EscritaSynopsis[] =
-        escritaOutput?.metadata?.synopses ?? [];
 
       if (accChapters.length === 0) {
         setOutput(step, {
@@ -568,266 +521,7 @@ export function StepShell({ step }: Props) {
         return;
       }
 
-      // Feedback visual imediato — sem isso a UI mostra "Clique em Gerar"
-      // enquanto a pré-fase decide qual cap (se algum) precisa estender.
-      setBatchProgress({
-        kind: "preparing",
-        chaptersCount: accChapters.length,
-      });
-      setLiveStream("");
-
-      // Snapshot da Escrita no histórico antes da extensão re-escrever caps.
-      pushOutputToHistory("escrita", "Antes da extensão pelo Revisor");
-
-      const estrutura1 = roteiro.outputs.estrutura1?.content;
-      const estrutura2 = roteiro.outputs.estrutura2?.content;
-      const targetsP1Raw = extractChapterTargets(estrutura1);
-      const targetsP2Raw = extractChapterTargets(estrutura2);
-
-      const persistEscrita = () => {
-        setOutput("escrita", {
-          content: concatenateChapters(accChapters),
-          metadata: {
-            chapters: [...accChapters],
-            synopses: [...accSynopses],
-          },
-          generatedAt: escritaOutput?.generatedAt ?? startedAt,
-        });
-      };
-
-      const readStreamFully = async (res: Response): Promise<string> => {
-        const reader = res.body!.getReader();
-        const decoder = new TextDecoder();
-        let acc = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          acc += decoder.decode(value, { stream: true });
-          setLiveStream(acc);
-        }
-        return acc;
-      };
-
       try {
-        if (!skipCalibration) {
-        // ═══ PHASE 1: extensão por capítulo ═══════════════════════════
-        for (let i = 0; i < accChapters.length; i++) {
-          if (ctrl.signal.aborted) break;
-          const ch = accChapters[i]!;
-          const isP1 = ch.part === "Parte 1";
-          const isP2 = ch.part === "Parte 2";
-          if (!isP1 && !isP2) continue;
-          const targets = isP1 ? targetsP1Raw : targetsP2Raw;
-          const target = targets.find((t) => t.number === ch.number)?.target;
-          if (!target) continue;
-          const real = countWords(ch.content);
-          if (isWithinTarget(real, target)) continue;
-
-          const direction: "expand" | "shrink" =
-            real < target ? "expand" : "shrink";
-          const partLabel = (isP1 ? "Parte 1" : "Parte 2") as
-            | "Parte 1"
-            | "Parte 2";
-          setBatchProgress({
-            kind: "extending-chapter",
-            chapterNumber: ch.number,
-            part: partLabel,
-            currentWords: real,
-            targetWords: target,
-            direction,
-          });
-          setLiveStream("");
-
-          const fixRes = await fetch("/api/escrita-fix-wordcount", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              category,
-              chapter: {
-                number: ch.number,
-                title: ch.title,
-                part: partLabel,
-                content: ch.content,
-              },
-              currentWords: real,
-              targetWords: target,
-              premissa: roteiro.outputs.premissa?.content,
-              neighborSynopses: accSynopses
-                .filter((s) => s.part === partLabel)
-                .slice(-4),
-            }),
-            signal: ctrl.signal,
-          });
-
-          if (!fixRes.ok || !fixRes.body) {
-            console.warn(
-              `Fix word count falhou pro Cap ${ch.number} (${partLabel}): ${fixRes.statusText}`,
-            );
-            continue;
-          }
-
-          const fixAcc = await readStreamFully(fixRes);
-          if (ctrl.signal.aborted) break;
-
-          const fixParsed = parseRevisedChapters(fixAcc);
-          const fixedCh = fixParsed.find((p) => p.number === ch.number);
-          if (fixedCh?.content) {
-            // Defesa contra resposta malformada do modelo (eco da instrução,
-            // truncamento, briefing copiado em vez do capítulo). Sem isso, o
-            // capítulo seria sobrescrito por lixo. Ver lib/validate-rewrite.ts.
-            const validation = validateRewrite({
-              newContent: fixedCh.content,
-              originalContent: ch.content,
-              targetWords: target,
-              triggerText: roteiro.userInputs?.revisor,
-            });
-            if (validation.ok) {
-              accChapters[i] = {
-                ...ch,
-                content: fixedCh.content,
-                title: fixedCh.title ?? ch.title,
-              };
-              persistEscrita();
-            } else {
-              console.warn(
-                `[Revisor Phase 1] Cap ${ch.number} (${partLabel}): ${validation.reason} — mantendo original. ${validation.message ?? ""}`,
-              );
-              setLiveStream(
-                (prev) =>
-                  `${prev}\n\n[AVISO] Cap ${ch.number} ${partLabel}: ${validation.message ?? "resposta inesperada da IA"} Mantido o texto original.`,
-              );
-            }
-          } else {
-            console.warn(
-              `Fix devolveu output sem header parseável pro Cap ${ch.number} (${partLabel}) — mantendo original`,
-            );
-          }
-        }
-
-        if (ctrl.signal.aborted) {
-          setLiveStream("");
-          setBatchProgress(null);
-          setIsGenerating(false);
-          return;
-        }
-
-        // ═══ PHASE 2: balance part-total ═════════════════════════════
-        for (const part of ["Parte 1", "Parte 2"] as const) {
-          if (ctrl.signal.aborted) break;
-          const partCaps = accChapters.filter((c) => c.part === part);
-          if (partCaps.length === 0) continue;
-          const partTotal = partCaps.reduce(
-            (s, c) => s + countWords(c.content),
-            0,
-          );
-          const range = partTotalRange(part, category);
-          if (partTotal >= range.min && partTotal <= range.max) continue;
-
-          const direction: "expand" | "shrink" =
-            partTotal < range.min ? "expand" : "shrink";
-          const delta = range.target - partTotal;
-
-          // Escolhe cap pra ajustar:
-          //   expand → cap MENOR (tem mais espaço pra crescer)
-          //   shrink → cap MAIOR
-          let pickedCap = partCaps[0]!;
-          for (const c of partCaps) {
-            const cWords = countWords(c.content);
-            const pickedWords = countWords(pickedCap.content);
-            if (direction === "expand" && cWords < pickedWords) pickedCap = c;
-            if (direction === "shrink" && cWords > pickedWords) pickedCap = c;
-          }
-
-          const currentWords = countWords(pickedCap.content);
-          const newTarget = currentWords + delta;
-
-          setBatchProgress({
-            kind: "balancing-part",
-            part,
-            partTotal,
-            targetTotal: range.target,
-            direction,
-          });
-          setLiveStream("");
-
-          const balanceRes = await fetch("/api/escrita-fix-wordcount", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              category,
-              chapter: {
-                number: pickedCap.number,
-                title: pickedCap.title,
-                part,
-                content: pickedCap.content,
-              },
-              currentWords,
-              targetWords: newTarget,
-              premissa: roteiro.outputs.premissa?.content,
-              neighborSynopses: accSynopses
-                .filter((s) => s.part === part)
-                .slice(-4),
-            }),
-            signal: ctrl.signal,
-          });
-
-          if (balanceRes.ok && balanceRes.body) {
-            const balAcc = await readStreamFully(balanceRes);
-            if (ctrl.signal.aborted) break;
-            const balParsed = parseRevisedChapters(balAcc);
-            const balCh = balParsed.find((p) => p.number === pickedCap.number);
-            if (balCh?.content) {
-              const idxInAcc = accChapters.findIndex(
-                (c) => c.part === part && c.number === pickedCap.number,
-              );
-              if (idxInAcc >= 0) {
-                // Mesma defesa da Phase 1 — modelo pode ecoar briefing.
-                const validation = validateRewrite({
-                  newContent: balCh.content,
-                  originalContent: accChapters[idxInAcc]!.content,
-                  targetWords: newTarget,
-                  triggerText: roteiro.userInputs?.revisor,
-                });
-                if (validation.ok) {
-                  accChapters[idxInAcc] = {
-                    ...accChapters[idxInAcc]!,
-                    content: balCh.content,
-                    title: balCh.title ?? accChapters[idxInAcc]!.title,
-                  };
-                  persistEscrita();
-                } else {
-                  console.warn(
-                    `[Revisor Phase 2] Balance da ${part} (Cap ${pickedCap.number}): ${validation.reason} — mantendo original. ${validation.message ?? ""}`,
-                  );
-                  setLiveStream(
-                    (prev) =>
-                      `${prev}\n\n[AVISO] Balance da ${part}: ${validation.message ?? "resposta inesperada da IA"} Mantido o texto original.`,
-                  );
-                }
-              }
-            } else {
-              console.warn(
-                `Balance da ${part} devolveu output sem header — total ficou em ${partTotal} (range ${range.min}-${range.max})`,
-              );
-            }
-          } else {
-            console.warn(
-              `Balance da ${part} falhou — total ficou em ${partTotal}`,
-            );
-          }
-        }
-
-        if (ctrl.signal.aborted) {
-          setLiveStream("");
-          setBatchProgress(null);
-          setIsGenerating(false);
-          return;
-        }
-        } else {
-          console.info("[revisor] calibragem desativada pelo usuário — pulando Phase 1+2");
-        }
-
-        // ═══ PHASE 3: revisão estruturada (XML) ═══════════════════════
         setBatchProgress({
           kind: "revising",
           chaptersCount: accChapters.length,
@@ -1118,6 +812,30 @@ export function StepShell({ step }: Props) {
           }
         }
 
+        // Defesa final: se ainda há erros listados em PRINCIPAIS ERROS que
+        // não viraram <erro> XML (nem o LLM principal nem o fallback do
+        // servidor pegaram), gera cards informativos sintéticos parseando
+        // o markdown direto. Garante que a roteirista vê TODOS os erros
+        // mesmo quando o XML é truncado/omitido na regeneração.
+        const markdownErrors = parseMarkdownErrorList(cleanContent);
+        const xmlNumbers = new Set(errors.map((e) => e.numero.toLowerCase()));
+        const missingFromXml = markdownErrors.filter(
+          (m) => !xmlNumbers.has(m.numero.toLowerCase()),
+        );
+        if (missingFromXml.length > 0) {
+          console.info(
+            `[revisor regenerate] ${missingFromXml.length} erro(s) em PRINCIPAIS ERROS não viraram XML — adicionando como cards informativos`,
+          );
+          errors = [...errors, ...missingFromXml].sort((a, b) => {
+            const na = parseInt(a.numero, 10);
+            const nb = parseInt(b.numero, 10);
+            if (Number.isNaN(na) || Number.isNaN(nb)) {
+              return a.numero.localeCompare(b.numero);
+            }
+            return na - nb;
+          });
+        }
+
         setOutput(step, {
           content: cleanContent,
           metadata: {
@@ -1316,7 +1034,6 @@ export function StepShell({ step }: Props) {
     step,
     next,
     autoAdvance,
-    skipCalibration,
     output,
     setOutput,
     setIsGenerating,
@@ -1429,25 +1146,6 @@ export function StepShell({ step }: Props) {
             <Zap className="size-3.5" />
             Avançar auto
           </label>
-          {step === "revisor" && (
-            <label
-              className={cn(
-                "flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-md border cursor-pointer transition",
-                skipCalibration
-                  ? "bg-primary/10 border-primary/40 text-primary"
-                  : "bg-background border-border text-muted-foreground hover:bg-muted",
-              )}
-            >
-              <input
-                type="checkbox"
-                className="sr-only"
-                checked={skipCalibration}
-                onChange={(e) => setSkipCalibration(e.target.checked)}
-              />
-              <SkipForward className="size-3.5" />
-              Pular calibragem
-            </label>
-          )}
         </div>
         )}
       </header>
@@ -1945,6 +1643,13 @@ function PremissaWizard() {
     return () => abortRef.current?.abort();
   }, []);
 
+  // Aborta streams em flight no auto-reload do Electron (crash handler).
+  useEffect(() => {
+    const handler = () => abortRef.current?.abort();
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
+
   // Roteiros antigos (pré-fluxo automático) têm `content` mas nenhum metadado
   // novo. Tratamos como "manual" para preservar a premissa que o usuário já
   // tinha — sem isso, a tela de briefing apareceria por cima do conteúdo.
@@ -1959,23 +1664,8 @@ function PremissaWizard() {
           : "done";
 
   // ─── Streaming helpers ──────────────────────────────────────────────
-  const readStreamFully = async (
-    res: Response,
-    signal: AbortSignal,
-  ): Promise<string> => {
-    if (!res.body) throw new Error("Stream sem corpo");
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let acc = "";
-    while (true) {
-      if (signal.aborted) break;
-      const { done, value } = await reader.read();
-      if (done) break;
-      acc += decoder.decode(value, { stream: true });
-      setLiveStream(acc);
-    }
-    return acc;
-  };
+  const readStreamFully = (res: Response, signal: AbortSignal) =>
+    readStreamThrottled(res, setLiveStream, signal);
 
   // ─── Fase 1: gerar resumo (Bloco 0) ─────────────────────────────────
   const generateResumo = useCallback(async (instructionOverride?: string) => {
@@ -3000,20 +2690,6 @@ function BatchProgressPanel({
     title = `Par ${progress.batchIndex} de ${progress.totalBatches}`;
     subtitle = `· ${chapsLabel} da ${progress.part}`;
     placeholder = "Conectando ao agente…";
-  } else if (progress.kind === "preparing") {
-    title = "Preparando revisão";
-    subtitle = `· verificando ${progress.chaptersCount} capítulos`;
-    placeholder = "Calculando contagens e detectando capítulos fora do alvo…";
-  } else if (progress.kind === "extending-chapter") {
-    const verb = progress.direction === "expand" ? "Expandindo" : "Encurtando";
-    title = `Ajustando contagem do Cap ${progress.chapterNumber}`;
-    subtitle = `· ${verb} de ${progress.currentWords.toLocaleString("pt-BR")} → ${progress.targetWords.toLocaleString("pt-BR")} palavras (${progress.part})`;
-    placeholder = "Reescrevendo capítulo dentro do alvo…";
-  } else if (progress.kind === "balancing-part") {
-    const verb = progress.direction === "expand" ? "Expandindo" : "Encurtando";
-    title = `Equilibrando total da ${progress.part}`;
-    subtitle = `· ${verb} para ${progress.partTotal.toLocaleString("pt-BR")} → ${progress.targetTotal.toLocaleString("pt-BR")} palavras`;
-    placeholder = "Compensando o capítulo mais distante do alvo…";
   } else {
     // revising
     title = "Revisão final";
