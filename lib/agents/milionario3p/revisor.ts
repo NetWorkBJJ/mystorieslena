@@ -139,6 +139,30 @@ export const revisorAgent: Agent = {
       );
     }
 
+    // Modo "Continuar revisão": força foco em erros NOVOS (não-equivalentes
+    // aos já destacados em rodadas anteriores). Mesma lógica do milionario-1p.
+    if (ctx.previousRevisorErrors && ctx.previousRevisorErrors.length > 0) {
+      const list = ctx.previousRevisorErrors
+        .map((title, i) => `  ${i + 1}. ${title}`)
+        .join("\n");
+      sections.push(
+        [
+          "━━━ ERROS JÁ DESTACADOS EM REVISÕES ANTERIORES — NÃO REPITA ━━━",
+          "",
+          "A roteirista já leu, considerou e (em parte) corrigiu os erros abaixo em rodadas anteriores desta revisão. NÃO os liste de novo na sua resposta — ela está clicando 'Continuar revisão' justamente pra ver erros DIFERENTES, refinar aspectos que você ainda não cobriu, e fazer a Nota Final progredir.",
+          "",
+          list,
+          "",
+          "REGRAS PARA ESTA RODADA:",
+          "• NÃO inclua na sua resposta erros equivalentes aos da lista acima — mesmo que o trecho exato seja outro, se o tipo do erro/diagnóstico já foi feito, pule.",
+          "• Foque em aspectos NOVOS que você não destacou antes: detalhes mais sutis, refinamentos de ritmo/voz/imersão, inconsistências secundárias, oportunidades de elevação que ficaram invisíveis nas primeiras passadas.",
+          "• Se o roteiro já está em forma muito boa e você genuinamente não encontra erros novos significativos, declare isso explicitamente na seção PRINCIPAIS ERROS (\"Não há erros relevantes além dos já apontados em rodadas anteriores\") e atribua uma Nota Final alta condizente.",
+          "• A Nota Final deve refletir o estado ATUAL do roteiro — se ele melhorou desde a primeira revisão, a nota sobe. Se piorou em algum aspecto novo, abaixa.",
+          "• Mantenha o formato obrigatório e o bloco XML <erros_detalhados> normalmente — só com erros NOVOS.",
+        ].join("\n"),
+      );
+    }
+
     sections.push(
       "━━━ AÇÃO ━━━\n\nFaça a revisão completa do roteiro acima cruzando com a premissa e as estruturas. Classifique TODOS os erros pelo grau correto (🟢 / 🟡 / 🔴 / 💀), numere sequencialmente (apenas 🟡, 🔴 e 💀), entregue no formato obrigatório (Principais Erros → Sugestões → Análise como Leitor Real → Análise de Hater → Risco de Hate → Nota Final → bloco <erros_detalhados>). Seja brutalmente honesto. Não peça confirmação. Comece direto.",
     );

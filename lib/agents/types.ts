@@ -47,6 +47,15 @@ export interface AgentContext {
   premissaPhase?: "resumo" | "estrutura";
   /** Resumo (Bloco 0) já aprovado pelo usuário — usado na fase "estrutura". */
   approvedResumo?: string;
+  /**
+   * Modo "Continuar revisão" do step Revisor — só populado quando a roteirista
+   * clica nesse botão (vs "Gerar novamente" que recomeça do zero). Lista os
+   * títulos dos erros já destacados em revisões anteriores (output corrente +
+   * todas as entradas do histórico do Revisor). O agente recebe a instrução
+   * de NÃO repetir esses erros e focar em refinamentos novos — assim cada
+   * rodada cobre aspectos diferentes e a Nota Final reflete progresso real.
+   */
+  previousRevisorErrors?: string[];
 }
 
 export interface Agent {

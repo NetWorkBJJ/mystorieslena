@@ -39,6 +39,10 @@ interface Body {
   premissaPhase?: "resumo" | "estrutura";
   /** Resumo (Bloco 0) já aprovado pelo usuário — exigido na fase "estrutura". */
   approvedResumo?: string;
+  /** Modo "Continuar revisão": títulos dos erros já destacados em rodadas
+   *  anteriores. O agente Revisor recebe instrução de não repetir esses erros
+   *  e focar em refinamentos novos. Só relevante pro step "revisor". */
+  previousRevisorErrors?: string[];
 }
 
 const ACCEPTED_IMAGE_MIMES: ClaudeImageMime[] = [
@@ -102,6 +106,9 @@ export async function POST(
       : {}),
     ...(body.premissaPhase ? { premissaPhase: body.premissaPhase } : {}),
     ...(body.approvedResumo ? { approvedResumo: body.approvedResumo } : {}),
+    ...(body.previousRevisorErrors && body.previousRevisorErrors.length > 0
+      ? { previousRevisorErrors: body.previousRevisorErrors }
+      : {}),
   });
 
   // Image multimodal — só vai pro modelo se o agente declarou acceptsReferenceImage.

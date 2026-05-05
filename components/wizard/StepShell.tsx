@@ -36,6 +36,7 @@ import {
   prevStep,
   type EscritaChapter,
   type EscritaSynopsis,
+  type RevisorError,
   type StepId,
   type StepOutput,
 } from "@/types/roteiro";
@@ -187,6 +188,17 @@ export function StepShell({ step }: Props) {
   const [batchProgress, setBatchProgress] = useState<WizardProgress | null>(
     null,
   );
+  // Fase corrente do Revisor — só usado no step "revisor". "streaming" durante
+  // o /api/agent/revisor; "extracting" durante o fallback automático
+  // /api/revisor-extract-errors. Mostrado no BatchProgressPanel pra usuária
+  // saber em qual etapa do fluxo está (sem isso a tela parece "em branco" por
+  // 1-2min entre clique e primeiro chunk + 3min de fallback).
+  const [revisorPhase, setRevisorPhase] = useState<
+    "streaming" | "extracting" | null
+  >(null);
+  // Tempo decorrido desde o início da geração corrente, em segundos. Zera
+  // quando isGenerating cai pra false. Atualiza a cada 1s via useEffect.
+  const [elapsedSec, setElapsedSec] = useState(0);
   // Input/correção salvo desse step específico — input de outro step NÃO
   // vaza pra cá. Roteiros antigos (campo legado `userInput` único, global
   // pro roteiro) começam com input vazio em todos os steps; o legado é
@@ -201,8 +213,29 @@ export function StepShell({ step }: Props) {
   useEffect(() => {
     setBatchProgress(null);
     setLiveStream("");
+    setRevisorPhase(null);
   }, [step]);
   const abortRef = useRef<AbortController | null>(null);
+  // Início da geração corrente — usado pra calcular elapsedSec no painel.
+  // Setado em generate() quando isGenerating vira true, lido aqui no tick.
+  const generationStartRef = useRef<number | null>(null);
+
+  // Tick a cada segundo enquanto está gerando — alimenta o elapsedSec
+  // mostrado no BatchProgressPanel. Zera quando isGenerating cai pra false
+  // pra não vazar timer entre rodadas.
+  useEffect(() => {
+    if (!isGenerating) {
+      setElapsedSec(0);
+      setRevisorPhase(null);
+      return;
+    }
+    const start = generationStartRef.current ?? Date.now();
+    const tick = () =>
+      setElapsedSec(Math.max(0, Math.floor((Date.now() - start) / 1000)));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [isGenerating]);
 
   // Em caso de auto-reload do Electron (ver crash handler em main.js), aborta
   // streams em flight pra liberar a memória que o renderer estava acumulando
@@ -261,6 +294,16 @@ export function StepShell({ step }: Props) {
   const generate = useCallback(async (
     mode: "regenerate" | "refine" = "regenerate",
     userInputOverride?: string,
+    historyLabel?: string,
+    /**
+     * Modo "Continuar revisão" do step Revisor — quando true, agrega os
+     * títulos dos erros já destacados em rodadas anteriores (output corrente +
+     * todos os snapshots no histórico) e envia pro agente como
+     * `previousRevisorErrors`. O prompt do Revisor usa essa lista pra evitar
+     * relistar erros equivalentes — força refinamento incremental rodada
+     * após rodada. Só relevante pro step "revisor"; outros steps ignoram.
+     */
+    continuation?: boolean,
   ) => {
     if (!roteiro) return;
 
@@ -277,6 +320,50 @@ export function StepShell({ step }: Props) {
       if (!output?.content?.trim() || !effectiveUserInput) return;
     }
 
+    // Modo "Continuar revisão": agrega os títulos dos erros já destacados em
+    // rodadas anteriores — output corrente (prestes a virar histórico) +
+    // todos os snapshots já no histórico — pra mandar pro agente como
+    // contexto "não repita". Captura ANTES de qualquer setState porque o
+    // pushOutputToHistory + setOutput("") vão zerar `output` em seguida.
+    let previousRevisorErrors: string[] | undefined;
+    if (continuation && step === "revisor") {
+      const seen = new Set<string>();
+      const aggregate: string[] = [];
+      const pushIfNew = (e: RevisorError) => {
+        const loc: string[] = [];
+        if (typeof e.parte === "number") loc.push(`Parte ${e.parte}`);
+        if (typeof e.capitulo === "number") loc.push(`Cap. ${e.capitulo}`);
+        const locStr = loc.length > 0 ? ` (${loc.join(", ")})` : "";
+        const gravLabel =
+          e.gravidade === "gravissimo"
+            ? "Gravíssimo"
+            : e.gravidade === "interfere"
+              ? "Interfere"
+              : e.gravidade === "atencao"
+                ? "Atenção"
+                : "Não interfere";
+        const formatted = `${e.titulo.trim()}${locStr} [${gravLabel}]`;
+        // Dedup por título+localização — se a mesma issue ressurgiu em rodadas
+        // diferentes, manda só uma vez (o agente já entende que não pode repetir).
+        const key = formatted.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        aggregate.push(formatted);
+      };
+      // Output corrente (rodada que está sendo arquivada agora).
+      if (output?.metadata?.errors) {
+        for (const e of output.metadata.errors) pushIfNew(e);
+      }
+      // Snapshots históricos (rodadas anteriores já arquivadas).
+      const history = roteiro.history?.revisor ?? [];
+      for (const snap of history) {
+        if (snap.metadata?.errors) {
+          for (const e of snap.metadata.errors) pushIfNew(e);
+        }
+      }
+      if (aggregate.length > 0) previousRevisorErrors = aggregate;
+    }
+
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -288,7 +375,7 @@ export function StepShell({ step }: Props) {
     if (baseContent) {
       pushOutputToHistory(
         step,
-        mode === "refine" ? "Antes da correção" : undefined,
+        historyLabel ?? (mode === "refine" ? "Antes da correção" : undefined),
       );
     }
 
@@ -302,6 +389,9 @@ export function StepShell({ step }: Props) {
     setIsGenerating(true);
     setLiveStream("");
     setBatchProgress(null);
+    setRevisorPhase(null);
+    generationStartRef.current = Date.now();
+    setElapsedSec(0);
     const startedAt = new Date().toISOString();
 
     // Em correção pontual (qualquer step), NÃO zere o output corrente:
@@ -526,6 +616,7 @@ export function StepShell({ step }: Props) {
           kind: "revising",
           chaptersCount: accChapters.length,
         });
+        setRevisorPhase("streaming");
         setLiveStream("");
 
         const escritaContent = concatenateChapters(accChapters);
@@ -539,6 +630,9 @@ export function StepShell({ step }: Props) {
             previousOutputs: roteiro.outputs,
             userInput: effectiveUserInput,
             referenceImage: roteiro.referenceImage,
+            ...(previousRevisorErrors && previousRevisorErrors.length > 0
+              ? { previousRevisorErrors }
+              : {}),
           }),
           signal: ctrl.signal,
         });
@@ -586,6 +680,7 @@ export function StepShell({ step }: Props) {
           console.info(
             `[revisor] XML tem ${errors.length} erro(s), markdown lista ${expectedCount} — disparando fallback de extração estruturada`,
           );
+          setRevisorPhase("extracting");
           try {
             const fbRes = await fetch("/api/revisor-extract-errors", {
               method: "POST",
@@ -1281,6 +1376,7 @@ export function StepShell({ step }: Props) {
               <BatchProgressPanel
                 progress={batchProgress}
                 liveStream={liveStream}
+                elapsedSec={elapsedSec}
               />
             )}
             {isGenerating && !batchProgress && (
@@ -1315,12 +1411,17 @@ export function StepShell({ step }: Props) {
             <BatchProgressPanel
               progress={batchProgress}
               liveStream={liveStream}
+              revisorPhase={revisorPhase}
+              elapsedSec={elapsedSec}
             />
           ) : (
             <div className="rounded-lg border-2 border-primary/40 bg-primary/[0.03] px-4 sm:px-5 py-6 flex items-center gap-3">
               <Loader2 className="size-4 animate-spin text-primary" />
               <span className="text-sm font-semibold text-primary">
                 Iniciando revisão…
+              </span>
+              <span className="ml-auto text-xs font-mono text-foreground/70 tabular-nums">
+                ⏱ {formatElapsed(elapsedSec)}
               </span>
             </div>
           )
@@ -1395,16 +1496,45 @@ export function StepShell({ step }: Props) {
 
         <div className="flex items-center gap-2 flex-wrap pt-2">
           {!isGenerating ? (
-            <Button onClick={() => generate("regenerate")} size="lg" className="gap-2">
-              {step === "escrita" && chapterCount > 0 ? (
-                <ArrowRight className="size-4" />
-              ) : hasContent ? (
-                <RotateCcw className="size-4" />
-              ) : (
-                <Sparkles className="size-4" />
-              )}
-              {generateLabel}
-            </Button>
+            step === "revisor" && hasContent ? (
+              <>
+                <Button
+                  onClick={() => generate("regenerate")}
+                  size="lg"
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <RotateCcw className="size-4" />
+                  Gerar novamente
+                </Button>
+                <Button
+                  onClick={() =>
+                    generate(
+                      "regenerate",
+                      undefined,
+                      "Antes de continuar revisão",
+                      true,
+                    )
+                  }
+                  size="lg"
+                  className="gap-2"
+                >
+                  <Sparkles className="size-4" />
+                  Continuar revisão
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => generate("regenerate")} size="lg" className="gap-2">
+                {step === "escrita" && chapterCount > 0 ? (
+                  <ArrowRight className="size-4" />
+                ) : hasContent ? (
+                  <RotateCcw className="size-4" />
+                ) : (
+                  <Sparkles className="size-4" />
+                )}
+                {generateLabel}
+              </Button>
+            )
           ) : (
             <Button
               onClick={cancel}
@@ -2685,16 +2815,27 @@ function ChapterCard({
   );
 }
 
+function formatElapsed(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 function BatchProgressPanel({
   progress,
   liveStream,
+  revisorPhase,
+  elapsedSec,
 }: {
   progress: WizardProgress;
   liveStream: string;
+  revisorPhase?: "streaming" | "extracting" | null;
+  elapsedSec?: number;
 }) {
   let title: string;
   let subtitle: string;
   let placeholder: string;
+  let phaseBanner: string | null = null;
 
   if (progress.kind === "writing") {
     const chapsLabel =
@@ -2708,7 +2849,16 @@ function BatchProgressPanel({
     // revising
     title = "Revisão final";
     subtitle = `· ${progress.chaptersCount} capítulos · Opus`;
-    placeholder = "Revisor lendo o roteiro completo…";
+    if (revisorPhase === "extracting") {
+      phaseBanner = "Etapa 2/2 — Extraindo cards de correção (~3min)";
+      placeholder =
+        "Relendo a revisão pra estruturar os cards… os cards aparecem assim que terminar.";
+    } else {
+      // streaming (default)
+      phaseBanner = "Etapa 1/2 — Análise narrativa do roteiro (~5min)";
+      placeholder =
+        "Revisor lendo o roteiro completo… os primeiros parágrafos costumam levar 1-2min pra aparecer.";
+    }
   }
 
   return (
@@ -2717,7 +2867,17 @@ function BatchProgressPanel({
         <Loader2 className="size-4 animate-spin text-primary" />
         <span className="text-sm font-semibold text-primary">{title}</span>
         <span className="text-xs text-foreground/70">{subtitle}</span>
+        {typeof elapsedSec === "number" && (
+          <span className="ml-auto text-xs font-mono text-foreground/70 tabular-nums">
+            ⏱ {formatElapsed(elapsedSec)}
+          </span>
+        )}
       </div>
+      {phaseBanner && (
+        <div className="px-4 sm:px-5 py-2 bg-primary/[0.06] border-b border-primary/20 text-xs text-foreground/75">
+          {phaseBanner}
+        </div>
+      )}
       <div className="px-4 sm:px-5 py-4 max-h-[55vh] overflow-auto">
         {liveStream ? (
           <pre className="whitespace-pre-wrap font-sans text-[15px] leading-relaxed">

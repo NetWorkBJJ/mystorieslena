@@ -45,8 +45,9 @@ export function HistoryPanel({ step, history }: HistoryPanelProps) {
 
       <div className="px-4 pb-4 flex flex-col gap-2">
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          Cada vez que você clica em <strong>Gerar</strong> ou
-          <strong> Gerar novamente</strong>, a versão anterior é salva aqui.
+          Cada vez que você clica em <strong>Gerar</strong>,
+          <strong> Gerar novamente</strong> ou
+          <strong> Continuar revisão</strong>, a versão anterior é salva aqui.
           Pode restaurar qualquer uma — a versão atual vai pro histórico
           quando isso acontecer.
         </p>
