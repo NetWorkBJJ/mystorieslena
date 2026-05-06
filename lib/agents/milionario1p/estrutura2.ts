@@ -1,5 +1,6 @@
 import { MODELS } from "@/lib/anthropic";
 import type { Agent } from "../types";
+import { buildEstruturaContinuationMessage } from "../continuation-prompt";
 import { ESTRUTURA_MASTER_PROMPT } from "./estrutura-master-prompt";
 import { ESTRUTURA2_PROMPT } from "./estrutura2-prompt";
 
@@ -29,6 +30,16 @@ export const estrutura2Agent: Agent = {
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
     const estrutura1 = ctx.previousOutputs.estrutura1?.content?.trim() ?? "";
+
+    // Modo "Continuar de onde parou": geração anterior interrompida. Continua
+    // a partir do partial em `currentOutput` sem repetir nem recomeçar.
+    if (ctx.continuationMode && ctx.currentOutput?.trim()) {
+      return buildEstruturaContinuationMessage({
+        parteLabel: "PARTE 2",
+        partial: ctx.currentOutput,
+        userInput: ctx.userInput,
+      });
+    }
 
     // Modo correção: a roteirista pediu um ajuste pontual. NÃO é pra regerar
     // a estrutura inteira. O agente devolve APENAS pares <alteracao>/<original>

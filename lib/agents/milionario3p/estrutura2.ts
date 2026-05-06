@@ -1,15 +1,17 @@
 import { MODELS } from "@/lib/anthropic";
 import type { Agent } from "../types";
+import { buildEstruturaContinuationMessage } from "../continuation-prompt";
 import { ESTRUTURA_MASTER_PROMPT } from "./estrutura-master-prompt";
 import { ESTRUTURA2_PROMPT } from "./estrutura2-prompt";
 
 /**
  * Etapa 3 — Estrutura da Parte 2 (Romance de Milionário 3ª pessoa, canal Rowan).
  *
- * 13.250 palavras (faixa 13.000-13.500, alvo 13.250), 5-6 capítulos.
- * Abertura com BOMBA, narração em terceira pessoa onisciente externa
- * alternando foco FMC ↔ MMC, cena erótica completa no penúltimo cap,
- * final feliz no último cap (casamento + filhos / lua de mel / sonho realizado).
+ * 13.500 palavras (faixa 13.000-14.000, alvo 13.500), 5-6 capítulos.
+ * Abertura com BOMBA, narração em terceira pessoa LIMITADA À FMC (mesmo
+ * regime da Parte 1, sem POV masculino, MMC observado de fora pelos atos),
+ * cena erótica completa no penúltimo cap, final feliz no último cap
+ * (casamento + filhos / lua de mel / sonho realizado).
  *
  * System prompt = master M3P + estrutura2 M3P.
  */
@@ -17,7 +19,7 @@ export const estrutura2Agent: Agent = {
   id: "estrutura2",
   label: "Estrutura — Parte 2",
   description:
-    "Monta a estrutura completa da Parte 2 de Milionário 3p (13.250 palavras, 5-6 capítulos) — bomba inicial, mapa cena por cena, cena erótica no penúltimo, final feliz com casamento/filhos/sonho",
+    "Monta a estrutura completa da Parte 2 de Milionário 3p (13.000-14.000 palavras, alvo 13.500, 5-6 capítulos) — bomba inicial, mapa cena por cena, cena erótica no penúltimo, final feliz com casamento/filhos/sonho. Narração 3ª pessoa limitada à FMC (mesmo regime da Parte 1).",
   model: MODELS.opus,
   thinking: "adaptive",
   effort: "high",
@@ -26,6 +28,14 @@ export const estrutura2Agent: Agent = {
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
     const estrutura1 = ctx.previousOutputs.estrutura1?.content?.trim() ?? "";
+
+    if (ctx.continuationMode && ctx.currentOutput?.trim()) {
+      return buildEstruturaContinuationMessage({
+        parteLabel: "PARTE 2",
+        partial: ctx.currentOutput,
+        userInput: ctx.userInput,
+      });
+    }
 
     if (ctx.refineMode && ctx.currentOutput?.trim() && ctx.userInput?.trim()) {
       const refine: string[] = [];
@@ -69,7 +79,7 @@ export const estrutura2Agent: Agent = {
           "• <original> precisa ser cópia LITERAL do documento atual.",
           "• <original> precisa ser ÚNICO no documento.",
           "• NÃO devolva a estrutura inteira.",
-          "• Se mudar a contagem de palavras de um capítulo, EMITA TAMBÉM blocos rebalanceando outros para manter o total entre 13.000 e 13.500 palavras (REGRA INEGOCIÁVEL — Parte 2 NUNCA pode cair fora dessa faixa).",
+          "• Se mudar a contagem de palavras de um capítulo, EMITA TAMBÉM blocos rebalanceando outros para manter o total entre 13.000 e 14.000 palavras (alvo 13.500, REGRA INEGOCIÁVEL — Parte 2 NUNCA pode cair fora dessa faixa).",
           "• Se a correção pedida não exigir alteração nenhuma, devolva apenas a string [NENHUMA_ALTERACAO_NECESSARIA] e nada mais.",
           "",
           "Comece direto pelo primeiro <alteracao>. Sem preâmbulo, sem perguntas.",
@@ -117,7 +127,7 @@ export const estrutura2Agent: Agent = {
     }
 
     sections.push(
-      "━━━ AÇÃO ━━━\n\nMonte a ESTRUTURA COMPLETA da Parte 2 seguindo o LAYOUT DE SAÍDA OBRIGATÓRIO definido no system prompt (Hook/Bomba → Ponto de Retomada → Conflitos Herdados → Mapa cena por cena → Capítulos → Cena Erótica → Easter Eggs → Entrega Final → Resolução). Comece direto. NÃO escreva os capítulos em si — apenas a ESTRUTURA/PLANEJAMENTO.\n\n⚠️ ATENÇÃO CRÍTICA — CONTAGEM DE PALAVRAS: a SOMA das contagens declaradas DEVE ficar entre 13.000 e 13.500 palavras (alvo 13.250). ZERO tolerância. Capítulos: 5 ou 6 (máx 6). Antes de finalizar, SOME mentalmente e CONFIRME que cabe na faixa. Se abaixo, AUMENTE algum cap; se acima, REDUZA.\n\n⚠️ NARRAÇÃO em TERCEIRA PESSOA — narrador externo onisciente que alterna foco entre FMC e MMC. NUNCA primeira pessoa.",
+      "━━━ AÇÃO ━━━\n\nMonte a ESTRUTURA COMPLETA da Parte 2 seguindo o LAYOUT DE SAÍDA OBRIGATÓRIO definido no system prompt (Hook/Bomba → Ponto de Retomada → Conflitos Herdados → Mapa cena por cena → Capítulos → Cena Erótica → Easter Eggs → Entrega Final → Resolução). Comece direto. NÃO escreva os capítulos em si — apenas a ESTRUTURA/PLANEJAMENTO.\n\n⚠️ ATENÇÃO CRÍTICA — CONTAGEM DE PALAVRAS: a SOMA das contagens declaradas DEVE ficar entre 13.000 e 14.000 palavras (alvo 13.500). ZERO tolerância — nunca abaixo de 13.000 nem acima de 14.000. Capítulos: 5 ou 6 (máx 6). Antes de finalizar, SOME mentalmente e CONFIRME que cabe na faixa. Se abaixo, AUMENTE algum cap; se acima, REDUZA.\n\n⚠️ NARRAÇÃO em TERCEIRA PESSOA LIMITADA À FMC — narrador externo que acompanha PRIORITARIAMENTE a heroína, EXATAMENTE como na Parte 1. SEM POV masculino. SEM entrar nos pensamentos do MMC (ele aparece apenas pelos atos, falas, gestos observáveis). NÃO há mudança de regime narrativo entre Parte 1 e Parte 2.",
     );
 
     return sections.join("\n\n");

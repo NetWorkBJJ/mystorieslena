@@ -1,5 +1,6 @@
 import { MODELS } from "@/lib/anthropic";
 import type { Agent } from "../types";
+import { buildEstruturaContinuationMessage } from "../continuation-prompt";
 import { ESTRUTURA_MASTER_PROMPT } from "./estrutura-master-prompt";
 import { ESTRUTURA1_PROMPT } from "./estrutura1-prompt";
 
@@ -27,6 +28,18 @@ export const estrutura1Agent: Agent = {
   acceptsReferenceImage: true,
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
+
+    // Modo "Continuar de onde parou": a geração anterior foi interrompida e
+    // o output parcial está em `currentOutput`. O agente continua exatamente
+    // daquele ponto. Verificado ANTES do refineMode porque os dois usam
+    // currentOutput, mas com semânticas opostas.
+    if (ctx.continuationMode && ctx.currentOutput?.trim()) {
+      return buildEstruturaContinuationMessage({
+        parteLabel: "PARTE 1",
+        partial: ctx.currentOutput,
+        userInput: ctx.userInput,
+      });
+    }
 
     // Modo correção: a roteirista pediu um ajuste pontual. NÃO é pra regerar
     // a estrutura inteira (~12k palavras de planejamento). O agente devolve

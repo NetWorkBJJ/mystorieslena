@@ -134,8 +134,9 @@ export function isWithinTarget(actual: number, target: number): boolean {
  * Range obrigatório de palavras TOTAIS de uma Parte, agora category-aware.
  *
  * Cada sub-nicho tem alvos próprios (milionário 1p: 11.500/13.250 |
- * máfia: 12.500/13.500). A configuração vive em `lib/categories/index.ts`
- * e é lida por categoria — esta função passa a delegar a lookup.
+ * milionário 3p: 10.500/13.500 | máfia: 12.500/13.500). A configuração
+ * vive em `lib/categories/index.ts` e é lida por categoria — esta função
+ * passa a delegar a lookup.
  *
  * O parâmetro `category` é opcional pra preservar chamadas legadas; quando
  * omitido, usa o DEFAULT_CATEGORY (milionário 1p).

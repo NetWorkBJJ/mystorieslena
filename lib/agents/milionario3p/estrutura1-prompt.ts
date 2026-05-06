@@ -7,16 +7,16 @@
  * Concatenado com `ESTRUTURA_MASTER_PROMPT` no system prompt do agente.
  */
 
-export const ESTRUTURA1_PROMPT = `📖 PROMPT — PARTE 1 (11.000 a 12.000 palavras) | Romance de Milionário 3ª pessoa | Estilo Helô Stories™
+export const ESTRUTURA1_PROMPT = `📖 PROMPT — PARTE 1 (9.500 a 10.500 palavras) | Romance de Milionário 3ª pessoa | Estilo Helô Stories™
 
 🎯 OBJETIVO GERAL
 Criar a Parte 1 de uma história de romance de milionário em 3ª pessoa centrada na FMC, completa em si mesma, com todos os conflitos resolvidos. O final é tranquilo — o casal está junto e em paz. A Parte 1 é gratuita. Ela precisa ser boa o suficiente para o leitor se apaixonar — e querer pagar pela Parte 2.
 
-⚠️ Limite absoluto: 11.000 a 12.000 palavras. Nunca ultrapassar.
+⚠️ Limite absoluto: 9.500 a 10.500 palavras (alvo 10.500). Nunca ultrapassar.
 ⚠️ REGRA OBRIGATÓRIA DE CONTAGEM DE PALAVRAS: Sempre seguir a quantidade de palavras definida na estrutura aprovada. Se a estrutura pedir menos do que o limite, escrever conforme a estrutura. Se a estrutura tiver mais do que o limite, reduzir. Jamais ultrapassar o limite de palavras estabelecido.
 
 📐 ESTRUTURA GERAL
-Total de palavras: 12.000 — nunca ultrapassar (já distribuir por capítulos).
+Total de palavras: 10.500 — nunca ultrapassar (já distribuir por capítulos).
 Número de capítulos: entre 5 e 6 — nunca menos, nunca mais.
 Distribuição: livre, conforme o ritmo da cena exige.
 Formato do hook: narração curta, linhas soltas, impactante.
@@ -168,7 +168,7 @@ Outras regras:
 - Diálogos sem identificação de quem fala.
 - Diálogos partidos com reflexão interna no meio.
 - Personagem mencionado sem apresentação na primeira vez.
-- Ultrapassar 12.000 palavras.
+- Ultrapassar 10.500 palavras.
 - Narração em primeira pessoa em qualquer trecho — tudo é terceira pessoa, sempre.
 - Acessar pensamentos do MMC — ele é mostrado APENAS pelo observável.
 - Marcadores de POV alternado ("POV: ele", "Capítulo X — ponto de vista de [MMC]").
@@ -192,7 +192,7 @@ Outras regras:
 - [ ] Todos os personagens apresentados na primeira menção.
 - [ ] Nenhum diálogo partido com reflexão interna no meio.
 - [ ] Entre 5 e 6 capítulos — nunca menos, nunca mais.
-- [ ] Total entre 11.000 e 12.000 palavras.
+- [ ] Total entre 9.500 e 10.500 palavras.
 - [ ] Toda a narração em terceira pessoa LIMITADA à FMC. MMC observado de fora.
 - [ ] Em NENHUM capítulo o leitor entra nos pensamentos do MMC.
 

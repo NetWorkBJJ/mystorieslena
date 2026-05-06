@@ -1,5 +1,6 @@
 import { MODELS } from "@/lib/anthropic";
 import type { Agent } from "../types";
+import { buildEstruturaContinuationMessage } from "../continuation-prompt";
 import { ESTRUTURA_MASTER_PROMPT } from "./estrutura-master-prompt";
 import { ESTRUTURA1_PROMPT } from "./estrutura1-prompt";
 
@@ -26,6 +27,14 @@ export const estrutura1Agent: Agent = {
   acceptsReferenceImage: true,
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
+
+    if (ctx.continuationMode && ctx.currentOutput?.trim()) {
+      return buildEstruturaContinuationMessage({
+        parteLabel: "PARTE 1",
+        partial: ctx.currentOutput,
+        userInput: ctx.userInput,
+      });
+    }
 
     if (ctx.refineMode && ctx.currentOutput?.trim() && ctx.userInput?.trim()) {
       const refine: string[] = [];

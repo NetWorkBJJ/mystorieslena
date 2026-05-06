@@ -4,6 +4,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -61,6 +62,7 @@ import {
   applyCorrectionPatches,
   parseCorrectionPatches,
 } from "@/lib/parse-correction-patches";
+import { mergeContinuation } from "@/lib/parse-continuation-overlap";
 import { RevisorErrorsView } from "@/components/wizard/RevisorErrorsView";
 import {
   countChaptersInEstrutura,
@@ -84,10 +86,20 @@ import { cn } from "@/lib/utils";
 // máximo 1×/frame (~60Hz). Sem o throttle, cada chunk disparava setState com
 // a string crescendo + re-render do React — em batches longos da Escrita isso
 // virava pressão de memória O(n²) que crashava o renderer (OOM exit -36861).
+//
+// `onCheckpoint` (opcional): callback chamado a cada `checkpointMs` ms (default
+// 2500ms) com o `acc` corrente. Usado pelos steps Estrutura P1/P2 pra persistir
+// o output parcial em localStorage durante o stream — assim, se o app é
+// fechado/freeze no meio, ao reabrir o roteiro o texto parcial está preservado
+// e a UI oferece "Continuar de onde parou". Frequência baixa (2-3s) é
+// intencional: o setOutput no callback dispara scheduleSave (debounce 600ms +
+// lz-string compress), e chamar isso a cada chunk derruba o renderer com OOM.
 async function readStreamThrottled(
   res: Response,
   setLive: (v: string) => void,
   signal?: AbortSignal,
+  onCheckpoint?: (text: string) => void,
+  checkpointMs: number = 2500,
 ): Promise<string> {
   if (!res.body) throw new Error("Stream sem corpo");
   const reader = res.body.getReader();
@@ -100,6 +112,16 @@ async function readStreamThrottled(
     pending = null;
     rafId = null;
   };
+  let checkpointId: ReturnType<typeof setInterval> | null = null;
+  let lastCheckpointed = "";
+  if (onCheckpoint) {
+    checkpointId = setInterval(() => {
+      if (acc.length > 0 && acc !== lastCheckpointed) {
+        lastCheckpointed = acc;
+        onCheckpoint(acc);
+      }
+    }, checkpointMs);
+  }
   try {
     while (true) {
       if (signal?.aborted) break;
@@ -114,6 +136,13 @@ async function readStreamThrottled(
   } finally {
     if (rafId !== null && typeof cancelAnimationFrame !== "undefined") {
       cancelAnimationFrame(rafId);
+    }
+    if (checkpointId !== null) clearInterval(checkpointId);
+    // Último checkpoint garante que se o stream terminar entre dois ticks do
+    // intervalo, o partial mais recente seja persistido (ainda como partial —
+    // o callsite limpa o flag depois quando concluir o concat final).
+    if (onCheckpoint && acc.length > 0 && acc !== lastCheckpointed) {
+      onCheckpoint(acc);
     }
     setLive(acc);
   }
@@ -292,7 +321,18 @@ export function StepShell({ step }: Props) {
   }, [step, category]);
 
   const generate = useCallback(async (
-    mode: "regenerate" | "refine" = "regenerate",
+    /**
+     * - `regenerate` (default): zera o output e gera do zero.
+     * - `refine`: ajuste pontual em cima da versão corrente (find+replace por
+     *   patches no agente).
+     * - `continue` (Estrutura P1/P2 apenas): retoma uma geração anterior que
+     *   foi interrompida no meio do stream. Lê o output parcial corrente,
+     *   manda pro agente como `currentOutput` com `continuationMode: true`,
+     *   e ao terminar concatena partial + delta (com detecção de overlap pra
+     *   descartar texto duplicado caso o modelo redundantemente repita).
+     *   NÃO faz pushToHistory — o partial é a mesma geração sendo terminada.
+     */
+    mode: "regenerate" | "refine" | "continue" = "regenerate",
     userInputOverride?: string,
     historyLabel?: string,
     /**
@@ -368,11 +408,20 @@ export function StepShell({ step }: Props) {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
+    // Modo "continue" só faz sentido pra Estrutura P1/P2 com partial preservado.
+    // Bloqueia silenciosamente em outros casos pra evitar prompts inválidos.
+    if (mode === "continue") {
+      const isEstrutura = step === "estrutura1" || step === "estrutura2";
+      if (!isEstrutura || !output?.content?.trim()) return;
+    }
+
     // Antes de gerar, salva o output atual no histórico (incluindo Escrita
     // 2-em-2 — a versão anterior é preservada). Em modo correção também
     // salvamos pra que a roteirista possa voltar pra versão antes da correção.
+    // Em modo "continue", NÃO salvamos: o partial não é uma versão anterior,
+    // é a MESMA geração sendo terminada — vai virar o output final por concat.
     const baseContent = output?.content?.trim() ?? "";
-    if (baseContent) {
+    if (baseContent && mode !== "continue") {
       pushOutputToHistory(
         step,
         historyLabel ?? (mode === "refine" ? "Antes da correção" : undefined),
@@ -403,10 +452,43 @@ export function StepShell({ step }: Props) {
     // finalização toca no output de fato (merge da Escrita ou apply dos
     // patches dos demais).
     const isRefine = mode === "refine";
+    const isContinue = mode === "continue";
     const isEscritaRefine = step === "escrita" && isRefine;
+    const isEstruturaStep = step === "estrutura1" || step === "estrutura2";
+    // Em modo "continue", o partialBase é o que já está no output e vai ser
+    // concatenado com o delta da continuação no fim do stream (com detecção
+    // de overlap pra evitar texto duplicado se o modelo redundantemente
+    // repetir). Pros demais modos, partialBase = "" (regen do zero ou refine).
+    const partialBase = isContinue ? (output?.content ?? "") : "";
     if (!isRefine) {
       setDraft("");
-      setOutput(step, { content: "", generatedAt: startedAt });
+      if (isContinue) {
+        // Mantém o partial visível durante a continuação. Re-marca partial:true
+        // pra que checkpoints intermediários e o estado de interrupção fiquem
+        // consistentes (se a continuação também for interrompida, ainda vê o
+        // banner de "geração interrompida").
+        setOutput(step, {
+          content: partialBase,
+          metadata: {
+            ...(output?.metadata ?? {}),
+            partial: true,
+            streamingStartedAt: startedAt,
+          },
+          generatedAt: output?.generatedAt ?? startedAt,
+        });
+      } else if (isEstruturaStep) {
+        // Regenerate do zero pra Estrutura 1/2: zera o conteúdo MAS já marca
+        // partial:true. Assim, se for interrompido durante o stream, o partial
+        // checkpointed fica consistentemente flagged e a UI oferece "continuar
+        // de onde parou" ao invés de mostrar nada.
+        setOutput(step, {
+          content: "",
+          metadata: { partial: true, streamingStartedAt: startedAt },
+          generatedAt: startedAt,
+        });
+      } else {
+        setOutput(step, { content: "", generatedAt: startedAt });
+      }
     }
 
     // ─── Branch Escrita: loop 2-em-2 (sem fix-wordcount nem revisor) ────
@@ -806,6 +888,10 @@ export function StepShell({ step }: Props) {
             refineMode: true,
             currentOutput: currentOutputForAgent,
           }),
+          ...(isContinue && {
+            continuationMode: true,
+            currentOutput: partialBase,
+          }),
         }),
         signal: ctrl.signal,
       });
@@ -827,7 +913,29 @@ export function StepShell({ step }: Props) {
       // mesma classe de bug que derrubou Escrita antes do throttle.
       // Finalização (parsers/setOutput) acontece nos blocos abaixo, com `acc`
       // já completo.
-      const acc = await readStreamThrottled(res, setLiveStream, ctrl.signal);
+      //
+      // Pra Estrutura 1/2 não-refine, registramos um onCheckpoint a cada ~2.5s
+      // que persiste o partial em localStorage com `partial:true`. Se o app é
+      // fechado/freeze/crash no meio, ao reabrir o roteiro a UI detecta o flag
+      // e oferece "Continuar de onde parou" — sem isso, todo o stream perdido
+      // ficava em RAM apenas. Frequência baixa é intencional: setOutput
+      // dispara scheduleSave (debounce 600ms + lz-string compress); chamar
+      // a cada chunk derrubava o renderer (OOM exit -36861).
+      const checkpointPartial =
+        isEstruturaStep && !isRefine
+          ? (text: string) =>
+              setOutput(step, {
+                content: isContinue ? partialBase + text : text,
+                metadata: { partial: true, streamingStartedAt: startedAt },
+                generatedAt: startedAt,
+              })
+          : undefined;
+      const acc = await readStreamThrottled(
+        res,
+        setLiveStream,
+        ctrl.signal,
+        checkpointPartial,
+      );
 
       if (ctrl.signal.aborted) {
         setIsGenerating(false);
@@ -1095,14 +1203,21 @@ export function StepShell({ step }: Props) {
         (step === "estrutura1" || step === "estrutura2") &&
         acc.trim()
       ) {
-        // Geração do zero pra Estrutura 1/2: o conteúdo final do throttle
-        // vira o output em uma única gravação (sem persist per-chunk que
-        // causava o OOM no renderer com roteiros grandes/imagem inline).
+        // Geração do zero / continuação pra Estrutura 1/2: comita o conteúdo
+        // final em uma única gravação no fim do throttle. Pro modo "continue",
+        // concatena partialBase + acc com detecção de overlap pra descartar
+        // texto duplicado caso o modelo redundantemente repita o final do
+        // partial. Sem `metadata`, o flag `partial:true` deixado pelos
+        // checkpoints é limpo automaticamente — a UI para de mostrar o banner
+        // de "geração interrompida".
+        const finalContent = isContinue
+          ? mergeContinuation(partialBase, acc)
+          : acc;
         setOutput(step, {
-          content: acc,
+          content: finalContent,
           generatedAt: startedAt,
         });
-        setDraft(acc);
+        setDraft(finalContent);
         setLiveStream("");
       }
 
@@ -1280,6 +1395,28 @@ export function StepShell({ step }: Props) {
       {step !== "premissa" && (
       <>
       <Separator />
+
+      {/* Banner "geração interrompida" — Estrutura 1/2 apenas. Aparece quando
+          o output corrente tem `partial:true` no metadata e não há geração
+          rodando agora. Indica que um stream anterior foi cortado no meio
+          (freeze, app fechado, crash, perda de rede) e o partial ficou
+          preservado via checkpoints periódicos durante o stream. Oferece dois
+          caminhos: continuar de onde parou (concat partial + delta com
+          detecção de overlap) ou descartar e regenerar (parcial vai pro
+          histórico). */}
+      {(step === "estrutura1" || step === "estrutura2") &&
+        output?.metadata?.partial === true &&
+        !isGenerating &&
+        output.content && (
+          <InterruptedGenerationBanner
+            startedAt={output.metadata.streamingStartedAt}
+            partialLength={output.content.length}
+            onContinue={() => generate("continue")}
+            onDiscardAndRegenerate={() =>
+              generate("regenerate", undefined, "Parcial descartado")
+            }
+          />
+        )}
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -1722,6 +1859,85 @@ const StepUserInputBox = memo(function StepUserInputBox({
 //   4. streaming → /api/agent/premissa com premissaPhase: "estrutura" (Blocos 1-8)
 //   5. done      → outputs.premissa.content recebe "RESUMO + ESTRUTURA"
 //
+// Handle exposto pelos textareas isolados da Premissa: o pai chama `flush()`
+// antes de submeter (garante que o draft está no Zustand) e `getValue()` pra
+// ler o valor mais recente sem assinar um state que invalide a cada tecla.
+// `setValue` cobre os casos em que o pai precisa setar programaticamente
+// (após receber resposta da API, ao cancelar edição, ao trocar de modo).
+type DraftTextareaHandle = {
+  flush: () => void;
+  getValue: () => string;
+  setValue: (v: string) => void;
+};
+
+interface PremissaDraftTextareaProps {
+  ref?: React.Ref<DraftTextareaHandle>;
+  // useDraft é genérico em S = keyof RoteiroDrafts. Aqui travamos no step
+  // "premissa" pra simplificar — todos os usos no wizard da Premissa.
+  field: "briefing" | "resumo" | "content" | "instruction";
+  committedValue: string;
+  rows: number;
+  placeholder?: string;
+  className?: string;
+  id?: string;
+}
+
+// memo + state local: a chave da otimização. Cada keystroke só re-renderiza
+// ESTE componente — o PremissaWizard pai (com header, IIFE da caixa de
+// instruções, ReferenceImageUpload, botões "Gerar resumo") fica intocado.
+// Sem isso, digitar 1 letra no briefing reconciliava a árvore inteira do
+// wizard a cada tecla, e era o gargalo dominante de "lentidão ao digitar"
+// que a roteirista sentia (especialmente no Windows).
+//
+// Mesmo padrão usado pelo StepUserInputBox (steps 2-5). A Premissa havia
+// sido esquecida — `useDraft` ficava direto no PremissaWizard.
+const PremissaDraftTextarea = memo(function PremissaDraftTextarea({
+  ref,
+  field,
+  committedValue,
+  rows,
+  placeholder,
+  className,
+  id,
+}: PremissaDraftTextareaProps) {
+  const [value, setValue, flush] = useDraft("premissa", field, committedValue);
+
+  // Expõe leitura imperativa pro parent. Sem isso, o parent precisaria
+  // assinar o value (e re-renderizar a cada keystroke) só pra saber o
+  // texto atual no momento de chamar generateResumo / applyInstruction.
+  useImperativeHandle(
+    ref,
+    () => ({
+      flush,
+      getValue: () => value,
+      setValue,
+    }),
+    [flush, setValue, value],
+  );
+
+  // Handler estável — sem isso, cada keystroke criava uma arrow inline nova,
+  // o que faz o Chromium re-bindar o listener `onchange` no <textarea> nativo
+  // a cada tecla. Setup do listener é micro-cost mas mensurável no Windows
+  // em rajadas longas. setValue é estável (useCallback dentro do useDraft).
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setValue(e.target.value);
+    },
+    [setValue],
+  );
+
+  return (
+    <Textarea
+      id={id}
+      value={value}
+      onChange={handleChange}
+      placeholder={placeholder}
+      rows={rows}
+      className={className}
+    />
+  );
+});
+
 // Fluxo (modo manual): toggle "Já tenho a premissa pronta" → textarea
 // livre, content gravado direto. Mantido como fallback.
 function PremissaWizard() {
@@ -1753,25 +1969,32 @@ function PremissaWizard() {
   // de step. Limpos quando o usuário cometer o valor (Gerar resumo, Salvar
   // edição, Aplicar instrução). Sem isso, digitar no briefing e clicar em
   // Avançar antes de gerar perdia tudo.
-  const [briefingDraft, setBriefingDraft] = useDraft(
-    "premissa",
-    "briefing",
-    briefing,
+  //
+  // Os textareas usam `useDraft` ESCONDIDO dentro de PremissaDraftTextarea
+  // (memo'd). Aqui o pai só guarda refs imperativas — sem isso, cada
+  // keystroke re-renderizava o PremissaWizard inteiro (header, IIFE da
+  // caixa de instruções, ReferenceImageUpload, botões), que era o gargalo
+  // de "lentidão ao digitar".
+  const briefingRef = useRef<DraftTextareaHandle>(null);
+  const resumoRef = useRef<DraftTextareaHandle>(null);
+  const contentRef = useRef<DraftTextareaHandle>(null);
+  const instructionRef = useRef<DraftTextareaHandle>(null);
+
+  // Selectors atomizados pra ler os drafts persistidos. Causam re-render
+  // do pai SÓ quando o setDraft do Zustand dispara (debounce 400ms do
+  // useDraft) — não a cada tecla. Usados em flags de UI que precisam
+  // refletir o draft (botões disabled, badges "instrução salva").
+  const briefingDraftStored = useWizard(
+    (s) => s.roteiro?.drafts?.premissa?.briefing ?? "",
   );
-  const [resumoDraft, setResumoDraft] = useDraft(
-    "premissa",
-    "resumo",
-    resumo,
+  const resumoDraftStored = useWizard(
+    (s) => s.roteiro?.drafts?.premissa?.resumo ?? "",
   );
-  const [contentDraft, setContentDraft] = useDraft(
-    "premissa",
-    "content",
-    content,
+  const contentDraftStored = useWizard(
+    (s) => s.roteiro?.drafts?.premissa?.content ?? "",
   );
-  const [pendingInstruction, setPendingInstruction] = useDraft(
-    "premissa",
-    "instruction",
-    savedInstruction,
+  const instructionDraftStored = useWizard(
+    (s) => s.roteiro?.drafts?.premissa?.instruction ?? "",
   );
   const [liveStream, setLiveStream] = useState("");
   const [streamingPhase, setStreamingPhase] = useState<
@@ -1813,6 +2036,13 @@ function PremissaWizard() {
 
   // ─── Fase 1: gerar resumo (Bloco 0) ─────────────────────────────────
   const generateResumo = useCallback(async (instructionOverride?: string) => {
+    // Lê o briefing atual via ref imperativo — sem isso, precisaríamos
+    // assinar o local state do useDraft no pai (e re-renderizar a cada
+    // tecla). flush() garante que o draft mais recente esteja gravado
+    // no Zustand antes de ler.
+    briefingRef.current?.flush();
+    const briefingDraft =
+      briefingRef.current?.getValue() ?? briefingDraftStored ?? briefing;
     const briefingTrim = briefingDraft.trim();
     if (!briefingTrim || isGenerating) return;
 
@@ -1882,7 +2112,10 @@ function PremissaWizard() {
       // que próximas remontagens leiam do metadata, não do draft antigo.
       clearDraft("premissa", "briefing");
       clearDraft("premissa", "resumo");
-      setResumoDraft(fullText);
+      // Sincroniza o local state do textarea de resumo (memo'd) com o
+      // texto recém-gerado — o useEffect interno do useDraft não dispara
+      // porque committedValue ainda é o valor antigo até o próximo render.
+      resumoRef.current?.setValue(fullText);
       setIsEditingResumo(false);
     } catch (e) {
       if (!(e instanceof Error && e.name === "AbortError")) {
@@ -1894,14 +2127,15 @@ function PremissaWizard() {
       setLiveStream("");
     }
   }, [
-    briefingDraft,
+    briefing,
+    briefingDraftStored,
+    category,
     isGenerating,
     resumo,
     savedInstruction,
     pushOutputToHistory,
     setIsGenerating,
     setOutput,
-    setResumoDraft,
     clearDraft,
     content,
     output?.generatedAt,
@@ -1911,6 +2145,12 @@ function PremissaWizard() {
 
   // ─── Fase 2: aprovar resumo + gerar Blocos 1-7 ──────────────────────
   const approveAndGenerateEstrutura = useCallback(async (instructionOverride?: string) => {
+    resumoRef.current?.flush();
+    briefingRef.current?.flush();
+    const resumoDraft =
+      resumoRef.current?.getValue() ?? resumoDraftStored ?? resumo;
+    const briefingDraft =
+      briefingRef.current?.getValue() ?? briefingDraftStored ?? briefing;
     const resumoTrim = resumoDraft.trim();
     const briefingTrim = briefingDraft.trim() || briefing;
     if (!resumoTrim || isGenerating) return;
@@ -1968,7 +2208,7 @@ function PremissaWizard() {
       // Estrutura aprovada — todos os campos da Premissa viraram oficiais
       // (briefing/resumo no metadata, content no output). Apaga drafts.
       clearDraft("premissa");
-      setContentDraft(fullContent);
+      contentRef.current?.setValue(fullContent);
       setIsEditingResumo(false);
       setIsEditingContent(false);
     } catch (e) {
@@ -1981,16 +2221,17 @@ function PremissaWizard() {
       setLiveStream("");
     }
   }, [
-    resumoDraft,
-    briefingDraft,
     briefing,
+    briefingDraftStored,
+    category,
+    resumo,
+    resumoDraftStored,
     isGenerating,
     content,
     savedInstruction,
     pushOutputToHistory,
     setIsGenerating,
     setOutput,
-    setContentDraft,
     clearDraft,
     meta,
     roteiro?.referenceImage,
@@ -2010,6 +2251,9 @@ function PremissaWizard() {
   //   • done      → regenera a estrutura mantendo o resumo, com a
   //                 instrução baked no prompt
   const applyInstruction = useCallback(async () => {
+    instructionRef.current?.flush();
+    const pendingInstruction =
+      instructionRef.current?.getValue() ?? instructionDraftStored;
     const trimmed = pendingInstruction.trim();
     if (!trimmed || isGenerating) return;
     setUserInput("premissa", trimmed);
@@ -2023,7 +2267,7 @@ function PremissaWizard() {
     }
     // briefing phase: instrução fica salva; será aplicada no próximo "Gerar resumo".
   }, [
-    pendingInstruction,
+    instructionDraftStored,
     isGenerating,
     phase,
     setUserInput,
@@ -2048,11 +2292,14 @@ function PremissaWizard() {
       generatedAt: new Date().toISOString(),
       metadata: { ...meta, premissaManualPaste: false },
     });
-    setContentDraft("");
+    contentRef.current?.setValue("");
     setIsEditingManual(false);
-  }, [setOutput, setContentDraft, meta]);
+  }, [setOutput, meta]);
 
   const saveManualEdit = useCallback(() => {
+    contentRef.current?.flush();
+    const contentDraft =
+      contentRef.current?.getValue() ?? contentDraftStored ?? content;
     setOutput("premissa", {
       content: contentDraft,
       generatedAt: output?.generatedAt ?? new Date().toISOString(),
@@ -2062,9 +2309,12 @@ function PremissaWizard() {
     });
     clearDraft("premissa", "content");
     setIsEditingManual(false);
-  }, [setOutput, clearDraft, contentDraft, output?.generatedAt, meta]);
+  }, [setOutput, clearDraft, content, contentDraftStored, output?.generatedAt, meta]);
 
   const saveContentEdit = useCallback(() => {
+    contentRef.current?.flush();
+    const contentDraft =
+      contentRef.current?.getValue() ?? contentDraftStored ?? content;
     setOutput("premissa", {
       content: contentDraft,
       generatedAt: output?.generatedAt ?? new Date().toISOString(),
@@ -2074,11 +2324,21 @@ function PremissaWizard() {
     });
     clearDraft("premissa", "content");
     setIsEditingContent(false);
-  }, [setOutput, clearDraft, contentDraft, output?.generatedAt, meta]);
+  }, [setOutput, clearDraft, content, contentDraftStored, output?.generatedAt, meta]);
 
   // ─── Word counts (regra do CLAUDE.md: usar countWords) ─────────────
-  const resumoWordCount = countWords(resumoDraft || resumo);
-  const contentWordCount = countWords(contentDraft || content);
+  // Usa o draft GRAVADO (debounced 400ms) — se houver — senão o oficial.
+  // Trade-off: contador atualiza só após pausa de digitação, não em tempo
+  // real. É aceitável: ninguém edita resumo contando palavras a cada
+  // keystroke. O ganho de não re-renderizar o pai a cada tecla compensa.
+  const resumoWordCount = useMemo(
+    () => countWords(resumoDraftStored || resumo),
+    [resumoDraftStored, resumo],
+  );
+  const contentWordCount = useMemo(
+    () => countWords(contentDraftStored || content),
+    [contentDraftStored, content],
+  );
   const resumoTargetMin = 1200;
   const resumoTargetMax = 1800;
   const resumoOutOfTarget =
@@ -2160,7 +2420,7 @@ function PremissaWizard() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setContentDraft(content);
+                  contentRef.current?.setValue(content);
                   setIsEditingManual(true);
                 }}
               >
@@ -2174,7 +2434,7 @@ function PremissaWizard() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setContentDraft(content);
+                    contentRef.current?.setValue(content);
                     setIsEditingManual(!content);
                   }}
                 >
@@ -2197,10 +2457,11 @@ function PremissaWizard() {
         </div>
 
         {isEditingManual ? (
-          <Textarea
+          <PremissaDraftTextarea
+            ref={contentRef}
+            field="content"
+            committedValue={content}
             id="premissa-manual"
-            value={contentDraft}
-            onChange={(e) => setContentDraft(e.target.value)}
             placeholder={`Cole aqui a premissa completa.\n\nFormato sugerido:\n\n# PARTE 1\n[texto corrido]\n\n# PARTE 2\n[texto corrido]`}
             rows={20}
             className="font-sans text-[14px] leading-relaxed resize-y min-h-[400px]"
@@ -2250,10 +2511,11 @@ function PremissaWizard() {
                 : "Edite e clique em Regenerar resumo se quiser ajustar"}
             </span>
           </div>
-          <Textarea
+          <PremissaDraftTextarea
+            ref={briefingRef}
+            field="briefing"
+            committedValue={briefing}
             id="premissa-briefing"
-            value={briefingDraft}
-            onChange={(e) => setBriefingDraft(e.target.value)}
             placeholder={`Ex.: Nova York, finanças/Wall Street. MMC: CEO de um conglomerado financeiro que herdou a empresa após o pai morrer. FMC: jornalista de 28 anos que perdeu o emprego e descobre que o apartamento dela foi comprado pela empresa dele. Gatilho: convivência forçada quando ela aceita um trabalho temporário na fundação cultural dele. Vilã: ex-noiva dele que ainda circula no meio social. Segredo central: o pai dele deixou uma cláusula que obriga o MMC a casar até os 35 ou perder o controle da empresa.\n\nMencione (opcional):\n• cidade (Nova York, Chicago, Seattle, Dallas, LA, San Francisco, Miami, Boston, Londres, Paris, Mônaco, Genebra, Zurique, Milão, Roma, Madri, Barcelona, Dubai, Hong Kong, Singapura, Tóquio)\n• tipo de fortuna (tecnologia, finanças, hotelaria, moda, herança antiga, imobiliário, indústria, mídia)\n• profissão e situação inicial da FMC\n• trauma central de cada um\n• gatilho inicial (humilhação pública, casamento por contrato, namoro falso, convivência forçada, dívida, projeto compartilhado)\n• segredo central que você quer ver pago\n• tipo de vilão (ex, sogra, sócio, rival corporativo)`}
             rows={phase === "briefing" ? 12 : 5}
             className="font-sans text-[14px] leading-relaxed resize-y"
@@ -2289,16 +2551,17 @@ function PremissaWizard() {
             </Badge>
           </div>
           {isEditingResumo ? (
-            <Textarea
+            <PremissaDraftTextarea
+              ref={resumoRef}
+              field="resumo"
+              committedValue={resumo}
               id="premissa-resumo"
-              value={resumoDraft}
-              onChange={(e) => setResumoDraft(e.target.value)}
               rows={20}
               className="font-sans text-[14px] leading-relaxed resize-y min-h-[400px]"
             />
           ) : (
             <div className="rounded-lg border bg-card p-4 sm:p-6 max-h-[55vh] overflow-auto">
-              <Prose>{resumoDraft || resumo}</Prose>
+              <Prose>{resumoDraftStored || resumo}</Prose>
             </div>
           )}
           <div className="flex items-center justify-end gap-2 flex-wrap pt-1">
@@ -2316,7 +2579,7 @@ function PremissaWizard() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setResumoDraft(resumo);
+                    resumoRef.current?.setValue(resumo);
                     setIsEditingResumo(false);
                   }}
                 >
@@ -2326,6 +2589,9 @@ function PremissaWizard() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
+                    resumoRef.current?.flush();
+                    const resumoDraft =
+                      resumoRef.current?.getValue() ?? resumoDraftStored ?? resumo;
                     setOutput("premissa", {
                       content,
                       generatedAt: output?.generatedAt ?? new Date().toISOString(),
@@ -2345,6 +2611,11 @@ function PremissaWizard() {
 
       {/* ─── Caixa de instruções adicionais (chat de refinamento) ─── */}
       {(() => {
+        // Lê do store (debounced 400ms). O badge "Será aplicado / Correção
+        // aplicada" e o estado disabled do botão atualizam após pausa de
+        // digitação, não em tempo real — trade-off aceitável pelo ganho
+        // de não re-renderizar PremissaWizard a cada tecla.
+        const pendingInstruction = instructionDraftStored;
         const trimmedInstruction = pendingInstruction.trim();
         const instructionDirty = pendingInstruction !== savedInstruction;
         const hasInstructionContent = trimmedInstruction.length > 0;
@@ -2378,11 +2649,12 @@ function PremissaWizard() {
                     : "Aplicar regenera a estrutura mantendo o resumo aprovado"}
               </span>
             </div>
-            <Textarea
+            <PremissaDraftTextarea
+              ref={instructionRef}
+              field="instruction"
+              committedValue={savedInstruction}
               id="premissa-instructions"
               placeholder={placeholder}
-              value={pendingInstruction}
-              onChange={(e) => setPendingInstruction(e.target.value)}
               rows={3}
               className="resize-none"
             />
@@ -2435,9 +2707,10 @@ function PremissaWizard() {
           </div>
           {isEditingContent ? (
             <>
-              <Textarea
-                value={contentDraft}
-                onChange={(e) => setContentDraft(e.target.value)}
+              <PremissaDraftTextarea
+                ref={contentRef}
+                field="content"
+                committedValue={content}
                 rows={24}
                 className="font-mono text-[13px] leading-relaxed resize-y min-h-[500px]"
               />
@@ -2446,7 +2719,7 @@ function PremissaWizard() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setContentDraft(content);
+                    contentRef.current?.setValue(content);
                     setIsEditingContent(false);
                   }}
                 >
@@ -2467,7 +2740,7 @@ function PremissaWizard() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setContentDraft(content);
+                    contentRef.current?.setValue(content);
                     setIsEditingContent(true);
                   }}
                 >
@@ -2484,7 +2757,7 @@ function PremissaWizard() {
         {phase === "briefing" && (
           <Button
             onClick={() => generateResumo()}
-            disabled={!briefingDraft.trim() || isGenerating}
+            disabled={!(briefingDraftStored || briefing).trim() || isGenerating}
             size="lg"
             className="gap-2"
           >
@@ -2495,7 +2768,7 @@ function PremissaWizard() {
           <>
             <Button
               onClick={() => approveAndGenerateEstrutura()}
-              disabled={!resumoDraft.trim() || isGenerating}
+              disabled={!(resumoDraftStored || resumo).trim() || isGenerating}
               size="lg"
               className="gap-2"
             >
@@ -2503,7 +2776,7 @@ function PremissaWizard() {
             </Button>
             <Button
               onClick={() => generateResumo()}
-              disabled={!briefingDraft.trim() || isGenerating}
+              disabled={!(briefingDraftStored || briefing).trim() || isGenerating}
               variant="outline"
               size="lg"
               className="gap-2"
@@ -2515,7 +2788,7 @@ function PremissaWizard() {
         {phase === "done" && (
           <Button
             onClick={() => approveAndGenerateEstrutura()}
-            disabled={!resumoDraft.trim() || isGenerating}
+            disabled={!(resumoDraftStored || resumo).trim() || isGenerating}
             variant="outline"
             size="sm"
             className="gap-2"
@@ -2618,12 +2891,17 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
       <div className="flex flex-col gap-3">
         {chapters.map((ch, i) => {
           const isLast = i === chapters.length - 1;
+          // key por número+parte é estável: reordenação/inserção não bagunça
+          // a identidade dos cards (era key={i} antes — que misturava a state
+          // local de `isEditing`/`draft` quando a lista mudava).
+          const key = `${ch.part ?? "x"}-${ch.number}`;
           return (
             <ChapterCard
-              key={i}
+              key={key}
               chapter={ch}
+              chapterIndex={i}
               defaultOpen={isLast}
-              onSave={(newContent) => saveChapter(i, newContent)}
+              onSave={saveChapter}
             />
           );
         })}
@@ -2667,14 +2945,23 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
   );
 }
 
-function ChapterCard({
+// React.memo: ChapterCard é renderizado em lista (até 14 cards na tela ao mesmo
+// tempo durante a Escrita). Sem memo, qualquer re-render do parent (typing num
+// textarea próximo, tick de stream throttled, mudança em metadata) reconciliava
+// todos os cards. Como `chapter` é objeto, dependemos de o pai usar referências
+// estáveis vindas do store (useWizard preserva a identidade quando o item não
+// muda). `onSave` recebe (idx, content) — sem isso, o pai precisaria criar uma
+// arrow inline por render `(c) => save(i, c)` que invalida o memo.
+const ChapterCard = memo(function ChapterCard({
   chapter,
+  chapterIndex,
   defaultOpen,
   onSave,
 }: {
   chapter: EscritaChapter;
+  chapterIndex: number;
   defaultOpen: boolean;
-  onSave?: (newContent: string) => void;
+  onSave?: (idx: number, newContent: string) => void;
 }) {
   const titleLabel = chapter.title
     ? `Capítulo ${chapter.number} — ${chapter.title}`
@@ -2682,6 +2969,10 @@ function ChapterCard({
 
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(chapter.content);
+
+  // realCount é usado no header — sem memo, era recalculado a cada render do
+  // card, mesmo quando o conteúdo do capítulo (até 1k palavras) não tinha mudado.
+  const realCount = useMemo(() => countWords(chapter.content), [chapter.content]);
 
   // Se o conteúdo do capítulo mudar (ex: revisor aplicou correção, ou snapshot
   // restaurado), sincroniza o draft local quando NÃO estiver editando.
@@ -2700,9 +2991,9 @@ function ChapterCard({
   }, [chapter.content]);
 
   const saveEdit = useCallback(() => {
-    if (onSave) onSave(draft);
+    if (onSave) onSave(chapterIndex, draft);
     setIsEditing(false);
-  }, [draft, onSave]);
+  }, [chapterIndex, draft, onSave]);
 
   return (
     <details
@@ -2724,25 +3015,22 @@ function ChapterCard({
               </span>
             )}
             {(() => {
-              const realCount = countWords(chapter.content);
               const declaredCount = chapter.wordCount;
               const showDeclared =
                 typeof declaredCount === "number" &&
                 Math.abs(declaredCount - realCount) > 30;
               return (
-                <>
-                  <span className="text-[10px] text-muted-foreground">
-                    {realCount.toLocaleString("pt-BR")} palavras
-                    {showDeclared && (
-                      <span
-                        className="ml-1 text-amber-700"
-                        title="A contagem que o agente declarou difere do conteúdo real"
-                      >
-                        (declarou {declaredCount?.toLocaleString("pt-BR")})
-                      </span>
-                    )}
-                  </span>
-                </>
+                <span className="text-[10px] text-muted-foreground">
+                  {realCount.toLocaleString("pt-BR")} palavras
+                  {showDeclared && (
+                    <span
+                      className="ml-1 text-amber-700"
+                      title="A contagem que o agente declarou difere do conteúdo real"
+                    >
+                      (declarou {declaredCount?.toLocaleString("pt-BR")})
+                    </span>
+                  )}
+                </span>
               );
             })()}
             {chapter.edited && (
@@ -2813,12 +3101,100 @@ function ChapterCard({
       </div>
     </details>
   );
-}
+});
 
 function formatElapsed(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+/**
+ * Formata "tempo decorrido desde X" em pt-BR amigável: "agora há pouco",
+ * "há X minutos", "há X horas", "há X dias". Usado pelo banner de geração
+ * interrompida pra mostrar há quanto tempo o stream foi cortado.
+ */
+function formatTimeSince(iso: string | undefined): string {
+  if (!iso) return "agora há pouco";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "agora há pouco";
+  const diffSec = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (diffSec < 60) return "agora há pouco";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `há ${diffMin} minuto${diffMin === 1 ? "" : "s"}`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `há ${diffH} hora${diffH === 1 ? "" : "s"}`;
+  const diffD = Math.floor(diffH / 24);
+  return `há ${diffD} dia${diffD === 1 ? "" : "s"}`;
+}
+
+/**
+ * Banner mostrado em Estrutura 1/2 quando o output corrente tem o flag
+ * `partial:true` (geração interrompida no meio do stream — freeze, app
+ * fechado, crash, perda de rede). O texto parcial está preservado em
+ * `output.content` e os botões oferecem dois caminhos:
+ *
+ * - Continuar de onde parou: dispara `generate("continue")` que envia o
+ *   partial pro agente como `currentOutput` + `continuationMode: true`. O
+ *   agente Estrutura recebe um prompt instruindo a continuar exatamente do
+ *   ponto onde o partial termina, sem repetir nem recomeçar.
+ * - Descartar e regenerar: dispara `generate("regenerate", "Parcial
+ *   descartado")` — o partial vira histórico (recuperável) e o stream começa
+ *   do zero.
+ *
+ * O campo "Instruções adicionais" (acima do output, sub-componente
+ * StepUserInputBox) continua disponível e é incorporado no prompt da
+ * continuação automaticamente — útil pra ajustes ("foque mais no MMC").
+ */
+function InterruptedGenerationBanner({
+  startedAt,
+  partialLength,
+  onContinue,
+  onDiscardAndRegenerate,
+}: {
+  startedAt?: string;
+  partialLength: number;
+  onContinue: () => void;
+  onDiscardAndRegenerate: () => void;
+}) {
+  return (
+    <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-4 sm:px-5 py-4 flex flex-col gap-3">
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="size-5 flex-none text-amber-700 mt-0.5" />
+        <div className="flex flex-col gap-1 min-w-0">
+          <p className="text-sm font-semibold text-amber-900">
+            Geração interrompida {formatTimeSince(startedAt)} — output parcial
+            preservado abaixo
+          </p>
+          <p className="text-xs text-amber-800/90">
+            {partialLength.toLocaleString("pt-BR")} caracteres salvos. Você
+            pode continuar de onde a IA parou (mantém o que já foi gerado) ou
+            descartar e gerar do zero. Use a caixa de &quot;Instruções
+            adicionais&quot; acima se quiser orientar a continuação.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 pl-8">
+        <Button
+          onClick={onContinue}
+          size="sm"
+          className="gap-2 bg-amber-700 hover:bg-amber-800 text-white"
+        >
+          <Sparkles className="size-3.5" />
+          Continuar de onde parou
+        </Button>
+        <Button
+          onClick={onDiscardAndRegenerate}
+          size="sm"
+          variant="outline"
+          className="gap-2 border-amber-300 text-amber-900 hover:bg-amber-100"
+        >
+          <RotateCcw className="size-3.5" />
+          Descartar e regenerar
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function BatchProgressPanel({

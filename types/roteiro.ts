@@ -142,6 +142,19 @@ export interface StepOutputMetadata {
    * e os campos do fluxo automático ficam vazios.
    */
   premissaManualPaste?: boolean;
+  /**
+   * [Estrutura P1/P2] true enquanto a geração está em andamento — o `content`
+   * é checkpointed periodicamente durante o stream. Vira `false` quando o
+   * stream termina limpo. Se o app é fechado/freeze no meio, o flag continua
+   * `true` ao reabrir — a UI usa isso pra mostrar o banner "geração
+   * interrompida" e oferecer o botão "Continuar de onde parou".
+   */
+  partial?: boolean;
+  /**
+   * [Estrutura P1/P2] ISO timestamp do início da geração corrente. Usado pra
+   * calcular "interrompida há X min" no banner. Setado junto com `partial`.
+   */
+  streamingStartedAt?: string;
 }
 
 export interface StepOutput {

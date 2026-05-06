@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,6 +21,18 @@ interface HistoryPanelProps {
 export function HistoryPanel({ step, history }: HistoryPanelProps) {
   const restoreFromHistory = useWizard((s) => s.restoreFromHistory);
   const deleteFromHistory = useWizard((s) => s.deleteFromHistory);
+
+  // Callbacks estáveis: passam o id por argumento. Sem isso, cada render
+  // criava arrows novas `() => restoreFromHistory(step, snap.id)` por linha,
+  // invalidando o memo do SnapshotRow.
+  const handleRestore = useMemo(
+    () => (snapId: string) => restoreFromHistory(step, snapId),
+    [restoreFromHistory, step],
+  );
+  const handleDelete = useMemo(
+    () => (snapId: string) => deleteFromHistory(step, snapId),
+    [deleteFromHistory, step],
+  );
 
   if (history.length === 0) return null;
 
@@ -56,8 +69,8 @@ export function HistoryPanel({ step, history }: HistoryPanelProps) {
             <SnapshotRow
               key={snap.id}
               snap={snap}
-              onRestore={() => restoreFromHistory(step, snap.id)}
-              onDelete={() => deleteFromHistory(step, snap.id)}
+              onRestore={handleRestore}
+              onDelete={handleDelete}
             />
           ))}
         </div>
@@ -66,21 +79,32 @@ export function HistoryPanel({ step, history }: HistoryPanelProps) {
   );
 }
 
-function SnapshotRow({
+// memo: até 5 snapshots por step. Sem isso, expandir/typing em qualquer outro
+// lugar re-renderizava todas as rows e re-rodava countWords (até 13.5k palavras
+// por snap × 5 snaps = trabalho real). Os callbacks recebem id pra que o pai
+// possa passar uma única função estável (em vez de arrow inline por row).
+const SnapshotRow = memo(function SnapshotRow({
   snap,
   onRestore,
   onDelete,
 }: {
   snap: StepGenerationSnapshot;
-  onRestore: () => void;
-  onDelete: () => void;
+  onRestore: (snapId: string) => void;
+  onDelete: (snapId: string) => void;
 }) {
-  const savedAt = new Date(snap.savedAt).toLocaleString("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-  const wordCount = countWords(snap.content);
-  const preview = snap.content.replace(/\s+/g, " ").trim().slice(0, 120);
+  const savedAt = useMemo(
+    () =>
+      new Date(snap.savedAt).toLocaleString("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short",
+      }),
+    [snap.savedAt],
+  );
+  const wordCount = useMemo(() => countWords(snap.content), [snap.content]);
+  const preview = useMemo(
+    () => snap.content.replace(/\s+/g, " ").trim().slice(0, 120),
+    [snap.content],
+  );
 
   return (
     <div className="flex items-start gap-3 rounded-md border bg-background px-3 py-2.5">
@@ -115,7 +139,7 @@ function SnapshotRow({
           size="sm"
           variant="ghost"
           className="h-7 gap-1 text-xs"
-          onClick={onRestore}
+          onClick={() => onRestore(snap.id)}
           title="Restaurar esta versão (a atual vai pro histórico)"
         >
           <RotateCcw className="size-3" />
@@ -125,7 +149,7 @@ function SnapshotRow({
           size="icon"
           variant="ghost"
           className="size-7 text-muted-foreground hover:text-destructive"
-          onClick={onDelete}
+          onClick={() => onDelete(snap.id)}
           title="Excluir esta versão"
           aria-label="Excluir"
         >
@@ -134,4 +158,4 @@ function SnapshotRow({
       </div>
     </div>
   );
-}
+});

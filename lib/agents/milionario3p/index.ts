@@ -6,15 +6,14 @@
  * /api/escrita-fix-wordcount) e o par de extração estruturada do Revisor
  * (fallback /api/revisor-extract-errors).
  *
- * NARRAÇÃO: Terceira pessoa LIMITADA À FMC. Sem POV masculino. O MMC é mostrado
- * apenas pelos atos, falas e gestos observáveis — o leitor nunca entra na
- * cabeça dele. Esse regime vale para a Parte 1 sempre. Para a Parte 2, a
- * estrutura aprovada (Step 3) prevalece — em casos legados ela pode pedir
- * narrador onisciente, e o agent da Escrita segue a estrutura nesses casos
- * (ver nota dedicada em escrita-prompt.ts).
+ * NARRAÇÃO: Terceira pessoa LIMITADA À FMC nas DUAS partes (sem exceção).
+ * Sem POV masculino, sem alternância, sem mudança de regime entre Parte 1
+ * e Parte 2. O MMC é mostrado apenas pelos atos, falas e gestos observáveis
+ * — o leitor nunca entra na cabeça dele, nem na cena erótica do penúltimo
+ * capítulo da Parte 2. Conforme a Premissa Narrativa Obrigatória do guia.
  *
- * Word counts: P1 11.000–12.000 palavras (alvo 12.000), P2 13.000–13.500
- * (alvo 13.250). Símbolos do Revisor: 🟢🟡🔴💀.
+ * Word counts: P1 9.500–10.500 palavras (alvo 10.500), P2 13.000–14.000
+ * (alvo 13.500). Símbolos do Revisor: 🟢🟡🔴💀.
  */
 
 import type { StepId } from "@/types/roteiro";

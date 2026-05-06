@@ -43,6 +43,10 @@ interface Body {
    *  anteriores. O agente Revisor recebe instrução de não repetir esses erros
    *  e focar em refinamentos novos. Só relevante pro step "revisor". */
   previousRevisorErrors?: string[];
+  /** Modo "Continuar de onde parou" (Estrutura P1/P2): quando true, o agente
+   *  recebe o `currentOutput` como partial e deve continuar exatamente daquele
+   *  ponto sem repetir nem recomeçar. */
+  continuationMode?: boolean;
 }
 
 const ACCEPTED_IMAGE_MIMES: ClaudeImageMime[] = [
@@ -109,6 +113,7 @@ export async function POST(
     ...(body.previousRevisorErrors && body.previousRevisorErrors.length > 0
       ? { previousRevisorErrors: body.previousRevisorErrors }
       : {}),
+    ...(body.continuationMode ? { continuationMode: true } : {}),
   });
 
   // Image multimodal — só vai pro modelo se o agente declarou acceptsReferenceImage.

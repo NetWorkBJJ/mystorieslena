@@ -178,6 +178,12 @@ export function ReferenceImageUpload() {
             <img
               src={referenceImage.dataUrl}
               alt="Pré-visualização da referência"
+              // decoding="async" tira o decode da thread principal — sem isso,
+              // o primeiro paint do Premissa wizard com imagem anexada (data
+              // URL inline de até 2MB) bloqueava o Chromium por 100-300ms,
+              // sentido como "trava no começo" pela usuária.
+              decoding="async"
+              loading="eager"
               className="absolute inset-0 w-full h-full object-cover"
             />
           </div>

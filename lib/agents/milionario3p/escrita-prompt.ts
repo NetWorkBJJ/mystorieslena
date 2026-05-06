@@ -5,10 +5,11 @@
  * Convertido fielmente do PDF "_ROWAN_-_MILIONARIOS_-_GUIA_COMPLETO_alterado"
  * (PROMPT ESCRITA + START + RELATÓRIO consolidado, páginas 42–63).
  *
- * Regra mestra: TERCEIRA PESSOA LIMITADA À FMC. O leitor nunca entra na cabeça
- * do MMC — ele é mostrado pelo observável (gestos, falas, ações). Ver nota
- * sobre Parte 2 abaixo (a estrutura aprovada da Parte 2 prevalece quando pedir
- * narrador onisciente, conforme legado preservado).
+ * Regra mestra: TERCEIRA PESSOA LIMITADA À FMC nas DUAS partes (sem exceção).
+ * O leitor nunca entra na cabeça do MMC — ele é mostrado pelo observável
+ * (gestos, falas, ações), tanto na Parte 1 quanto na Parte 2. Não há
+ * alternância de POV entre as partes; o regime narrativo é o mesmo do início
+ * ao fim, conforme a Premissa Narrativa Obrigatória.
  */
 
 export const ESCRITA_SYSTEM_PROMPT = `✍️ PROMPT — ROTEIRO Escrita dos Capítulos | Romance de Milionário 3ª pessoa | Estilo Helô Stories™ (canal Rowan)
@@ -63,7 +64,7 @@ Onde o narrador NUNCA entra:
 
 A leitora decifra o MMC junto com a heroína — ela vê as pequenas rachaduras, o sorriso raro, o gesto automático de cuidado, a palavra dita baixo demais — e isso constrói a tensão. Permitir POV masculino quebra essa química.
 
-⚠️ NOTA SOBRE A PARTE 2: a estrutura aprovada da Parte 2 (Step 3) pode pedir, em casos legados, que o narrador alterne foco entre FMC e MMC ou entre por dentro do MMC. Se a estrutura aprovada da Parte 2 efetivamente pedir isso, SIGA A ESTRUTURA — ela tem prioridade sobre a regra de POV deste system prompt para a Parte 2 especificamente. Caso a estrutura da Parte 2 reafirme o regime "limitado à FMC", continue seguindo o regime mestra. A regra "limitado à FMC" SEMPRE vale para a Parte 1.
+⚠️ A REGRA "LIMITADO À FMC" VALE PARA AS DUAS PARTES — sem exceção, sem alternância, sem mudança de regime entre Parte 1 e Parte 2. Mesmo nos momentos de maior intensidade emocional do MMC (a bomba do Cap. 1 da Parte 2, a reconciliação, a cena erótica), o narrador continua de fora dele. Se em algum momento a estrutura aprovada parecer pedir acesso à mente do MMC, IGNORE essa parte da estrutura — a Premissa Narrativa Obrigatória prevalece. O MMC é sempre mostrado pelos atos observáveis: postura, voz, mãos, escolhas, silêncios, sacrifícios.
 
 ⚠️ O narrador NUNCA se anuncia, NUNCA se refere a si mesmo, NUNCA menciona sua função. Ele é invisível ao texto. Palavras como "narrador", "autor", "escritor", "narração" não podem aparecer no texto da história sob nenhuma hipótese.
 
@@ -356,7 +357,7 @@ DIÁLOGOS: Identificação clara de quem fala. Nenhum partido com reflexão no m
 
 LINGUAGEM: Norma culta. Verbo "ir" no passado correto ("iria" não "ia"). Frases conectadas, parágrafos ≤5 linhas. Sem advérbios proibidos, sem frases proibidas, sem frases soltas de uma palavra como parágrafo.
 
-NARRAÇÃO: Toda em terceira pessoa. Foco LIMITADO à FMC (na Parte 1; na Parte 2, seguir a estrutura aprovada). Sem POV masculino. Sem deslize para primeira pessoa. Sem entrar nos pensamentos do MMC.
+NARRAÇÃO: Toda em terceira pessoa. Foco LIMITADO à FMC nas DUAS partes (Parte 1 E Parte 2 — mesmo regime, sem alternância, sem mudança). Sem POV masculino. Sem deslize para primeira pessoa. Sem entrar nos pensamentos do MMC em nenhum capítulo.
 
 TOM HELÔ: Sedutor, intenso, emocionalmente poderoso. Nunca monótono. Ritmo sem descanso. Humor nos momentos certos. Intensidade da elegância, nunca do explícito ou vulgar.
 

@@ -56,6 +56,14 @@ export interface AgentContext {
    * rodada cobre aspectos diferentes e a Nota Final reflete progresso real.
    */
   previousRevisorErrors?: string[];
+  /**
+   * Modo "Continuar de onde parou" — disparado quando uma geração anterior
+   * dos steps Estrutura P1/P2 foi interrompida no meio do stream e o output
+   * parcial está preservado. O agente recebe o partial em `currentOutput` e
+   * deve continuar EXATAMENTE de onde parou, sem repetir, recomeçar nem
+   * resumir. Diferente de `refineMode` (que ajusta uma versão completa).
+   */
+  continuationMode?: boolean;
 }
 
 export interface Agent {

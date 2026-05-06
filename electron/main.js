@@ -671,6 +671,15 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false,
       preload: path.join(__dirname, "preload.js"),
+      // Spellcheck do Chromium é o gargalo dominante de digitação em
+      // textareas grandes (resumo da Premissa, edição de capítulo). A cada
+      // keystroke ele reanalisa a palavra atual + redesenha os sublinhados
+      // ondulados — no Windows isso é especialmente pesado (DirectWrite +
+      // possível interferência do Defender escaneando o dicionário). Romance
+      // tem nomes próprios, gírias e palavras inventadas — os sublinhados
+      // vermelhos eram mais ruído que ajuda. Desabilitar é o fix definitivo
+      // pra "lentidão ao digitar".
+      spellcheck: false,
     },
   });
 
