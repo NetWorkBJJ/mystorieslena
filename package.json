@@ -99,7 +99,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "lucasbaziliocomercial-crypto",
+        "owner": "NetWorkBJJ",
         "repo": "mystorieslena",
         "releaseType": "release"
       }
