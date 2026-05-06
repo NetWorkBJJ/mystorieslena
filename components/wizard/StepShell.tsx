@@ -356,8 +356,20 @@ export function StepShell({ step }: Props) {
     // ex.: botão "Aplicar correção" da caixa, que comita+dispara num clique).
     // Lê só o input desse step específico — input de outro step NÃO vaza
     // pra essa chamada.
+    //
+    // Draft do textarea de "Instruções adicionais" tem prioridade sobre
+    // userInputs[step]: o draft só persiste quando pending !== committed
+    // (lib/use-draft.ts), logo é por definição mais novo. Sem ler draft, a
+    // primeira geração antes de qualquer "Aplicar correção" ignora silenciosa-
+    // mente o que o usuário digitou.
+    const draftInput = (
+      (roteiro.drafts?.[step] as { input?: string } | undefined)?.input ?? ""
+    ).trim();
+    const committedInput = (roteiro.userInputs?.[step] ?? "").trim();
     const effectiveUserInput =
-      (userInputOverride ?? roteiro.userInputs?.[step] ?? "").trim();
+      userInputOverride !== undefined
+        ? userInputOverride.trim()
+        : draftInput || committedInput;
 
     // Modo correção precisa de output existente + instrução escrita.
     if (mode === "refine") {
@@ -2164,8 +2176,14 @@ function PremissaWizard() {
     }
 
     // Instrução adicional vem ou do override (caller acabou de salvar) ou
-    // do que está persistido em userInputs.premissa.
-    const instruction = (instructionOverride ?? savedInstruction).trim();
+    // do que está persistido em userInputs.premissa. Draft do textarea
+    // tem prioridade sobre savedInstruction — useDraft só persiste quando
+    // pending !== committed, então é por definição mais novo. Sem isso, a
+    // primeira geração antes de "Salvar instrução" ignorava o que foi digitado.
+    const draftInstruction = pendingInstruction.trim();
+    const instruction = (
+      instructionOverride ?? (draftInstruction || savedInstruction)
+    ).trim();
     const fullUserInput = instruction
       ? `${briefingTrim}\n\n━━━ INSTRUÇÕES ADICIONAIS DA AUTORA ━━━\n${instruction}`
       : briefingTrim;
@@ -2246,6 +2264,7 @@ function PremissaWizard() {
     isGenerating,
     resumo,
     savedInstruction,
+    pendingInstruction,
     pushOutputToHistory,
     setIsGenerating,
     setOutput,
@@ -2272,7 +2291,12 @@ function PremissaWizard() {
       pushOutputToHistory("premissa", "Antes de regenerar estrutura");
     }
 
-    const instruction = (instructionOverride ?? savedInstruction).trim();
+    // Draft tem prioridade sobre savedInstruction — ver comentário em
+    // generateResumo. Mesmo bug aplicado a essa fase também.
+    const draftInstruction = pendingInstruction.trim();
+    const instruction = (
+      instructionOverride ?? (draftInstruction || savedInstruction)
+    ).trim();
     const fullUserInput = instruction
       ? `${briefingTrim}\n\n━━━ INSTRUÇÕES ADICIONAIS DA AUTORA ━━━\n${instruction}`
       : briefingTrim;
@@ -2342,6 +2366,7 @@ function PremissaWizard() {
     isGenerating,
     content,
     savedInstruction,
+    pendingInstruction,
     pushOutputToHistory,
     setIsGenerating,
     setOutput,
