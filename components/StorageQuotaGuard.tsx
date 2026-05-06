@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { flushPendingSave } from "@/lib/storage";
 
 /**
  * Escuta o custom event `veludo:storage-quota-exceeded` (disparado por
@@ -28,6 +29,21 @@ export function StorageQuotaGuard() {
     window.addEventListener("veludo:storage-quota-exceeded", handler);
     return () => {
       window.removeEventListener("veludo:storage-quota-exceeded", handler);
+    };
+  }, []);
+
+  // beforeunload: o scheduleSave debouncer pode ter até 600ms enfileirado.
+  // Se a usuária fechar a janela do Electron antes do timer, a última
+  // edição se perderia. Aqui fazemos flush síncrono — beforeunload é o
+  // último ponto onde dá pra gravar localStorage de forma garantida.
+  useEffect(() => {
+    const flush = () => flushPendingSave();
+    window.addEventListener("beforeunload", flush);
+    // pagehide cobre cenários onde beforeunload não dispara (mobile, BFCache).
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("beforeunload", flush);
+      window.removeEventListener("pagehide", flush);
     };
   }, []);
 

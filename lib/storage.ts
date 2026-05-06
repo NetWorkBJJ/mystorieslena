@@ -151,8 +151,101 @@ export function saveRoteiro(roteiro: Roteiro) {
   safeSetItem(serialize(all));
 }
 
+/**
+ * Coalesce de gravações: o Zustand chama persist() em todas as mutações
+ * (setOutput, setUserInput, setDraft, etc). Sem debounce, cada keystroke
+ * acionava `compressToUTF16()` síncrono em ~500KB-1MB de JSON, bloqueando
+ * o main thread por 100-300ms — UI travava ao digitar.
+ *
+ * Aqui o roteiro mais recente fica num map (último vence), e um único
+ * timer de SAVE_DEBOUNCE_MS dispara o flush. 50 keystrokes em rajada
+ * viram 1 gravação. O flush em si roda em requestIdleCallback pra que,
+ * se o teclado ainda estiver ativo no momento, a compressão saia do
+ * critical path.
+ *
+ * `flushPendingSave()` força sync imediato — usar em beforeunload, ao
+ * trocar de step, ao resetar o wizard. Sem isso, fechar o app antes do
+ * timer expirar perderia a última edição.
+ */
+const SAVE_DEBOUNCE_MS = 600;
+const pendingRoteiros = new Map<string, Roteiro>();
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let idleHandle: number | null = null;
+
+type IdleCallbackHandle = number;
+type IdleDeadline = { didTimeout: boolean; timeRemaining: () => number };
+interface IdleWindow {
+  requestIdleCallback?: (
+    cb: (deadline: IdleDeadline) => void,
+    opts?: { timeout: number },
+  ) => IdleCallbackHandle;
+  cancelIdleCallback?: (handle: IdleCallbackHandle) => void;
+}
+
+function runWhenIdle(cb: () => void) {
+  const w = window as IdleWindow & Window;
+  if (typeof w.requestIdleCallback === "function") {
+    idleHandle = w.requestIdleCallback(
+      () => {
+        idleHandle = null;
+        cb();
+      },
+      { timeout: 1000 },
+    );
+  } else {
+    idleHandle = window.setTimeout(() => {
+      idleHandle = null;
+      cb();
+    }, 0) as unknown as number;
+  }
+}
+
+function performPendingSave() {
+  if (pendingRoteiros.size === 0) return;
+  const all = listRoteiros();
+  const now = new Date().toISOString();
+  for (const [id, roteiro] of pendingRoteiros) {
+    const idx = all.findIndex((r) => r.id === id);
+    const updated: Roteiro = { ...roteiro, updatedAt: now };
+    if (idx >= 0) all[idx] = updated;
+    else all.push(updated);
+  }
+  pendingRoteiros.clear();
+  safeSetItem(serialize(all));
+}
+
+export function scheduleSave(roteiro: Roteiro) {
+  if (!isBrowser()) return;
+  pendingRoteiros.set(roteiro.id, roteiro);
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    runWhenIdle(performPendingSave);
+  }, SAVE_DEBOUNCE_MS);
+}
+
+export function flushPendingSave() {
+  if (!isBrowser()) return;
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  if (idleHandle !== null) {
+    const w = window as IdleWindow & Window;
+    if (typeof w.cancelIdleCallback === "function") {
+      w.cancelIdleCallback(idleHandle);
+    } else {
+      clearTimeout(idleHandle);
+    }
+    idleHandle = null;
+  }
+  performPendingSave();
+}
+
 export function deleteRoteiro(id: string) {
   if (!isBrowser()) return;
+  // Se havia gravação pendente desse roteiro, descarta — o delete vence.
+  pendingRoteiros.delete(id);
   const all = listRoteiros().filter((r) => r.id !== id);
   safeSetItem(serialize(all));
 }

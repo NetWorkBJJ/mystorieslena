@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertTriangle,
@@ -33,7 +34,10 @@ export function WordCountBadge({
   label,
   className,
 }: WordCountBadgeProps) {
-  const count = countWords(content);
+  // Memo: badges em telas com Escrita completa contam 13.5k palavras × várias
+  // instâncias (Parte 1, Parte 2, capítulos). Sem memo, refazia a cada render
+  // do parent (ex: tick de stream throttled).
+  const count = useMemo(() => countWords(content), [content]);
   const hasTarget = typeof targetMin === "number" && typeof targetMax === "number";
 
   let status: "neutral" | "ok" | "warn" | "fail" = "neutral";

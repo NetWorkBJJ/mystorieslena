@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { memo, useCallback, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertTriangle, Wand2, Loader2 } from "lucide-react";
@@ -60,6 +60,14 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
     if (!escritaSnapshotHash || !escritaContent) return false;
     return hashEscritaContent(escritaContent) !== escritaSnapshotHash;
   }, [escritaSnapshotHash, escritaContent]);
+
+  // Callback estável: sem useCallback, cada render do RevisorErrorsView criava
+  // 20-50 funções novas (uma por error), invalidando a memoização do ErrorCard
+  // e re-renderizando todos a cada keystroke/tick.
+  const handleApplyOne = useCallback(
+    (errorId: string) => applyOne(errorId),
+    [applyOne],
+  );
 
   if (errors.length === 0) {
     return (
@@ -141,7 +149,7 @@ export function RevisorErrorsView({ errors, escritaSnapshotHash }: Props) {
               key={err.id}
               error={enrichedErr}
               disabled={!escritaContent}
-              onApply={() => applyOne(err.id)}
+              onApply={handleApplyOne}
             />
           );
         })}
@@ -204,7 +212,9 @@ function ApplyAllButton({
 interface CardProps {
   error: RevisorError;
   disabled: boolean;
-  onApply: () => { applied: boolean; found: boolean };
+  // Recebe o id do erro pra que o parent possa passar um único callback
+  // memoizado para todos os cards (sem `() => applyOne(err.id)` por render).
+  onApply: (errorId: string) => { applied: boolean; found: boolean };
 }
 
 /**
@@ -225,7 +235,13 @@ function detectInsertion(
   return { kind: "replacement" };
 }
 
-function ErrorCard({ error, disabled, onApply }: CardProps) {
+// memo: lista de 20-50 cards. Sem isso, qualquer re-render do parent
+// (typing num textarea próximo, tick de timer) reconciliava todos os cards.
+const ErrorCard = memo(function ErrorCard({
+  error,
+  disabled,
+  onApply,
+}: CardProps) {
   const { emoji, label } = gravityLabel(error.gravidade);
   const [pending, startTransition] = useTransition();
   const [localFailed, setLocalFailed] = useState(false);
@@ -251,7 +267,7 @@ function ErrorCard({ error, disabled, onApply }: CardProps) {
   const handleApply = () => {
     setLocalFailed(false);
     startTransition(() => {
-      const result = onApply();
+      const result = onApply(error.id);
       if (!result.applied) setLocalFailed(true);
     });
   };
@@ -484,7 +500,7 @@ function ErrorCard({ error, disabled, onApply }: CardProps) {
       </div>
     </details>
   );
-}
+});
 
 function Section({
   label,

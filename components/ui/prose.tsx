@@ -10,7 +10,15 @@ type ProseProps = {
   size?: "sm" | "base" | "lg";
 };
 
-export function Prose({ children, className, size = "base" }: ProseProps) {
+// React.memo aqui é o ganho de perf mais alto do app: ReactMarkdown reparseia
+// 13.5k+ palavras de markdown a cada render do parent. Sem memo, qualquer
+// keystroke num textarea próximo (ou tick de timer no Revisor) reparseia tudo
+// e trava a UI. Props são primitivas — comparação default basta.
+export const Prose = React.memo(function Prose({
+  children,
+  className,
+  size = "base",
+}: ProseProps) {
   const sizeClass =
     size === "sm" ? "prose-sm" : size === "lg" ? "prose-lg" : "prose-base";
 
@@ -35,4 +43,4 @@ export function Prose({ children, className, size = "base" }: ProseProps) {
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown>
     </div>
   );
-}
+});

@@ -80,6 +80,15 @@ process.on("unhandledRejection", (e) => {
   try { log.error("[unhandled-rejection]", e); } catch { /* log indisponivel */ }
 });
 
+// Logs verbosos so saem em dev ou se MYSTORIESLENA_DEBUG estiver setado. Em
+// packaged build, prints no boot + cada chunk do server enchiam o pipe stderr
+// e o main.log; em sistemas mais lentos isso bloqueava I/O e contribuia pra
+// travamentos. Erros reais (console.error) seguem indo sempre.
+const DEBUG_VERBOSE = !app.isPackaged || !!process.env.MYSTORIESLENA_DEBUG;
+function verbose(...args) {
+  if (DEBUG_VERBOSE) console.log(...args);
+}
+
 // Renderer com heap default ~1.5-2GB estoura em batches longos de Escrita
 // (streaming acumula strings + history + imagem inline). 8GB é folga extra
 // pra cenários de pior caso: vários roteiros no localStorage + imagem inline
@@ -147,8 +156,13 @@ function appendServerLog(prefix, chunk) {
     }
     serverLogFileStream.write(text);
   } catch { /* ignore */ }
-  // Tambem manda pro electron-log pra ficar no main.log (com truncamento).
-  log.info(prefix, text.replace(/\n+$/, ""));
+  // Tambem manda pro electron-log pra ficar no main.log — so em dev/debug.
+  // Em packaged build, o arquivo dedicado (next-server.log) ja tem tudo;
+  // duplicar no main.log a cada chunk de stream do servidor era hot-path
+  // de I/O que contribuia pra lag em sistemas mais lentos.
+  if (DEBUG_VERBOSE) {
+    log.info(prefix, text.replace(/\n+$/, ""));
+  }
 }
 
 function getServerLogTail(n = 30) {
@@ -259,9 +273,9 @@ function getClaudeExecutablePath(sourceDir) {
     }
   }
 
-  console.log(`[claude] testando ${candidates.length} candidatos do binário native:`);
+  verbose(`[claude] testando ${candidates.length} candidatos do binário native:`);
   for (const c of candidates) {
-    console.log(`  ${c.exists ? "✓" : "✗"} ${c.full}`);
+    verbose(`  ${c.exists ? "✓" : "✗"} ${c.full}`);
   }
   return found;
 }
@@ -788,10 +802,19 @@ function createWindow() {
   });
 
   // Sem prompt, GC longo / freeze ficavam invisíveis pra usuária — ela só via
-  // a janela "morta" e tentava forçar o fechamento. Agora damos a opção de
-  // reload depois de 10s sem resposta.
+  // a janela "morta" e tentava forçar o fechamento. Damos a opção de reload
+  // depois do renderer ficar bloqueado por uma janela bem larga.
+  //
+  // Por que 30s aqui (somados aos ~30s que o Chromium já espera antes de
+  // emitir `unresponsive`): durante geração streaming, GC longos ou jobs
+  // pesados podem freezear o renderer por mais de 10s sem que ele esteja
+  // realmente travado — e mostrar o dialog no meio de uma geração faz a
+  // roteirista apertar "Recarregar" e perder o que estava sendo gerado.
+  // Com 30s o `responsive` quase sempre tem chance de cancelar antes.
   let unresponsiveTimer = null;
+  let unresponsiveAt = 0;
   mainWindow.on("unresponsive", () => {
+    unresponsiveAt = Date.now();
     console.warn("[window] janela unresponsive");
     if (unresponsiveTimer) return;
     unresponsiveTimer = setTimeout(() => {
@@ -799,6 +822,8 @@ function createWindow() {
         unresponsiveTimer = null;
         return;
       }
+      const blockedSec = Math.floor((Date.now() - unresponsiveAt) / 1000);
+      console.warn(`[window] mostrando dialog de unresponsive (~${blockedSec}s sem resposta)`);
       dialog
         .showMessageBox(mainWindow, {
           type: "warning",
@@ -807,7 +832,7 @@ function createWindow() {
           detail:
             "Posso forçar um reload? Você pode perder o que estava sendo gerado agora, mas os roteiros já salvos ficam intactos.",
           buttons: ["Recarregar", "Esperar mais"],
-          defaultId: 0,
+          defaultId: 1,
           cancelId: 1,
         })
         .then((r) => {
@@ -824,7 +849,7 @@ function createWindow() {
         .catch(() => {
           unresponsiveTimer = null;
         });
-    }, 10_000);
+    }, 30_000);
   });
 
   mainWindow.on("responsive", () => {

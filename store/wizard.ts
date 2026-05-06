@@ -9,7 +9,7 @@ import type {
   StepOutput,
 } from "@/types/roteiro";
 import { STEP_ORDER } from "@/types/roteiro";
-import { saveRoteiro } from "@/lib/storage";
+import { scheduleSave, flushPendingSave } from "@/lib/storage";
 import { applyCorrections } from "@/lib/parse-revisor-output";
 
 interface WizardState {
@@ -90,7 +90,9 @@ interface WizardState {
 }
 
 function persist(r: Roteiro): Roteiro {
-  saveRoteiro(r);
+  // Coalesce + idle: ver lib/storage.ts. A gravação real (compress + setItem)
+  // sai do critical path do keystroke — sem isso, digitar travava o app.
+  scheduleSave(r);
   return r;
 }
 
@@ -119,13 +121,23 @@ export const useWizard = create<WizardState>((set, get) => ({
   isGenerating: false,
   autoAdvance: false,
 
-  setRoteiro: (r) => set({ roteiro: r }),
+  setRoteiro: (r) => {
+    // Flush antes de trocar — o roteiro anterior em mem pode ter pendências
+    // que ainda não bateram no localStorage por causa do debounce.
+    flushPendingSave();
+    set({ roteiro: r });
+  },
 
-  setCurrentStep: (step) =>
+  setCurrentStep: (step) => {
+    // Antes de navegar, garante que qualquer rascunho/output pendente do
+    // step atual já está em localStorage. O scheduleSave debouncer pode ter
+    // até 600ms enfileirado — sem flush, fechar o roteiro/app rápido perderia.
+    flushPendingSave();
     set((s) => {
       if (!s.roteiro) return s;
       return { roteiro: persist({ ...s.roteiro, currentStep: step }) };
-    }),
+    });
+  },
 
   setOutput: (step, output) =>
     set((s) => {
@@ -445,7 +457,13 @@ export const useWizard = create<WizardState>((set, get) => ({
     };
   },
 
-  reset: () => set({ roteiro: null, isGenerating: false, autoAdvance: false }),
+  reset: () => {
+    // Flush antes de zerar — o roteiro que estava em mem pode ter mutações
+    // pendentes não persistidas. Sem isso, "Voltar à lista" logo após digitar
+    // perderia a última edição.
+    flushPendingSave();
+    set({ roteiro: null, isGenerating: false, autoAdvance: false });
+  },
 }));
 
 export { STEP_ORDER };
