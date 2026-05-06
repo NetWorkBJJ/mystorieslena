@@ -64,6 +64,16 @@ export interface AgentContext {
    * resumir. Diferente de `refineMode` (que ajusta uma versão completa).
    */
   continuationMode?: boolean;
+  /**
+   * Cânone de Entidades — bloco markdown estruturado (Personagens / Lugares /
+   * Datas / Relações) extraído da Premissa e aprovado pela roteirista.
+   * Quando presente, cada agente injeta esse bloco como primeira referência
+   * no user message com o cabeçalho "━━━ CÂNONE DE ENTIDADES ━━━" e os
+   * system prompts (via REGRA CANÔNICA) instruem o modelo a usar nomes/
+   * idades/lugares/datas EXATAMENTE como aparecem aqui. Roteiros legados
+   * sem cânone passam undefined — agentes funcionam como antes.
+   */
+  canone?: string;
 }
 
 export interface Agent {

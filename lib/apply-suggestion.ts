@@ -123,10 +123,14 @@ export async function applySuggestionsToScope(params: {
   /** Roteiro inteiro (precisa pra reconstruir após aplicar o escopo). */
   fullEscritaContent: string;
   fullChapters: EscritaChapter[];
+  /** Cânone de Entidades — se presente, vai como referência canônica e o
+   *  endpoint instrui o modelo a NÃO trocar nomes/idades/lugares/datas ao
+   *  aplicar as sugestões. Sem isso, a expansão pode inventar variantes. */
+  canone?: string;
   signal?: AbortSignal;
   onChunk?: (acc: string) => void;
 }): Promise<SuggestionApplyResult> {
-  const { scope, errors, fullEscritaContent, fullChapters, signal, onChunk } =
+  const { scope, errors, fullEscritaContent, fullChapters, canone, signal, onChunk } =
     params;
 
   if (errors.length === 0) return { applied: false };
@@ -158,6 +162,7 @@ export async function applySuggestionsToScope(params: {
         scopeKind: scope.kind,
         scopeLabel: scope.label,
         suggestions,
+        ...(canone?.trim() ? { canone } : {}),
       }),
       signal,
     });
@@ -382,6 +387,9 @@ export async function applySuggestionToScope(params: {
   error: RevisorError;
   escritaContent: string;
   chapters: EscritaChapter[];
+  /** Cânone de Entidades — repassado pro endpoint pra preservar nomes/datas/
+   *  lugares na reescrita. Opcional (roteiros legados sem cânone). */
+  canone?: string;
   signal?: AbortSignal;
   onChunk?: (acc: string) => void;
 }): Promise<SuggestionApplyResult & { scopeLabel: string; scopeKind: ScopeKind }> {
@@ -395,6 +403,7 @@ export async function applySuggestionToScope(params: {
     errors: [params.error],
     fullEscritaContent: params.escritaContent,
     fullChapters: params.chapters,
+    canone: params.canone,
     signal: params.signal,
     onChunk: params.onChunk,
   });

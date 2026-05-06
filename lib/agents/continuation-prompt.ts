@@ -9,12 +9,17 @@
  *
  * Diferente do modo `refineMode` (que ajusta uma versão completa).
  */
+import { buildCanoneBlock } from "./_shared/canone-block";
+
 export function buildEstruturaContinuationMessage(args: {
   parteLabel: "PARTE 1" | "PARTE 2";
   partial: string;
   userInput?: string;
+  /** Cânone de Entidades — se presente, vai como referência canônica
+   *  para nomes/idades/lugares/datas durante a continuação. */
+  canone?: string;
 }): string {
-  const { parteLabel, partial, userInput } = args;
+  const { parteLabel, partial, userInput, canone } = args;
   const sections: string[] = [];
 
   sections.push(
@@ -31,6 +36,11 @@ export function buildEstruturaContinuationMessage(args: {
       "• Mantenha as mesmas regras de tamanho de palavras, ritmo e estrutura definidas no system prompt — você está terminando a MESMA estrutura, não fazendo uma nova.",
     ].join("\n"),
   );
+
+  const canoneBlock = buildCanoneBlock(canone);
+  if (canoneBlock) {
+    sections.push(canoneBlock);
+  }
 
   if (userInput?.trim()) {
     sections.push(

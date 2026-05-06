@@ -1,6 +1,8 @@
 import { MODELS } from "@/lib/anthropic";
 import type { Agent } from "../types";
 import { buildEstruturaContinuationMessage } from "../continuation-prompt";
+import { buildCanoneBlock } from "../_shared/canone-block";
+import { CANONE_RULE } from "../_shared/canone-rule";
 import { ESTRUTURA_MASTER_PROMPT } from "./estrutura-master-prompt";
 import { ESTRUTURA2_PROMPT } from "./estrutura2-prompt";
 
@@ -23,17 +25,19 @@ export const estrutura2Agent: Agent = {
   model: MODELS.opus,
   thinking: "adaptive",
   effort: "high",
-  systemPrompt: ESTRUTURA_MASTER_PROMPT + ESTRUTURA2_PROMPT,
+  systemPrompt: ESTRUTURA_MASTER_PROMPT + ESTRUTURA2_PROMPT + CANONE_RULE,
   acceptsReferenceImage: true,
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
     const estrutura1 = ctx.previousOutputs.estrutura1?.content?.trim() ?? "";
+    const canoneBlock = buildCanoneBlock(ctx.canone);
 
     if (ctx.continuationMode && ctx.currentOutput?.trim()) {
       return buildEstruturaContinuationMessage({
         parteLabel: "PARTE 2",
         partial: ctx.currentOutput,
         userInput: ctx.userInput,
+        canone: ctx.canone,
       });
     }
 
@@ -48,6 +52,9 @@ export const estrutura2Agent: Agent = {
       refine.push(
         `━━━ CORREÇÃO PEDIDA PELA ROTEIRISTA ━━━\n\n${ctx.userInput.trim()}`,
       );
+      if (canoneBlock) {
+        refine.push(canoneBlock);
+      }
       if (premissa) {
         refine.push(
           `━━━ PREMISSA APROVADA (Step 1 — referência de coerência) ━━━\n\n${premissa}`,
@@ -98,6 +105,10 @@ export const estrutura2Agent: Agent = {
       sections.push(
         "━━━ IMAGEM DE REFERÊNCIA ANEXADA ━━━\n\nA imagem foi usada na Parte 1 — mantenha COERÊNCIA com mood, paleta e aparência dos personagens. Use a imagem pra sustentar continuidade visual da Parte 2 (especialmente na cena íntima do penúltimo capítulo e no epílogo). Em conflito, o TEXTO prevalece.",
       );
+    }
+
+    if (canoneBlock) {
+      sections.push(canoneBlock);
     }
 
     if (premissa) {

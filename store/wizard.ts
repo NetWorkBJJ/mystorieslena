@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type {
   EscritaChapter,
+  RevisorError,
   Roteiro,
   RoteiroDrafts,
   RoteiroReferenceImage,
@@ -8,9 +9,11 @@ import type {
   StepId,
   StepOutput,
 } from "@/types/roteiro";
-import { STEP_ORDER } from "@/types/roteiro";
+import { STEP_ORDER, REVISOR_STEPS } from "@/types/roteiro";
 import { scheduleSave, flushPendingSave } from "@/lib/storage";
 import { applyCorrections } from "@/lib/parse-revisor-output";
+
+type RevisorStepKey = (typeof REVISOR_STEPS)[number];
 
 interface WizardState {
   roteiro: Roteiro | null;
@@ -86,6 +89,18 @@ interface WizardState {
     applied: boolean;
     found: boolean;
   };
+  /**
+   * Atualiza o cânone de entidades do roteiro. Persiste no localStorage e
+   * desmarca a aprovação se o conteúdo mudar (toda edição depois de aprovar
+   * exige re-aprovar). Strings vazias / só whitespace deletam o campo.
+   */
+  setCanone: (canone: string) => void;
+  /** Marca o cânone como aprovado pela roteirista, destravando o avanço pra
+   *  Estrutura P1. Idempotente. */
+  approveCanone: () => void;
+  /** Limpa o cânone (markdown + flag de aprovação + timestamp). Usado quando
+   *  a roteirista quer regerar do zero. */
+  clearCanone: () => void;
   reset: () => void;
 }
 
@@ -331,20 +346,34 @@ export const useWizard = create<WizardState>((set, get) => ({
     const roteiro = state.roteiro;
     if (!roteiro) return { applied: [], failed: errorIds };
 
-    const revisorOutput = roteiro.outputs.revisor;
     const escritaOutput = roteiro.outputs.escrita;
-    const allErrors = revisorOutput?.metadata?.errors ?? [];
-    if (!escritaOutput?.content || allErrors.length === 0) {
+    if (!escritaOutput?.content) {
+      return { applied: [], failed: errorIds };
+    }
+
+    // Os erros vivem em DOIS steps agora: revisor1 (Parte 1) e revisor2
+    // (Parte 2). Procura em ambos — cada erro carrega seu próprio step de
+    // origem pra que a marcação `applied: true` volte pro metadata correto
+    // depois (sem isso, marcar erro do revisor2 como aplicado iria pisar
+    // no metadata do revisor1 vazio).
+    const allErrorsByStep: Array<{ err: RevisorError; step: RevisorStepKey }> =
+      [];
+    for (const stepKey of REVISOR_STEPS) {
+      const errs = roteiro.outputs[stepKey]?.metadata?.errors ?? [];
+      for (const err of errs) allErrorsByStep.push({ err, step: stepKey });
+    }
+    if (allErrorsByStep.length === 0) {
       return { applied: [], failed: errorIds };
     }
 
     // Filtra os erros marcados que ainda não foram aplicados.
-    const targetErrors = allErrors.filter(
-      (e) => errorIds.includes(e.id) && !e.applied,
+    const targets = allErrorsByStep.filter(
+      ({ err }) => errorIds.includes(err.id) && !err.applied,
     );
-    if (targetErrors.length === 0) {
+    if (targets.length === 0) {
       return { applied: [], failed: errorIds };
     }
+    const targetErrors = targets.map((t) => t.err);
 
     // Antes de mexer, salva snapshot da Escrita no histórico pra reversão.
     state.pushOutputToHistory(
@@ -392,6 +421,16 @@ export const useWizard = create<WizardState>((set, get) => ({
       return { applied: [], failed };
     }
 
+    // Agrupa os erros aplicados por step de origem — cada um vai atualizar
+    // SEU metadata, sem cruzar pro outro revisor.
+    const appliedByStep: Record<RevisorStepKey, Set<string>> = {
+      revisor1: new Set(),
+      revisor2: new Set(),
+    };
+    for (const t of targets) {
+      if (applied.includes(t.err.id)) appliedByStep[t.step].add(t.err.id);
+    }
+
     const now = new Date().toISOString();
 
     set((s) => {
@@ -411,21 +450,24 @@ export const useWizard = create<WizardState>((set, get) => ({
         }),
       };
 
-      // Marca os erros aplicados em metadata.errors[].applied
-      const revisor = s.roteiro.outputs.revisor;
-      const updatedRevisor: StepOutput | undefined = revisor
-        ? {
-            ...revisor,
-            metadata: {
-              ...revisor.metadata,
-              errors: (revisor.metadata?.errors ?? []).map((e) =>
-                applied.includes(e.id)
-                  ? { ...e, applied: true, appliedAt: now }
-                  : e,
-              ),
-            },
-          }
-        : revisor;
+      // Marca os erros aplicados em cada outputs.revisorN.metadata.errors[].
+      const revisorPatches: Partial<Record<RevisorStepKey, StepOutput>> = {};
+      for (const stepKey of REVISOR_STEPS) {
+        const revisor = s.roteiro.outputs[stepKey];
+        const stepApplied = appliedByStep[stepKey];
+        if (!revisor || stepApplied.size === 0) continue;
+        revisorPatches[stepKey] = {
+          ...revisor,
+          metadata: {
+            ...revisor.metadata,
+            errors: (revisor.metadata?.errors ?? []).map((e) =>
+              stepApplied.has(e.id)
+                ? { ...e, applied: true, appliedAt: now }
+                : e,
+            ),
+          },
+        };
+      }
 
       return {
         roteiro: persist({
@@ -433,7 +475,8 @@ export const useWizard = create<WizardState>((set, get) => ({
           outputs: {
             ...s.roteiro.outputs,
             escrita: updatedEscrita,
-            ...(updatedRevisor && { revisor: updatedRevisor }),
+            ...(revisorPatches.revisor1 && { revisor1: revisorPatches.revisor1 }),
+            ...(revisorPatches.revisor2 && { revisor2: revisorPatches.revisor2 }),
           },
         }),
       };
@@ -444,9 +487,10 @@ export const useWizard = create<WizardState>((set, get) => ({
 
   applyRevisorCorrection: (errorId) => {
     const state = get();
-    const err = state.roteiro?.outputs.revisor?.metadata?.errors?.find(
-      (e) => e.id === errorId,
-    );
+    const outputs = state.roteiro?.outputs;
+    const err =
+      outputs?.revisor1?.metadata?.errors?.find((e) => e.id === errorId) ??
+      outputs?.revisor2?.metadata?.errors?.find((e) => e.id === errorId);
     const label = err
       ? `Antes da correção do Erro #${err.numero}`
       : "Antes da correção do Revisor";
@@ -456,6 +500,48 @@ export const useWizard = create<WizardState>((set, get) => ({
       found: result.applied.includes(errorId),
     };
   },
+
+  setCanone: (canone) =>
+    set((s) => {
+      if (!s.roteiro) return s;
+      const trimmed = canone.trim();
+      const next: Roteiro = { ...s.roteiro };
+      // Edição depois de aprovar invalida a aprovação — força re-aprovar.
+      // Sem isso, mexer 1 caractere já permitiria seguir pra Estrutura.
+      if (s.roteiro.canoneApproved && trimmed !== (s.roteiro.canone ?? "").trim()) {
+        next.canoneApproved = false;
+        delete next.canoneApprovedAt;
+      }
+      if (trimmed.length === 0) {
+        delete next.canone;
+      } else {
+        next.canone = canone;
+      }
+      return { roteiro: persist(next) };
+    }),
+
+  approveCanone: () =>
+    set((s) => {
+      if (!s.roteiro) return s;
+      if (!s.roteiro.canone?.trim()) return s;
+      return {
+        roteiro: persist({
+          ...s.roteiro,
+          canoneApproved: true,
+          canoneApprovedAt: new Date().toISOString(),
+        }),
+      };
+    }),
+
+  clearCanone: () =>
+    set((s) => {
+      if (!s.roteiro) return s;
+      const next: Roteiro = { ...s.roteiro };
+      delete next.canone;
+      delete next.canoneApproved;
+      delete next.canoneApprovedAt;
+      return { roteiro: persist(next) };
+    }),
 
   reset: () => {
     // Flush antes de zerar — o roteiro que estava em mem pode ter mutações

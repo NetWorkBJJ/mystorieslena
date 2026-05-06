@@ -1,5 +1,7 @@
 import { MODELS } from "@/lib/anthropic";
 import type { Agent } from "../types";
+import { buildCanoneBlock } from "../_shared/canone-block";
+import { CANONE_RULE } from "../_shared/canone-rule";
 import { ESCRITA_SYSTEM_PROMPT } from "./escrita-prompt";
 
 /**
@@ -27,7 +29,7 @@ export const escritaAgent: Agent = {
   model: MODELS.opus,
   thinking: "disabled",
   effort: "low",
-  systemPrompt: ESCRITA_SYSTEM_PROMPT,
+  systemPrompt: ESCRITA_SYSTEM_PROMPT + CANONE_RULE,
   acceptsReferenceImage: true,
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
@@ -36,6 +38,7 @@ export const escritaAgent: Agent = {
     const ajustes = ctx.userInput?.trim() ?? "";
     const batch = ctx.batch;
     const previousSynopses = ctx.previousSynopses ?? [];
+    const canoneBlock = buildCanoneBlock(ctx.canone);
 
     if (ctx.refineMode && ctx.currentOutput?.trim() && ajustes) {
       const refine: string[] = [];
@@ -48,6 +51,12 @@ export const escritaAgent: Agent = {
       refine.push(
         `━━━ CORREÇÃO PEDIDA PELA ROTEIRISTA ━━━\n\n${ajustes}`,
       );
+      if (canoneBlock) {
+        refine.push(canoneBlock);
+      }
+      if (premissa) {
+        refine.push(`━━━ PREMISSA APROVADA (Step 1 — referência) ━━━\n\n${premissa}`);
+      }
       if (estrutura1) {
         refine.push(
           `━━━ ESTRUTURA DA PARTE 1 (referência) ━━━\n\n${estrutura1}`,
@@ -111,6 +120,10 @@ export const escritaAgent: Agent = {
       sections.push(
         "━━━ IMAGEM DE REFERÊNCIA ANEXADA ━━━\n\nUSE pra calibrar descrições físicas dos personagens (rosto, corpo, cabelo, traços), cenário/ambientação, mood/atmosfera (paleta, peso emocional, iluminação), pequenos detalhes sensoriais. Integre de forma natural, sem ficar descrevendo a imagem. ESTRUTURAS aprovadas e PREMISSA TEXTUAL prevalecem em conflito.",
       );
+    }
+
+    if (canoneBlock) {
+      sections.push(canoneBlock);
     }
 
     if (premissa) {

@@ -3,14 +3,16 @@ export type StepId =
   | "estrutura1"
   | "estrutura2"
   | "escrita"
-  | "revisor";
+  | "revisor1"
+  | "revisor2";
 
 export const STEP_ORDER: StepId[] = [
   "premissa",
   "estrutura1",
   "estrutura2",
   "escrita",
-  "revisor",
+  "revisor1",
+  "revisor2",
 ];
 
 export const STEP_LABELS: Record<StepId, string> = {
@@ -18,8 +20,19 @@ export const STEP_LABELS: Record<StepId, string> = {
   estrutura1: "Estrutura — Parte 1",
   estrutura2: "Estrutura — Parte 2",
   escrita: "Escrita",
-  revisor: "Revisor",
+  revisor1: "Revisor — Parte 1",
+  revisor2: "Revisor — Parte 2",
 };
+
+/** Steps de revisão (úteis pra checks tipo `REVISOR_STEPS.includes(step)`). */
+export const REVISOR_STEPS = ["revisor1", "revisor2"] as const;
+export type RevisorStepId = (typeof REVISOR_STEPS)[number];
+export function isRevisorStep(step: StepId): step is RevisorStepId {
+  return step === "revisor1" || step === "revisor2";
+}
+export function partOfRevisorStep(step: RevisorStepId): 1 | 2 {
+  return step === "revisor1" ? 1 : 2;
+}
 
 export interface EscritaChapter {
   /** Número do capítulo (1, 2, 3...). */
@@ -237,7 +250,8 @@ export interface RoteiroDrafts {
   estrutura1?: { input?: string };
   estrutura2?: { input?: string };
   escrita?: { input?: string };
-  revisor?: { input?: string };
+  revisor1?: { input?: string };
+  revisor2?: { input?: string };
 }
 
 export interface Roteiro {
@@ -269,6 +283,24 @@ export interface Roteiro {
   referenceImage?: RoteiroReferenceImage;
   /** Histórico de gerações por step. Cada step tem sua própria pilha de snapshots. */
   history?: Partial<Record<StepId, StepGenerationSnapshot[]>>;
+  /**
+   * Cânone de Entidades — bloco markdown estruturado com nomes próprios,
+   * idades, profissões, lugares, datas e relações fixados a partir da
+   * Premissa. Vira fonte canônica injetada em TODOS os steps seguintes
+   * (estrutura1, estrutura2, escrita, revisor) pra evitar que o modelo
+   * troque/invente nomes ao longo do roteiro. Editável pela roteirista
+   * antes de avançar pra Estrutura P1.
+   *
+   * Roteiros legados (criados antes do recurso) ficam undefined — o app
+   * mostra um banner "Gerar cânone agora" mas não bloqueia o fluxo.
+   */
+  canone?: string;
+  /** True quando a roteirista clicou "Aprovar cânone" — destrava avanço pra
+   *  Estrutura P1 em roteiros novos. Roteiros legados sem cânone seguem
+   *  funcionando mesmo com este flag false/undefined. */
+  canoneApproved?: boolean;
+  /** Timestamp da aprovação do cânone. */
+  canoneApprovedAt?: string;
   /**
    * Rascunhos do que está digitado nos textareas mas ainda não foi commitado
    * via botão. Persistido para o usuário não perder trabalho ao trocar de

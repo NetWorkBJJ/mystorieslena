@@ -38,6 +38,10 @@ interface Body {
   scopeLabel?: string;
   /** Lista de sugestões a aplicar de uma vez. */
   suggestions: SuggestionItem[];
+  /** Cânone de Entidades — se presente, vai como referência canônica e o
+   *  agente é instruído a NÃO trocar nomes/idades/lugares/datas ao aplicar
+   *  as sugestões. Sem isso, expansões podem inventar variações. */
+  canone?: string;
   // Compat: aceita também os campos antigos (uma sugestão só) — wrap em array.
   titulo?: string;
   sugestao?: string;
@@ -130,6 +134,12 @@ export async function POST(req: NextRequest) {
     .join("\n\n");
 
   sections.push(`━━━ SUGESTÕES PARA APLICAR (todas, na ordem) ━━━\n\n${suggestionsBlock}`);
+
+  if (body.canone?.trim()) {
+    sections.push(
+      `━━━ CÂNONE DE ENTIDADES — fonte canônica de nomes/idades/lugares/datas (NUNCA inventar variações) ━━━\n\n${body.canone.trim()}\n\n⚠️ AO APLICAR AS SUGESTÕES: nenhum nome próprio, idade, profissão, lugar ou data pode divergir do cânone acima. Se uma sugestão envolve reescrita de trecho que mencione qualquer dessas entidades, copie do cânone — não improvise variantes ("Helen" em vez de "Helena", "30" em vez de "32 anos", "Rio" em vez de "Belo Horizonte"). Em caso de conflito entre o trecho original e o cânone, o cânone vence.`,
+    );
+  }
 
   sections.push(
     `━━━ TRECHO RECEBIDO (escopo: ${escopoTexto}) ━━━\n\n${escritaContent}`,

@@ -59,9 +59,20 @@ export function stripErrosDetalhados(content: string): string {
 /**
  * Extrai array de RevisorError do output bruto do Revisor. Devolve
  * lista vazia se o bloco não foi emitido ou se nada parseou.
+ *
+ * `forcedPart` (opcional): quando o caller sabe que esses erros são de uma
+ * Parte específica (porque vieram do step `revisor1` ou `revisor2`), passa
+ * `1` ou `2` aqui — assim cada erro recebe `parte` certo mesmo se o XML
+ * esquecer de emitir o atributo, e o `id` ganha prefixo `p1-`/`p2-` para
+ * não colidir com erros do outro step (ambos numeram a partir de 1).
+ * Sem `forcedPart`, comportamento legado: usa `parte=` do XML se houver.
  */
-export function parseRevisorErrors(content: string): RevisorError[] {
+export function parseRevisorErrors(
+  content: string,
+  forcedPart?: 1 | 2,
+): RevisorError[] {
   if (!content) return [];
+  const idPrefix = forcedPart ? `p${forcedPart}-` : "";
 
   // 1) Localiza o bloco <erros_detalhados>...</erros_detalhados>. Se não
   //    encontrar fechamento, pega até o fim — modelo às vezes corta.
@@ -103,14 +114,15 @@ export function parseRevisorErrors(content: string): RevisorError[] {
       continue;
     }
 
-    // Parte só aceita 1 ou 2 — qualquer outra coisa fica undefined.
-    const parteNum = parteRaw ? Number(parteRaw) : undefined;
+    // forcedPart vence atributo do XML — o step ativo é a verdade.
+    const parteNum = forcedPart ?? (parteRaw ? Number(parteRaw) : undefined);
     const parte =
       parteNum === 1 || parteNum === 2 ? (parteNum as 1 | 2) : undefined;
 
+    const baseNumero = numero ?? String(out.length + 1);
     out.push({
-      id: numero ?? `${out.length + 1}`,
-      numero: numero ?? String(out.length + 1),
+      id: `${idPrefix}${baseNumero}`,
+      numero: baseNumero,
       gravidade,
       capitulo: capituloRaw ? Number(capituloRaw) : undefined,
       ...(parte ? { parte } : {}),
@@ -136,8 +148,12 @@ export function parseRevisorErrors(content: string): RevisorError[] {
  * a roteirista vê TODOS os erros mesmo se o LLM falhou em emitir XML pra
  * todos.
  */
-export function parseMarkdownErrorList(content: string): RevisorError[] {
+export function parseMarkdownErrorList(
+  content: string,
+  forcedPart?: 1 | 2,
+): RevisorError[] {
   if (!content) return [];
+  const idPrefix = forcedPart ? `p${forcedPart}-` : "";
   const principaisRe =
     /(?:^|\n)#+\s*[^\n]*PRINCIPAIS\s+ERROS[^\n]*\n([\s\S]*?)(?=\n#+\s|\n\s*<erros_detalhados|$)/i;
   const principaisMatch = principaisRe.exec(content);
@@ -193,9 +209,10 @@ export function parseMarkdownErrorList(content: string): RevisorError[] {
       : "";
 
     out.push({
-      id: numero,
+      id: `${idPrefix}${numero}`,
       numero,
       gravidade,
+      ...(forcedPart ? { parte: forcedPart } : {}),
       titulo,
       trechoOriginal: "",
       trechoCorrigido: "",

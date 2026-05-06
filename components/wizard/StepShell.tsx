@@ -33,7 +33,9 @@ import {
 import {
   STEP_LABELS,
   STEP_ORDER,
+  isRevisorStep,
   nextStep,
+  partOfRevisorStep,
   prevStep,
   type EscritaChapter,
   type EscritaSynopsis,
@@ -79,6 +81,7 @@ import { HistoryPanel } from "@/components/wizard/HistoryPanel";
 import { DownloadEscritaButton } from "@/components/wizard/DownloadEscritaButton";
 import { CopyPartButton } from "@/components/wizard/CopyPartButton";
 import { ReferenceImageUpload } from "@/components/wizard/ReferenceImageUpload";
+import { CanoneCard } from "@/components/wizard/CanoneCard";
 import { Prose } from "@/components/ui/prose";
 import { cn } from "@/lib/utils";
 
@@ -217,11 +220,12 @@ export function StepShell({ step }: Props) {
   const [batchProgress, setBatchProgress] = useState<WizardProgress | null>(
     null,
   );
-  // Fase corrente do Revisor — só usado no step "revisor". "streaming" durante
-  // o /api/agent/revisor; "extracting" durante o fallback automático
-  // /api/revisor-extract-errors. Mostrado no BatchProgressPanel pra usuária
-  // saber em qual etapa do fluxo está (sem isso a tela parece "em branco" por
-  // 1-2min entre clique e primeiro chunk + 3min de fallback).
+  // Fase corrente do Revisor — usado nos steps "revisor1"/"revisor2".
+  // "streaming" durante o /api/agent/revisorN; "extracting" durante o
+  // fallback automático /api/revisor-extract-errors. Mostrado no
+  // BatchProgressPanel pra usuária saber em qual etapa do fluxo está (sem
+  // isso a tela parece "em branco" por 1-2min entre clique e primeiro chunk
+  // + 3min de fallback).
   const [revisorPhase, setRevisorPhase] = useState<
     "streaming" | "extracting" | null
   >(null);
@@ -341,7 +345,7 @@ export function StepShell({ step }: Props) {
      * todos os snapshots no histórico) e envia pro agente como
      * `previousRevisorErrors`. O prompt do Revisor usa essa lista pra evitar
      * relistar erros equivalentes — força refinamento incremental rodada
-     * após rodada. Só relevante pro step "revisor"; outros steps ignoram.
+     * após rodada. Só relevante pros steps "revisor1"/"revisor2"; outros ignoram.
      */
     continuation?: boolean,
   ) => {
@@ -365,8 +369,10 @@ export function StepShell({ step }: Props) {
     // todos os snapshots já no histórico — pra mandar pro agente como
     // contexto "não repita". Captura ANTES de qualquer setState porque o
     // pushOutputToHistory + setOutput("") vão zerar `output` em seguida.
+    // Escopado por step: erros de revisor1 não vazam pra revisor2 e
+    // vice-versa (cada revisor tem seu próprio histórico).
     let previousRevisorErrors: string[] | undefined;
-    if (continuation && step === "revisor") {
+    if (continuation && isRevisorStep(step)) {
       const seen = new Set<string>();
       const aggregate: string[] = [];
       const pushIfNew = (e: RevisorError) => {
@@ -394,8 +400,9 @@ export function StepShell({ step }: Props) {
       if (output?.metadata?.errors) {
         for (const e of output.metadata.errors) pushIfNew(e);
       }
-      // Snapshots históricos (rodadas anteriores já arquivadas).
-      const history = roteiro.history?.revisor ?? [];
+      // Snapshots históricos (rodadas anteriores já arquivadas) — só do step
+      // ativo, sem cruzar revisor1/revisor2.
+      const history = roteiro.history?.[step] ?? [];
       for (const snap of history) {
         if (snap.metadata?.errors) {
           for (const e of snap.metadata.errors) pushIfNew(e);
@@ -603,6 +610,7 @@ export function StepShell({ step }: Props) {
               previousOutputs: roteiro.outputs,
               userInput: effectiveUserInput,
               referenceImage: roteiro.referenceImage,
+              ...(roteiro.canone?.trim() ? { canone: roteiro.canone } : {}),
               batch: {
                 part: b.part,
                 chapters: b.chapters,
@@ -676,17 +684,38 @@ export function StepShell({ step }: Props) {
       return;
     }
 
-    // ─── Branch Revisor: revisão XML estruturada ─────────────────────────
+    // ─── Branch Revisor: revisão XML estruturada (escopada por Parte) ────
     // Em modo correção, caímos no branch padrão (1 chamada com refineMode).
-    if (step === "revisor" && mode !== "refine") {
+    // Cada step (revisor1, revisor2) processa SOMENTE os capítulos da sua
+    // Parte. Isso evita revisões superficiais que ocorriam quando o agente
+    // analisava P1 e P2 juntas e (a) deixava passar erros graves, (b)
+    // introduzia inconsistências cruzadas — sugestões para a P2 que
+    // contradiziam escolhas da P1 e vice-versa.
+    if (isRevisorStep(step) && mode !== "refine") {
+      const revisorPart = partOfRevisorStep(step);
+      const partLabel = revisorPart === 1 ? "Parte 1" : "Parte 2";
       const escritaOutput = roteiro.outputs.escrita;
-      const accChapters: EscritaChapter[] = escritaOutput?.metadata?.chapters
+      const allChapters: EscritaChapter[] = escritaOutput?.metadata?.chapters
         ? [...escritaOutput.metadata.chapters]
         : [];
+      // Filtra só os capítulos da Parte alvo. Capítulos sem `part` viram
+      // Parte 1 (mesmo fallback usado na factory build-revisor-agent).
+      const accChapters = allChapters.filter((ch) => {
+        const chPart = ch.part ?? "Parte 1";
+        return chPart === partLabel;
+      });
 
-      if (accChapters.length === 0) {
+      if (allChapters.length === 0) {
         setOutput(step, {
           content: `[ERRO] O Step 4 (Escrita) ainda não tem capítulos parseados — gere o roteiro completo antes de revisar.`,
+          generatedAt: startedAt,
+        });
+        setIsGenerating(false);
+        return;
+      }
+      if (accChapters.length === 0) {
+        setOutput(step, {
+          content: `[ERRO] O Step 4 (Escrita) não tem capítulos da ${partLabel} — gere o roteiro completo antes de revisar esta Parte.`,
           generatedAt: startedAt,
         });
         setIsGenerating(false);
@@ -701,6 +730,8 @@ export function StepShell({ step }: Props) {
         setRevisorPhase("streaming");
         setLiveStream("");
 
+        // Hash escopado pela Parte — editar capítulos da Parte 2 não
+        // invalida a revisão da Parte 1, e vice-versa.
         const escritaContent = concatenateChapters(accChapters);
         const escritaSnapshotHash = hashEscritaContent(escritaContent);
 
@@ -712,6 +743,7 @@ export function StepShell({ step }: Props) {
             previousOutputs: roteiro.outputs,
             userInput: effectiveUserInput,
             referenceImage: roteiro.referenceImage,
+            ...(roteiro.canone?.trim() ? { canone: roteiro.canone } : {}),
             ...(previousRevisorErrors && previousRevisorErrors.length > 0
               ? { previousRevisorErrors }
               : {}),
@@ -748,7 +780,11 @@ export function StepShell({ step }: Props) {
           return;
         }
 
-        let errors = parseRevisorErrors(acc);
+        // forcedPart faz o parser carimbar parte=N e prefixar id com pN-
+        // (sem isso, IDs do revisor1 colidem com IDs do revisor2 — ambos
+        // numeram a partir de 1 — e applyRevisorCorrections marca o erro
+        // errado como aplicado).
+        let errors = parseRevisorErrors(acc, revisorPart);
         const cleanContent = stripErrosDetalhados(acc);
 
         // Fallback: dispara extração estruturada quando o XML emitido
@@ -783,7 +819,7 @@ export function StepShell({ step }: Props) {
                 if (done) break;
                 fbAcc += fbDecoder.decode(value, { stream: true });
               }
-              const fallbackErrors = parseRevisorErrors(fbAcc);
+              const fallbackErrors = parseRevisorErrors(fbAcc, revisorPart);
               if (fallbackErrors.length > errors.length) {
                 console.info(
                   `[revisor] fallback extraiu ${fallbackErrors.length} erro(s) (vs ${errors.length} originais) — usando fallback`,
@@ -814,7 +850,7 @@ export function StepShell({ step }: Props) {
         // não viraram <erro> XML (nem o LLM principal nem o fallback do
         // servidor pegaram), gera cards informativos sintéticos parseando
         // o markdown direto. Garante que a roteirista vê TODOS os erros.
-        const markdownErrors = parseMarkdownErrorList(cleanContent);
+        const markdownErrors = parseMarkdownErrorList(cleanContent, revisorPart);
         const xmlNumbers = new Set(errors.map((e) => e.numero.toLowerCase()));
         const missingFromXml = markdownErrors.filter(
           (m) => !xmlNumbers.has(m.numero.toLowerCase()),
@@ -871,7 +907,7 @@ export function StepShell({ step }: Props) {
     // stripado do XML quando salvamos no store — reconstituímos a partir
     // de `metadata.errors` antes de enviar.
     const currentOutputForAgent =
-      isRefine && step === "revisor" && output?.metadata?.errors
+      isRefine && isRevisorStep(step) && output?.metadata?.errors
         ? `${baseContent}\n\n${serializeRevisorErrors(output.metadata.errors)}`
         : baseContent;
 
@@ -884,6 +920,7 @@ export function StepShell({ step }: Props) {
           previousOutputs: roteiro.outputs,
           userInput: effectiveUserInput,
           referenceImage: roteiro.referenceImage,
+          ...(roteiro.canone?.trim() ? { canone: roteiro.canone } : {}),
           ...(mode === "refine" && {
             refineMode: true,
             currentOutput: currentOutputForAgent,
@@ -944,11 +981,15 @@ export function StepShell({ step }: Props) {
 
       // ── Finalização específica por step ────────────────────────────────
 
-      if (step === "revisor" && !isRefine && acc.trim()) {
+      if (isRevisorStep(step) && !isRefine && acc.trim()) {
+        // Branch defensivo: o revisor tem caminho dedicado (acima, com return)
+        // que escopa por Parte. Se por qualquer motivo a execução chegar
+        // aqui, repetimos o parse com `forcedPart` derivado do step.
+        const fallbackPart = partOfRevisorStep(step);
         // Geração do zero do Revisor: parse <erros_detalhados> pra popular
         // os cards de correção automática. Snapshot da Escrita pra detectar
         // drift na UI.
-        let errors = parseRevisorErrors(acc);
+        let errors = parseRevisorErrors(acc, fallbackPart);
         const cleanContent = stripErrosDetalhados(acc);
         const escritaContent =
           roteiro.outputs.escrita?.content?.trim() ?? "";
@@ -984,7 +1025,7 @@ export function StepShell({ step }: Props) {
                 if (done) break;
                 fbAcc += fbDecoder.decode(value, { stream: true });
               }
-              const fallbackErrors = parseRevisorErrors(fbAcc);
+              const fallbackErrors = parseRevisorErrors(fbAcc, fallbackPart);
               if (fallbackErrors.length > 0) errors = fallbackErrors;
             }
           } catch (fbErr) {
@@ -999,7 +1040,7 @@ export function StepShell({ step }: Props) {
         // servidor pegaram), gera cards informativos sintéticos parseando
         // o markdown direto. Garante que a roteirista vê TODOS os erros
         // mesmo quando o XML é truncado/omitido na regeneração.
-        const markdownErrors = parseMarkdownErrorList(cleanContent);
+        const markdownErrors = parseMarkdownErrorList(cleanContent, fallbackPart);
         const xmlNumbers = new Set(errors.map((e) => e.numero.toLowerCase()));
         const missingFromXml = markdownErrors.filter(
           (m) => !xmlNumbers.has(m.numero.toLowerCase()),
@@ -1029,7 +1070,9 @@ export function StepShell({ step }: Props) {
         setDraft(cleanContent);
       } else if (
         isRefine &&
-        (step === "estrutura1" || step === "estrutura2" || step === "revisor") &&
+        (step === "estrutura1" ||
+          step === "estrutura2" ||
+          isRevisorStep(step)) &&
         acc.trim()
       ) {
         // Correção pontual em Estrutura 1, Estrutura 2 ou Revisor: o agente
@@ -1070,8 +1113,12 @@ export function StepShell({ step }: Props) {
               `[${step} refine] aplicados ${result.appliedIndices.length}/${patches.length} patches (${result.failedIndices.length} falharam)`,
             );
 
-            if (step === "revisor") {
-              const newErrors = parseRevisorErrors(result.text);
+            if (isRevisorStep(step)) {
+              // forcedPart = step ativo. Em refine, o agente devolve patches
+              // sobre o XML — quando reparseamos, prefixamos os IDs com p1-/p2-
+              // pra continuar consistente com a geração do zero.
+              const refinePart = partOfRevisorStep(step);
+              const newErrors = parseRevisorErrors(result.text, refinePart);
               const cleanContent = stripErrosDetalhados(result.text);
               const escritaContent =
                 roteiro.outputs.escrita?.content?.trim() ?? "";
@@ -1307,6 +1354,49 @@ export function StepShell({ step }: Props) {
 
   if (!roteiro) return null;
 
+  // Bloqueio de avanço pra revisor2: a roteirista precisa concluir e aprovar
+  // a revisão da Parte 1 antes de revisar a Parte 2. Sem isso, o revisor2
+  // perderia o contexto da revisão1 (que vai como referência narrativa pro
+  // agente) e a divisão em duas Partes não traria os benefícios que motivaram
+  // a refatoração — análise focada e sem inconsistências cruzadas.
+  if (step === "revisor2" && !roteiro.outputs.revisor1?.content?.trim()) {
+    return (
+      <div className="flex flex-col gap-6">
+        <header className="flex flex-col gap-1">
+          <Badge variant="secondary" className="font-normal w-fit">
+            Etapa {idx + 1} de {STEP_ORDER.length}
+          </Badge>
+          <h2 className="text-2xl sm:text-3xl font-serif tracking-tight">
+            {STEP_LABELS[step]}
+          </h2>
+        </header>
+        <div className="rounded-lg border-2 border-amber-300 bg-amber-50/60 p-6 sm:p-8 flex flex-col items-center text-center gap-4">
+          <AlertTriangle className="size-8 text-amber-600" />
+          <div className="flex flex-col gap-2 max-w-xl">
+            <h3 className="text-lg font-semibold">
+              Conclua a revisão da Parte 1 antes
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              A revisão da Parte 2 é alimentada pelo relatório da revisão da
+              Parte 1 — assim o agente mantém consistência narrativa e não
+              levanta &quot;inconsistências&quot; contra escolhas que a Parte 1
+              já consolidou. Volte ao Revisor — Parte 1, gere a revisão e
+              aplique as correções; depois siga em frente.
+            </p>
+          </div>
+          <Button
+            onClick={() => setCurrentStep("revisor1")}
+            size="lg"
+            className="gap-2"
+          >
+            <ArrowLeft className="size-4" />
+            Ir para Revisor — Parte 1
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <header className="flex items-end justify-between gap-4 flex-wrap">
@@ -1379,7 +1469,10 @@ export function StepShell({ step }: Props) {
       )}
 
       {step === "premissa" ? (
-        <PremissaWizard />
+        <>
+          <PremissaWizard />
+          <CanoneCard />
+        </>
       ) : (
         <StepUserInputBox
           step={step}
@@ -1543,7 +1636,7 @@ export function StepShell({ step }: Props) {
               </div>
             )}
           </div>
-        ) : step === "revisor" && isGenerating ? (
+        ) : isRevisorStep(step) && isGenerating ? (
           batchProgress && batchProgress.kind !== "writing" ? (
             <BatchProgressPanel
               progress={batchProgress}
@@ -1606,7 +1699,7 @@ export function StepShell({ step }: Props) {
           </div>
         )}
 
-        {step === "revisor" &&
+        {isRevisorStep(step) &&
           hasContent &&
           !isGenerating &&
           !isEditing &&
@@ -1633,7 +1726,7 @@ export function StepShell({ step }: Props) {
 
         <div className="flex items-center gap-2 flex-wrap pt-2">
           {!isGenerating ? (
-            step === "revisor" && hasContent ? (
+            isRevisorStep(step) && hasContent ? (
               <>
                 <Button
                   onClick={() => generate("regenerate")}
@@ -1721,21 +1814,36 @@ export function StepShell({ step }: Props) {
               <DownloadEscritaButton roteiro={roteiro} />
             </>
           )}
-          {step === "revisor" && (
+          {isRevisorStep(step) && (
             <>
               <CopyPartButton roteiro={roteiro} part={1} />
               <CopyPartButton roteiro={roteiro} part={2} />
               <DownloadEscritaButton roteiro={roteiro} />
             </>
           )}
-          {next && (
-            <Button
-              onClick={() => setCurrentStep(next)}
-              className="gap-2"
-            >
-              Avançar <ArrowRight className="size-4" />
-            </Button>
-          )}
+          {next && (() => {
+            // Trava o avanço da Premissa pra Estrutura P1 quando há cânone
+            // gerado mas a roteirista ainda não aprovou. Roteiros legados
+            // (sem cânone) não bloqueiam — comportamento backward-compatible.
+            const canoneBlocksAdvance =
+              step === "premissa" &&
+              !!roteiro?.canone?.trim() &&
+              !roteiro?.canoneApproved;
+            return (
+              <Button
+                onClick={() => setCurrentStep(next)}
+                className="gap-2"
+                disabled={canoneBlocksAdvance}
+                title={
+                  canoneBlocksAdvance
+                    ? "Aprove o cânone de entidades antes de avançar."
+                    : undefined
+                }
+              >
+                Avançar <ArrowRight className="size-4" />
+              </Button>
+            );
+          })()}
         </div>
       </footer>
     </div>
@@ -1775,7 +1883,12 @@ const StepUserInputBox = memo(function StepUserInputBox({
   // Step "premissa" tem fluxo próprio (PremissaWizard) e não chega aqui.
   // O `as` abaixo é só pra estreitar o tipo do useDraft pra exatamente um
   // dos steps que possuem campo `input`.
-  const draftStep = step as "estrutura1" | "estrutura2" | "escrita" | "revisor";
+  const draftStep = step as
+    | "estrutura1"
+    | "estrutura2"
+    | "escrita"
+    | "revisor1"
+    | "revisor2";
   const [pendingInput, setPendingInput] = useDraft(
     draftStep,
     "input",

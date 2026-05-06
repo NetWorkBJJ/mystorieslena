@@ -1,5 +1,7 @@
 import { MODELS } from "@/lib/anthropic";
 import type { Agent } from "../types";
+import { buildCanoneBlock } from "../_shared/canone-block";
+import { CANONE_RULE } from "../_shared/canone-rule";
 import { ESCRITA_SYSTEM_PROMPT } from "./escrita-prompt";
 
 /**
@@ -22,7 +24,7 @@ export const escritaAgent: Agent = {
   model: MODELS.opus,
   thinking: "disabled",
   effort: "low",
-  systemPrompt: ESCRITA_SYSTEM_PROMPT,
+  systemPrompt: ESCRITA_SYSTEM_PROMPT + CANONE_RULE,
   acceptsReferenceImage: true,
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
@@ -31,6 +33,7 @@ export const escritaAgent: Agent = {
     const ajustes = ctx.userInput?.trim() ?? "";
     const batch = ctx.batch;
     const previousSynopses = ctx.previousSynopses ?? [];
+    const canoneBlock = buildCanoneBlock(ctx.canone);
 
     // Modo correção: a roteirista pediu pra ajustar um detalhe do roteiro JÁ
     // escrito. O agente devolve **APENAS os capítulos que precisaram mudar** —
@@ -49,6 +52,12 @@ export const escritaAgent: Agent = {
       refine.push(
         `━━━ CORREÇÃO PEDIDA PELA ROTEIRISTA ━━━\n\n${ajustes}`,
       );
+      if (canoneBlock) {
+        refine.push(canoneBlock);
+      }
+      if (premissa) {
+        refine.push(`━━━ PREMISSA APROVADA (Step 1 — referência) ━━━\n\n${premissa}`);
+      }
       if (estrutura1) {
         refine.push(
           `━━━ ESTRUTURA DA PARTE 1 (referência) ━━━\n\n${estrutura1}`,
@@ -112,6 +121,10 @@ export const escritaAgent: Agent = {
       sections.push(
         "━━━ IMAGEM DE REFERÊNCIA ANEXADA ━━━\n\nA roteirista anexou uma imagem visual (chega como input multimodal antes desta mensagem). USE pra calibrar:\n• Descrições físicas dos personagens (rosto, corpo, cabelo, traços) sempre que aparecerem na narrativa\n• Cenário/ambientação descrita nas cenas\n• Mood/atmosfera (paleta de cores, peso emocional, iluminação)\n• Estilo de pequenos detalhes sensoriais (cheiro, textura, som)\n\nIntegre os elementos visuais ao texto narrativo de forma natural, sem ficar descrevendo a imagem. As ESTRUTURAS aprovadas e a PREMISSA TEXTUAL prevalecem sobre a imagem em qualquer conflito.",
       );
+    }
+
+    if (canoneBlock) {
+      sections.push(canoneBlock);
     }
 
     if (premissa) {

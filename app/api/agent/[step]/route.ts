@@ -41,12 +41,17 @@ interface Body {
   approvedResumo?: string;
   /** Modo "Continuar revisão": títulos dos erros já destacados em rodadas
    *  anteriores. O agente Revisor recebe instrução de não repetir esses erros
-   *  e focar em refinamentos novos. Só relevante pro step "revisor". */
+   *  e focar em refinamentos novos. Só relevante pros steps "revisor1"/"revisor2". */
   previousRevisorErrors?: string[];
   /** Modo "Continuar de onde parou" (Estrutura P1/P2): quando true, o agente
    *  recebe o `currentOutput` como partial e deve continuar exatamente daquele
    *  ponto sem repetir nem recomeçar. */
   continuationMode?: boolean;
+  /** Cânone de Entidades — bloco markdown estruturado com nomes/idades/lugares/
+   *  datas/relações fixados a partir da Premissa e aprovado pela roteirista.
+   *  Quando presente, agentes pós-Premissa injetam como referência canônica
+   *  no user message (ver `lib/agents/_shared/canone-block.ts`). */
+  canone?: string;
 }
 
 const ACCEPTED_IMAGE_MIMES: ClaudeImageMime[] = [
@@ -114,6 +119,7 @@ export async function POST(
       ? { previousRevisorErrors: body.previousRevisorErrors }
       : {}),
     ...(body.continuationMode ? { continuationMode: true } : {}),
+    ...(body.canone?.trim() ? { canone: body.canone } : {}),
   });
 
   // Image multimodal — só vai pro modelo se o agente declarou acceptsReferenceImage.

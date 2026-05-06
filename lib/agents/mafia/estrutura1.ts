@@ -1,6 +1,8 @@
 import { MODELS } from "@/lib/anthropic";
 import type { Agent } from "../types";
 import { buildEstruturaContinuationMessage } from "../continuation-prompt";
+import { buildCanoneBlock } from "../_shared/canone-block";
+import { CANONE_RULE } from "../_shared/canone-rule";
 import { ESTRUTURA_MASTER_PROMPT } from "./estrutura-master-prompt";
 import { ESTRUTURA1_PROMPT } from "./estrutura1-prompt";
 
@@ -23,16 +25,18 @@ export const estrutura1Agent: Agent = {
   model: MODELS.opus,
   thinking: "adaptive",
   effort: "high",
-  systemPrompt: ESTRUTURA_MASTER_PROMPT + ESTRUTURA1_PROMPT,
+  systemPrompt: ESTRUTURA_MASTER_PROMPT + ESTRUTURA1_PROMPT + CANONE_RULE,
   acceptsReferenceImage: true,
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
+    const canoneBlock = buildCanoneBlock(ctx.canone);
 
     if (ctx.continuationMode && ctx.currentOutput?.trim()) {
       return buildEstruturaContinuationMessage({
         parteLabel: "PARTE 1",
         partial: ctx.currentOutput,
         userInput: ctx.userInput,
+        canone: ctx.canone,
       });
     }
 
@@ -47,6 +51,9 @@ export const estrutura1Agent: Agent = {
       refine.push(
         `━━━ CORREÇÃO PEDIDA PELA ROTEIRISTA ━━━\n\n${ctx.userInput.trim()}`,
       );
+      if (canoneBlock) {
+        refine.push(canoneBlock);
+      }
       if (premissa) {
         refine.push(
           `━━━ PREMISSA APROVADA (Step 1 — referência de coerência) ━━━\n\n${premissa}`,
@@ -93,6 +100,10 @@ export const estrutura1Agent: Agent = {
       sections.push(
         "━━━ IMAGEM DE REFERÊNCIA ANEXADA ━━━\n\nA roteirista anexou uma imagem visual de referência. USE essa imagem pra calibrar mood/atmosfera (luz, paleta, peso emocional do mundo mafioso), aparência física dos personagens (especialmente o MMC), cenário/ambientação, estilo visual da narrativa. Integre os elementos visuais à estrutura sem inventar contradições com a premissa textual. Em conflito, a PREMISSA TEXTUAL prevalece.",
       );
+    }
+
+    if (canoneBlock) {
+      sections.push(canoneBlock);
     }
 
     if (premissa) {

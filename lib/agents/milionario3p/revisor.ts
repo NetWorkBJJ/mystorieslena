@@ -1,31 +1,35 @@
 import { MODELS } from "@/lib/anthropic";
 import type { Agent } from "../types";
+import { buildCanoneBlock } from "../_shared/canone-block";
+import { CANONE_RULE, CANONE_REVISOR_CHECKLIST } from "../_shared/canone-rule";
 import { REVISOR_SYSTEM_PROMPT } from "./revisor-prompt";
 
 /**
- * Etapa 5 — Revisor (Romance de Milionário 3ª pessoa, canal Rowan).
+ * Template do agente Revisor (Romance de Milionário 3ª pessoa, canal Rowan).
  *
- * Editor literário rigoroso especializado em romance de milionário em 3ª
- * pessoa. Revisa o roteiro do Step 4 cruzando com Premissa e Estruturas
- * aprovadas. Aplica 4 graus de classificação (🟢 não interfere, 🟡 atenção,
- * 🔴 interfere, 💀 gravíssimo — mesmos símbolos da máfia, NÃO os 🟠/🔴 do 1p).
- * Numera sequencialmente, dá nota final, mede risco de hate.
+ * Editor literário rigoroso. Aplica 4 graus de classificação (🟢 não
+ * interfere, 🟡 atenção, 🔴 interfere, 💀 gravíssimo — mesmos símbolos da
+ * máfia, NÃO os 🟠/🔴 do 1p). Numera sequencialmente, dá nota final, mede
+ * risco de hate.
+ *
+ * A factory `buildRevisorAgent` gera dois Agents (revisor1, revisor2) a
+ * partir deste template — cada um focado em uma Parte só.
  */
-export const revisorAgent: Agent = {
-  id: "revisor",
+export const revisorAgentTemplate: Omit<Agent, "id"> = {
   label: "Revisor",
   description:
     "Editor literário rigoroso de Milionário 3p — revisa o roteiro completo classificando erros em 4 graus (🟢 / 🟡 / 🔴 / 💀), numerando sequencialmente, com análise de leitor real, hater e nota final 0-10",
   model: MODELS.opus,
   thinking: "disabled",
   effort: "low",
-  systemPrompt: REVISOR_SYSTEM_PROMPT,
+  systemPrompt: REVISOR_SYSTEM_PROMPT + CANONE_RULE + CANONE_REVISOR_CHECKLIST,
   acceptsReferenceImage: true,
   buildUserMessage: (ctx) => {
     const premissa = ctx.previousOutputs.premissa?.content?.trim() ?? "";
     const estrutura1 = ctx.previousOutputs.estrutura1?.content?.trim() ?? "";
     const estrutura2 = ctx.previousOutputs.estrutura2?.content?.trim() ?? "";
     const escrita = ctx.previousOutputs.escrita?.content?.trim() ?? "";
+    const canoneBlock = buildCanoneBlock(ctx.canone);
 
     if (ctx.refineMode && ctx.currentOutput?.trim() && ctx.userInput?.trim()) {
       const refine: string[] = [];
@@ -42,6 +46,9 @@ export const revisorAgent: Agent = {
         refine.push(
           `━━━ ROTEIRO REVISADO (Step 4 — referência, consulte se a correção pedir releitura) ━━━\n\n${escrita}`,
         );
+      }
+      if (canoneBlock) {
+        refine.push(canoneBlock);
       }
       if (premissa) {
         refine.push(
@@ -115,6 +122,10 @@ export const revisorAgent: Agent = {
       sections.push(
         "━━━ MATERIAL A REVISAR ━━━\n\n⚠️ Nenhum roteiro foi encontrado no Step 4 (Escrita). Avise o usuário que precisa gerar o roteiro antes da revisão. NÃO invente conteúdo.",
       );
+    }
+
+    if (canoneBlock) {
+      sections.push(canoneBlock);
     }
 
     if (premissa) {

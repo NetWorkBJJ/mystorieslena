@@ -27,16 +27,78 @@ function isBrowser() {
 }
 
 /**
+ * Move uma chave opcional dentro de um Partial<Record<StepId, T>> de origem
+ * para destino, sem sobrescrever destino se já existir. Idempotente: rodar
+ * duas vezes mantém o resultado da primeira. Retorna o objeto original se
+ * não houve mudança (dedupe de re-renders).
+ */
+function moveStepKey<T>(
+  obj: Partial<Record<StepId, T>> | undefined,
+  from: StepId,
+  to: StepId,
+): Partial<Record<StepId, T>> | undefined {
+  if (!obj) return obj;
+  const fromVal = obj[from];
+  if (fromVal === undefined) return obj;
+  // Se destino já existe (idempotência ou conflito), só apaga origem.
+  const next: Partial<Record<StepId, T>> = { ...obj };
+  if (next[to] === undefined) {
+    next[to] = fromVal;
+  }
+  delete next[from];
+  return next;
+}
+
+/**
  * Backfill: roteiros antigos no localStorage não têm `category`. Como o app
  * sempre rodou só para Romance de Milionário (1ª pessoa), todo roteiro
  * legado vira dessa categoria. Sem esse fallback, qualquer lookup de
  * `category` em roteiros antigos quebraria silenciosamente.
+ *
+ * Também migra o step legado `revisor` (único, processava as duas Partes
+ * juntas) para `revisor1` (Parte 1). `revisor2` fica vazio para a roteirista
+ * gerar manualmente. Mantém o conteúdo da revisão antiga acessível como
+ * histórico/output da Parte 1 — nada é descartado. A divisão real só vale
+ * pra revisões futuras.
  */
 function migrateLegacy(r: Roteiro): Roteiro {
-  if (!r.category) {
-    return { ...r, category: DEFAULT_CATEGORY };
+  let next = r.category ? r : { ...r, category: DEFAULT_CATEGORY };
+
+  // O StepId mudou — `"revisor"` não existe mais nos tipos. Como roteiros
+  // antigos têm strings em runtime mesmo, fazemos a checagem via cast.
+  const LEGACY_KEY = "revisor" as StepId;
+  const hasLegacyOutput = next.outputs?.[LEGACY_KEY] !== undefined;
+  const hasLegacyInput = next.userInputs?.[LEGACY_KEY] !== undefined;
+  const hasLegacyHistory = next.history?.[LEGACY_KEY] !== undefined;
+  const hasLegacyDraft =
+    (next.drafts as Partial<Record<StepId, unknown>> | undefined)?.[
+      LEGACY_KEY
+    ] !== undefined;
+  const hasLegacyCurrentStep = (next.currentStep as string) === "revisor";
+
+  if (
+    hasLegacyOutput ||
+    hasLegacyInput ||
+    hasLegacyHistory ||
+    hasLegacyDraft ||
+    hasLegacyCurrentStep
+  ) {
+    next = {
+      ...next,
+      outputs: moveStepKey(next.outputs, LEGACY_KEY, "revisor1") ?? next.outputs,
+      userInputs:
+        moveStepKey(next.userInputs, LEGACY_KEY, "revisor1") ?? next.userInputs,
+      history:
+        moveStepKey(next.history, LEGACY_KEY, "revisor1") ?? next.history,
+      drafts: (moveStepKey(
+        next.drafts as Partial<Record<StepId, unknown>> | undefined,
+        LEGACY_KEY,
+        "revisor1",
+      ) ?? next.drafts) as Roteiro["drafts"],
+      currentStep: hasLegacyCurrentStep ? "revisor1" : next.currentStep,
+    };
   }
-  return r;
+  return next;
 }
 
 /**
