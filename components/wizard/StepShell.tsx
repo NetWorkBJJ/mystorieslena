@@ -283,16 +283,25 @@ export function StepShell({ step }: Props) {
   // Map (part, number) → target de palavras pro feedback ±3% nos cap cards.
   // Sem isso, a UI mostra a contagem real sem sinal visual de se está dentro
   // do esperado da estrutura — o usuário só descobre via Revisor (~5min).
+  //
+  // extractChapterTargets pode retornar múltiplos entries com mesmo `number`
+  // se a estrutura tiver linhas tipo "Capítulo 1, primeira metade (~1.000
+  // palavras)" — submenções que casam com o regex tolerante. Pegamos só o
+  // PRIMEIRO entry de cada number (que é o header principal `## Capítulo N`,
+  // por estar mais alto no texto). Sem isso, o alvo do cap principal era
+  // sobrescrito pelo alvo de uma sub-cena.
   const chapterTargets = useMemo(() => {
     if (step !== "escrita") return new Map<string, number>();
     const map = new Map<string, number>();
     const t1 = extractChapterTargets(roteiro?.outputs.estrutura1?.content);
     const t2 = extractChapterTargets(roteiro?.outputs.estrutura2?.content);
     for (const t of t1) {
-      if (typeof t.target === "number") map.set(`Parte 1:${t.number}`, t.target);
+      const key = `Parte 1:${t.number}`;
+      if (typeof t.target === "number" && !map.has(key)) map.set(key, t.target);
     }
     for (const t of t2) {
-      if (typeof t.target === "number") map.set(`Parte 2:${t.number}`, t.target);
+      const key = `Parte 2:${t.number}`;
+      if (typeof t.target === "number" && !map.has(key)) map.set(key, t.target);
     }
     return map;
   }, [step, roteiro?.outputs.estrutura1?.content, roteiro?.outputs.estrutura2?.content]);
