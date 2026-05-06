@@ -37,6 +37,7 @@ import {
   nextStep,
   partOfRevisorStep,
   prevStep,
+  type BatchMissingChapters,
   type EscritaChapter,
   type EscritaSynopsis,
   type RevisorError,
@@ -571,6 +572,11 @@ export function StepShell({ step }: Props) {
       const plan = planBatches(totalP1, totalP2, targetsP1, targetsP2, category);
       const accChapters: EscritaChapter[] = [];
       const accSynopses: EscritaSynopsis[] = [];
+      // Warnings de batches em que o agente Escrita emitiu menos cabeçalhos
+      // `## Capítulo N` do que os esperados pelo plano. Detecta o caso em que
+      // o agente "engole" um cap silenciosamente — sem isso o usuário só
+      // descobre no Revisor depois de gastar 30+ minutos do pipeline.
+      const accBatchWarnings: BatchMissingChapters[] = [];
 
       // ─── helpers locais ──────────────────────────────────────────────
       const readStreamFully = (res: Response) =>
@@ -583,6 +589,9 @@ export function StepShell({ step }: Props) {
           metadata: {
             chapters: [...accChapters],
             synopses: [...accSynopses],
+            ...(accBatchWarnings.length > 0
+              ? { batchWarnings: [...accBatchWarnings] }
+              : {}),
           },
           generatedAt: startedAt,
         });
@@ -666,6 +675,25 @@ export function StepShell({ step }: Props) {
           }
 
           if (ctrl.signal.aborted) break;
+
+          // Detecta caps que o batch deveria ter mas o agente não emitiu.
+          // Compara b.chapters esperados vs numbers parseados (ignora 0 do
+          // fallback). Se faltar algum, registra warning visível pro usuário.
+          const expectedNumbers = b.chapters;
+          const gotNumbers = new Set(
+            parsed.chapters.map((c) => c.number).filter((n) => n > 0),
+          );
+          const missingNumbers = expectedNumbers.filter(
+            (n) => !gotNumbers.has(n),
+          );
+          if (missingNumbers.length > 0) {
+            accBatchWarnings.push({
+              batchIndex: b.batchIndex,
+              part: b.part,
+              expected: expectedNumbers,
+              missing: missingNumbers,
+            });
+          }
 
           accChapters.push(...parsed.chapters);
           accSynopses.push(...parsed.synopses);
@@ -2949,6 +2977,46 @@ function PremissaWizard() {
   );
 }
 
+function BatchWarningsBanner({
+  warnings,
+}: {
+  warnings: BatchMissingChapters[];
+}) {
+  const totalMissing = warnings.reduce((sum, w) => sum + w.missing.length, 0);
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 flex gap-3">
+      <AlertTriangle className="size-5 flex-none text-amber-700 mt-0.5" />
+      <div className="flex flex-col gap-2 text-sm">
+        <p className="font-medium text-amber-900">
+          {totalMissing === 1
+            ? "1 capítulo não foi gerado"
+            : `${totalMissing} capítulos não foram gerados`}
+        </p>
+        <ul className="text-amber-900/90 list-disc pl-5 space-y-0.5">
+          {warnings.map((w, i) => (
+            <li key={`${w.batchIndex}-${i}`}>
+              <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-amber-200/60 mr-1">
+                {w.part} · Par {w.batchIndex}
+              </span>
+              esperado capítulo
+              {w.expected.length === 1 ? " " : "s "}
+              {w.expected.join(", ")} — não detectado
+              {w.missing.length === 1 ? ": " : "s: "}
+              <strong>{w.missing.join(", ")}</strong>
+            </li>
+          ))}
+        </ul>
+        <p className="text-amber-800/80 text-xs">
+          O agente Opus emitiu menos cabeçalhos{" "}
+          <code className="text-[11px]">## Capítulo N</code> do que o esperado
+          neste par. Clique em <strong>Gerar roteiro novamente</strong> pra
+          refazer.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function EscritaOutputView({ output }: { output: StepOutput }) {
   const setOutput = useWizard((s) => s.setOutput);
   const pushOutputToHistory = useWizard((s) => s.pushOutputToHistory);
@@ -2958,6 +3026,7 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
   const report = output.metadata?.report;
   const validation = output.metadata?.validation;
   const validationStatus = output.metadata?.validationStatus;
+  const batchWarnings = output.metadata?.batchWarnings ?? [];
 
   // Edição inline por capítulo: substitui o conteúdo do capítulo no metadata,
   // re-concatena `output.content` e empurra um snapshot pro histórico antes
@@ -3026,6 +3095,9 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {batchWarnings.length > 0 && (
+        <BatchWarningsBanner warnings={batchWarnings} />
+      )}
       <div className="flex flex-col gap-3">
         {chapters.map((ch, i) => {
           const isLast = i === chapters.length - 1;
