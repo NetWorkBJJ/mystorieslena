@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "electron:dev": "concurrently -k \"npm:dev\" \"wait-on http://localhost:3000 && cross-env ELECTRON_RUN_AS_NODE= NEXT_DEV_URL=http://localhost:3000 electron .\"",
+    "electron:dev": "concurrently --kill-others-on-fail \"npm:dev\" \"wait-on http://localhost:3000 && cross-env ELECTRON_RUN_AS_NODE= NEXT_DEV_URL=http://localhost:3000 electron .\"",
     "electron:start": "cross-env ELECTRON_RUN_AS_NODE= electron .",
     "prepackage": "node scripts/build-icon.js",
     "package": "next build && electron-builder",
