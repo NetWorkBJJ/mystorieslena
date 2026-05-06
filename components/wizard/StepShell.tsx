@@ -68,7 +68,10 @@ import {
   planBatches,
 } from "@/lib/parse-estrutura-chapters";
 import { parseEscritaBatch } from "@/lib/parse-escrita-batch";
-import { extractChapterTargets } from "@/lib/parse-estrutura-targets";
+import {
+  extractChapterTargets,
+  isWithinTarget,
+} from "@/lib/parse-estrutura-targets";
 import { MemoryVivaCard } from "@/components/wizard/MemoryVivaCard";
 import { WordCountBadge } from "@/components/wizard/WordCountBadge";
 // countWords sempre da lib canônica — mesmo contador que a UI usa pra
@@ -266,6 +269,33 @@ export function StepShell({ step }: Props) {
 
   const chapters = output?.metadata?.chapters ?? [];
   const chapterCount = chapters.length;
+  // Capítulos esperados conforme estruturas aprovadas (Step 2 + Step 3) —
+  // usado pra avisar visualmente quando a Escrita pulou cap (banner do
+  // BatchWarningsBanner cobre o caso por batch; aqui é o contador no topo
+  // do textarea de instruções, que indica o estado geral do roteiro).
+  const expectedChapterCount = useMemo(() => {
+    if (step !== "escrita") return 0;
+    return (
+      countChaptersInEstrutura(roteiro?.outputs.estrutura1?.content) +
+      countChaptersInEstrutura(roteiro?.outputs.estrutura2?.content)
+    );
+  }, [step, roteiro?.outputs.estrutura1?.content, roteiro?.outputs.estrutura2?.content]);
+  // Map (part, number) → target de palavras pro feedback ±3% nos cap cards.
+  // Sem isso, a UI mostra a contagem real sem sinal visual de se está dentro
+  // do esperado da estrutura — o usuário só descobre via Revisor (~5min).
+  const chapterTargets = useMemo(() => {
+    if (step !== "escrita") return new Map<string, number>();
+    const map = new Map<string, number>();
+    const t1 = extractChapterTargets(roteiro?.outputs.estrutura1?.content);
+    const t2 = extractChapterTargets(roteiro?.outputs.estrutura2?.content);
+    for (const t of t1) {
+      if (typeof t.target === "number") map.set(`Parte 1:${t.number}`, t.target);
+    }
+    for (const t of t2) {
+      if (typeof t.target === "number") map.set(`Parte 2:${t.number}`, t.target);
+    }
+    return map;
+  }, [step, roteiro?.outputs.estrutura1?.content, roteiro?.outputs.estrutura2?.content]);
   const generateLabel = useMemo(() => {
     if (step === "escrita")
       return hasContent ? "Gerar roteiro novamente" : "Gerar roteiro completo";
@@ -1310,6 +1340,7 @@ export function StepShell({ step }: Props) {
           step={step}
           idx={idx}
           chapterCount={chapterCount}
+          expectedChapterCount={expectedChapterCount}
           savedInput={savedStepInput}
           hasOutput={!!output?.content?.trim()}
           isGenerating={isGenerating}
@@ -1398,7 +1429,12 @@ export function StepShell({ step }: Props) {
           />
         ) : step === "escrita" ? (
           <div className="flex flex-col gap-4">
-            {chapters.length > 0 && <EscritaOutputView output={output!} />}
+            {chapters.length > 0 && (
+              <EscritaOutputView
+                output={output!}
+                chapterTargets={chapterTargets}
+              />
+            )}
             {chapters.length === 0 && hasContent && !isGenerating && (
               <>
                 {output?.metadata?.parseWarning && (
@@ -1660,6 +1696,7 @@ interface StepUserInputBoxProps {
   step: StepId;
   idx: number;
   chapterCount: number;
+  expectedChapterCount: number;
   savedInput: string;
   hasOutput: boolean;
   isGenerating: boolean;
@@ -1670,6 +1707,7 @@ const StepUserInputBox = memo(function StepUserInputBox({
   step,
   idx,
   chapterCount,
+  expectedChapterCount,
   savedInput,
   hasOutput,
   isGenerating,
@@ -1706,10 +1744,20 @@ const StepUserInputBox = memo(function StepUserInputBox({
             : "Instruções adicionais (opcional)"}
         </Label>
         {step === "escrita" && (
-          <span className="text-[11px] text-muted-foreground">
+          <span
+            className={`text-[11px] ${
+              chapterCount > 0 &&
+              expectedChapterCount > 0 &&
+              chapterCount !== expectedChapterCount
+                ? "text-amber-700 font-medium"
+                : "text-muted-foreground"
+            }`}
+          >
             {chapterCount === 0
               ? "O agente derivará tudo das estruturas aprovadas"
-              : `${chapterCount} capítulo${chapterCount === 1 ? "" : "s"} no roteiro atual · regenerar substitui tudo`}
+              : expectedChapterCount > 0 && chapterCount !== expectedChapterCount
+                ? `⚠️ ${chapterCount} de ${expectedChapterCount} capítulos esperados · regenerar substitui tudo`
+                : `${chapterCount} capítulo${chapterCount === 1 ? "" : "s"} no roteiro atual · regenerar substitui tudo`}
           </span>
         )}
       </div>
@@ -2631,7 +2679,13 @@ function BatchWarningsBanner({
   );
 }
 
-function EscritaOutputView({ output }: { output: StepOutput }) {
+function EscritaOutputView({
+  output,
+  chapterTargets,
+}: {
+  output: StepOutput;
+  chapterTargets?: Map<string, number>;
+}) {
   const setOutput = useWizard((s) => s.setOutput);
   const pushOutputToHistory = useWizard((s) => s.pushOutputToHistory);
 
@@ -2715,11 +2769,15 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
       <div className="flex flex-col gap-3">
         {chapters.map((ch, i) => {
           const isLast = i === chapters.length - 1;
+          const target = ch.part
+            ? chapterTargets?.get(`${ch.part}:${ch.number}`)
+            : undefined;
           return (
             <ChapterCard
               key={i}
               chapter={ch}
               defaultOpen={isLast}
+              targetWordCount={target}
               onSave={(newContent) => saveChapter(i, newContent)}
             />
           );
@@ -2767,10 +2825,12 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
 function ChapterCard({
   chapter,
   defaultOpen,
+  targetWordCount,
   onSave,
 }: {
   chapter: EscritaChapter;
   defaultOpen: boolean;
+  targetWordCount?: number;
   onSave?: (newContent: string) => void;
 }) {
   const titleLabel = chapter.title
@@ -2826,10 +2886,31 @@ function ChapterCard({
               const showDeclared =
                 typeof declaredCount === "number" &&
                 Math.abs(declaredCount - realCount) > 30;
+              const withinTarget =
+                typeof targetWordCount === "number"
+                  ? isWithinTarget(realCount, targetWordCount)
+                  : null;
+              const targetClass =
+                withinTarget === true
+                  ? "text-emerald-700"
+                  : withinTarget === false
+                    ? "text-amber-700"
+                    : "text-muted-foreground";
+              const targetIcon =
+                withinTarget === true ? "✓" : withinTarget === false ? "⚠" : "";
               return (
                 <>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className={`text-[10px] ${targetClass}`}>
+                    {targetIcon && <span className="mr-1">{targetIcon}</span>}
                     {realCount.toLocaleString("pt-BR")} palavras
+                    {typeof targetWordCount === "number" && (
+                      <span
+                        className="ml-1 opacity-70"
+                        title={`Alvo da estrutura: ${targetWordCount.toLocaleString("pt-BR")} ±3%`}
+                      >
+                        / {targetWordCount.toLocaleString("pt-BR")}
+                      </span>
+                    )}
                     {showDeclared && (
                       <span
                         className="ml-1 text-amber-700"
