@@ -37,6 +37,7 @@ import {
   nextStep,
   partOfRevisorStep,
   prevStep,
+  type BatchMissingChapters,
   type EscritaChapter,
   type EscritaSynopsis,
   type RevisorError,
@@ -71,7 +72,10 @@ import {
   planBatches,
 } from "@/lib/parse-estrutura-chapters";
 import { parseEscritaBatch } from "@/lib/parse-escrita-batch";
-import { extractChapterTargets } from "@/lib/parse-estrutura-targets";
+import {
+  extractChapterTargets,
+  isWithinTarget,
+} from "@/lib/parse-estrutura-targets";
 import { MemoryVivaCard } from "@/components/wizard/MemoryVivaCard";
 import { WordCountBadge } from "@/components/wizard/WordCountBadge";
 // countWords sempre da lib canônica — mesmo contador que a UI usa pra
@@ -298,6 +302,42 @@ export function StepShell({ step }: Props) {
 
   const chapters = output?.metadata?.chapters ?? [];
   const chapterCount = chapters.length;
+  // Capítulos esperados conforme estruturas aprovadas (Step 2 + Step 3) —
+  // usado pra avisar visualmente quando a Escrita pulou cap (banner do
+  // BatchWarningsBanner cobre o caso por batch; aqui é o contador no topo
+  // do textarea de instruções, que indica o estado geral do roteiro).
+  const expectedChapterCount = useMemo(() => {
+    if (step !== "escrita") return 0;
+    return (
+      countChaptersInEstrutura(roteiro?.outputs.estrutura1?.content) +
+      countChaptersInEstrutura(roteiro?.outputs.estrutura2?.content)
+    );
+  }, [step, roteiro?.outputs.estrutura1?.content, roteiro?.outputs.estrutura2?.content]);
+  // Map (part, number) → target de palavras pro feedback ±3% nos cap cards.
+  // Sem isso, a UI mostra a contagem real sem sinal visual de se está dentro
+  // do esperado da estrutura — o usuário só descobre via Revisor (~5min).
+  //
+  // extractChapterTargets pode retornar múltiplos entries com mesmo `number`
+  // se a estrutura tiver linhas tipo "Capítulo 1, primeira metade (~1.000
+  // palavras)" — submenções que casam com o regex tolerante. Pegamos só o
+  // PRIMEIRO entry de cada number (que é o header principal `## Capítulo N`,
+  // por estar mais alto no texto). Sem isso, o alvo do cap principal era
+  // sobrescrito pelo alvo de uma sub-cena.
+  const chapterTargets = useMemo(() => {
+    if (step !== "escrita") return new Map<string, number>();
+    const map = new Map<string, number>();
+    const t1 = extractChapterTargets(roteiro?.outputs.estrutura1?.content);
+    const t2 = extractChapterTargets(roteiro?.outputs.estrutura2?.content);
+    for (const t of t1) {
+      const key = `Parte 1:${t.number}`;
+      if (typeof t.target === "number" && !map.has(key)) map.set(key, t.target);
+    }
+    for (const t of t2) {
+      const key = `Parte 2:${t.number}`;
+      if (typeof t.target === "number" && !map.has(key)) map.set(key, t.target);
+    }
+    return map;
+  }, [step, roteiro?.outputs.estrutura1?.content, roteiro?.outputs.estrutura2?.content]);
   const generateLabel = useMemo(() => {
     if (step === "escrita")
       return hasContent ? "Gerar roteiro novamente" : "Gerar roteiro completo";
@@ -356,8 +396,20 @@ export function StepShell({ step }: Props) {
     // ex.: botão "Aplicar correção" da caixa, que comita+dispara num clique).
     // Lê só o input desse step específico — input de outro step NÃO vaza
     // pra essa chamada.
+    //
+    // Draft do textarea de "Instruções adicionais" tem prioridade sobre
+    // userInputs[step]: o draft só persiste quando pending !== committed
+    // (lib/use-draft.ts), logo é por definição mais novo. Sem ler draft, a
+    // primeira geração antes de qualquer "Aplicar correção" ignora silenciosa-
+    // mente o que o usuário digitou.
+    const draftInput = (
+      (roteiro.drafts?.[step] as { input?: string } | undefined)?.input ?? ""
+    ).trim();
+    const committedInput = (roteiro.userInputs?.[step] ?? "").trim();
     const effectiveUserInput =
-      (userInputOverride ?? roteiro.userInputs?.[step] ?? "").trim();
+      userInputOverride !== undefined
+        ? userInputOverride.trim()
+        : draftInput || committedInput;
 
     // Modo correção precisa de output existente + instrução escrita.
     if (mode === "refine") {
@@ -559,6 +611,11 @@ export function StepShell({ step }: Props) {
       const plan = planBatches(totalP1, totalP2, targetsP1, targetsP2, category);
       const accChapters: EscritaChapter[] = [];
       const accSynopses: EscritaSynopsis[] = [];
+      // Warnings de batches em que o agente Escrita emitiu menos cabeçalhos
+      // `## Capítulo N` do que os esperados pelo plano. Detecta o caso em que
+      // o agente "engole" um cap silenciosamente — sem isso o usuário só
+      // descobre no Revisor depois de gastar 30+ minutos do pipeline.
+      const accBatchWarnings: BatchMissingChapters[] = [];
 
       // ─── helpers locais ──────────────────────────────────────────────
       const readStreamFully = (res: Response) =>
@@ -571,6 +628,9 @@ export function StepShell({ step }: Props) {
           metadata: {
             chapters: [...accChapters],
             synopses: [...accSynopses],
+            ...(accBatchWarnings.length > 0
+              ? { batchWarnings: [...accBatchWarnings] }
+              : {}),
           },
           generatedAt: startedAt,
         });
@@ -654,6 +714,25 @@ export function StepShell({ step }: Props) {
           }
 
           if (ctrl.signal.aborted) break;
+
+          // Detecta caps que o batch deveria ter mas o agente não emitiu.
+          // Compara b.chapters esperados vs numbers parseados (ignora 0 do
+          // fallback). Se faltar algum, registra warning visível pro usuário.
+          const expectedNumbers = b.chapters;
+          const gotNumbers = new Set(
+            parsed.chapters.map((c) => c.number).filter((n) => n > 0),
+          );
+          const missingNumbers = expectedNumbers.filter(
+            (n) => !gotNumbers.has(n),
+          );
+          if (missingNumbers.length > 0) {
+            accBatchWarnings.push({
+              batchIndex: b.batchIndex,
+              part: b.part,
+              expected: expectedNumbers,
+              missing: missingNumbers,
+            });
+          }
 
           accChapters.push(...parsed.chapters);
           accSynopses.push(...parsed.synopses);
@@ -1478,6 +1557,7 @@ export function StepShell({ step }: Props) {
           step={step}
           idx={idx}
           chapterCount={chapterCount}
+          expectedChapterCount={expectedChapterCount}
           savedInput={savedStepInput}
           hasOutput={!!output?.content?.trim()}
           isGenerating={isGenerating}
@@ -1588,7 +1668,12 @@ export function StepShell({ step }: Props) {
           />
         ) : step === "escrita" ? (
           <div className="flex flex-col gap-4">
-            {chapters.length > 0 && <EscritaOutputView output={output!} />}
+            {chapters.length > 0 && (
+              <EscritaOutputView
+                output={output!}
+                chapterTargets={chapterTargets}
+              />
+            )}
             {chapters.length === 0 && hasContent && !isGenerating && (
               <>
                 {output?.metadata?.parseWarning && (
@@ -1865,6 +1950,7 @@ interface StepUserInputBoxProps {
   step: StepId;
   idx: number;
   chapterCount: number;
+  expectedChapterCount: number;
   savedInput: string;
   hasOutput: boolean;
   isGenerating: boolean;
@@ -1875,6 +1961,7 @@ const StepUserInputBox = memo(function StepUserInputBox({
   step,
   idx,
   chapterCount,
+  expectedChapterCount,
   savedInput,
   hasOutput,
   isGenerating,
@@ -1916,10 +2003,20 @@ const StepUserInputBox = memo(function StepUserInputBox({
             : "Instruções adicionais (opcional)"}
         </Label>
         {step === "escrita" && (
-          <span className="text-[11px] text-muted-foreground">
+          <span
+            className={`text-[11px] ${
+              chapterCount > 0 &&
+              expectedChapterCount > 0 &&
+              chapterCount !== expectedChapterCount
+                ? "text-amber-700 font-medium"
+                : "text-muted-foreground"
+            }`}
+          >
             {chapterCount === 0
               ? "O agente derivará tudo das estruturas aprovadas"
-              : `${chapterCount} capítulo${chapterCount === 1 ? "" : "s"} no roteiro atual · regenerar substitui tudo`}
+              : expectedChapterCount > 0 && chapterCount !== expectedChapterCount
+                ? `⚠️ ${chapterCount} de ${expectedChapterCount} capítulos esperados · regenerar substitui tudo`
+                : `${chapterCount} capítulo${chapterCount === 1 ? "" : "s"} no roteiro atual · regenerar substitui tudo`}
           </span>
         )}
       </div>
@@ -2164,8 +2261,17 @@ function PremissaWizard() {
     }
 
     // Instrução adicional vem ou do override (caller acabou de salvar) ou
-    // do que está persistido em userInputs.premissa.
-    const instruction = (instructionOverride ?? savedInstruction).trim();
+    // do que está persistido em userInputs.premissa. Draft do textarea
+    // tem prioridade sobre savedInstruction — useDraft só persiste quando
+    // pending !== committed, então é por definição mais novo. Sem isso, a
+    // primeira geração antes de "Salvar instrução" ignorava o que foi digitado.
+    instructionRef.current?.flush();
+    const draftInstruction = (
+      instructionRef.current?.getValue() ?? instructionDraftStored
+    ).trim();
+    const instruction = (
+      instructionOverride ?? (draftInstruction || savedInstruction)
+    ).trim();
     const fullUserInput = instruction
       ? `${briefingTrim}\n\n━━━ INSTRUÇÕES ADICIONAIS DA AUTORA ━━━\n${instruction}`
       : briefingTrim;
@@ -2246,6 +2352,7 @@ function PremissaWizard() {
     isGenerating,
     resumo,
     savedInstruction,
+    instructionDraftStored,
     pushOutputToHistory,
     setIsGenerating,
     setOutput,
@@ -2272,7 +2379,15 @@ function PremissaWizard() {
       pushOutputToHistory("premissa", "Antes de regenerar estrutura");
     }
 
-    const instruction = (instructionOverride ?? savedInstruction).trim();
+    // Draft tem prioridade sobre savedInstruction — ver comentário em
+    // generateResumo. Mesmo bug aplicado a essa fase também.
+    instructionRef.current?.flush();
+    const draftInstruction = (
+      instructionRef.current?.getValue() ?? instructionDraftStored
+    ).trim();
+    const instruction = (
+      instructionOverride ?? (draftInstruction || savedInstruction)
+    ).trim();
     const fullUserInput = instruction
       ? `${briefingTrim}\n\n━━━ INSTRUÇÕES ADICIONAIS DA AUTORA ━━━\n${instruction}`
       : briefingTrim;
@@ -2342,6 +2457,7 @@ function PremissaWizard() {
     isGenerating,
     content,
     savedInstruction,
+    instructionDraftStored,
     pushOutputToHistory,
     setIsGenerating,
     setOutput,
@@ -2924,7 +3040,53 @@ function PremissaWizard() {
   );
 }
 
-function EscritaOutputView({ output }: { output: StepOutput }) {
+function BatchWarningsBanner({
+  warnings,
+}: {
+  warnings: BatchMissingChapters[];
+}) {
+  const totalMissing = warnings.reduce((sum, w) => sum + w.missing.length, 0);
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 flex gap-3">
+      <AlertTriangle className="size-5 flex-none text-amber-700 mt-0.5" />
+      <div className="flex flex-col gap-2 text-sm">
+        <p className="font-medium text-amber-900">
+          {totalMissing === 1
+            ? "1 capítulo não foi gerado"
+            : `${totalMissing} capítulos não foram gerados`}
+        </p>
+        <ul className="text-amber-900/90 list-disc pl-5 space-y-0.5">
+          {warnings.map((w, i) => (
+            <li key={`${w.batchIndex}-${i}`}>
+              <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-amber-200/60 mr-1">
+                {w.part} · Par {w.batchIndex}
+              </span>
+              esperado capítulo
+              {w.expected.length === 1 ? " " : "s "}
+              {w.expected.join(", ")} — não detectado
+              {w.missing.length === 1 ? ": " : "s: "}
+              <strong>{w.missing.join(", ")}</strong>
+            </li>
+          ))}
+        </ul>
+        <p className="text-amber-800/80 text-xs">
+          O agente Opus emitiu menos cabeçalhos{" "}
+          <code className="text-[11px]">## Capítulo N</code> do que o esperado
+          neste par. Clique em <strong>Gerar roteiro novamente</strong> pra
+          refazer.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function EscritaOutputView({
+  output,
+  chapterTargets,
+}: {
+  output: StepOutput;
+  chapterTargets?: Map<string, number>;
+}) {
   const setOutput = useWizard((s) => s.setOutput);
   const pushOutputToHistory = useWizard((s) => s.pushOutputToHistory);
 
@@ -2933,6 +3095,7 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
   const report = output.metadata?.report;
   const validation = output.metadata?.validation;
   const validationStatus = output.metadata?.validationStatus;
+  const batchWarnings = output.metadata?.batchWarnings ?? [];
 
   // Edição inline por capítulo: substitui o conteúdo do capítulo no metadata,
   // re-concatena `output.content` e empurra um snapshot pro histórico antes
@@ -3001,6 +3164,9 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {batchWarnings.length > 0 && (
+        <BatchWarningsBanner warnings={batchWarnings} />
+      )}
       <div className="flex flex-col gap-3">
         {chapters.map((ch, i) => {
           const isLast = i === chapters.length - 1;
@@ -3008,12 +3174,16 @@ function EscritaOutputView({ output }: { output: StepOutput }) {
           // a identidade dos cards (era key={i} antes — que misturava a state
           // local de `isEditing`/`draft` quando a lista mudava).
           const key = `${ch.part ?? "x"}-${ch.number}`;
+          const target = ch.part
+            ? chapterTargets?.get(`${ch.part}:${ch.number}`)
+            : undefined;
           return (
             <ChapterCard
               key={key}
               chapter={ch}
               chapterIndex={i}
               defaultOpen={isLast}
+              targetWordCount={target}
               onSave={saveChapter}
             />
           );
@@ -3069,11 +3239,13 @@ const ChapterCard = memo(function ChapterCard({
   chapter,
   chapterIndex,
   defaultOpen,
+  targetWordCount,
   onSave,
 }: {
   chapter: EscritaChapter;
   chapterIndex: number;
   defaultOpen: boolean;
+  targetWordCount?: number;
   onSave?: (idx: number, newContent: string) => void;
 }) {
   const titleLabel = chapter.title
@@ -3132,9 +3304,30 @@ const ChapterCard = memo(function ChapterCard({
               const showDeclared =
                 typeof declaredCount === "number" &&
                 Math.abs(declaredCount - realCount) > 30;
+              const withinTarget =
+                typeof targetWordCount === "number"
+                  ? isWithinTarget(realCount, targetWordCount)
+                  : null;
+              const targetClass =
+                withinTarget === true
+                  ? "text-emerald-700"
+                  : withinTarget === false
+                    ? "text-amber-700"
+                    : "text-muted-foreground";
+              const targetIcon =
+                withinTarget === true ? "✓" : withinTarget === false ? "⚠" : "";
               return (
-                <span className="text-[10px] text-muted-foreground">
+                <span className={`text-[10px] ${targetClass}`}>
+                  {targetIcon && <span className="mr-1">{targetIcon}</span>}
                   {realCount.toLocaleString("pt-BR")} palavras
+                  {typeof targetWordCount === "number" && (
+                    <span
+                      className="ml-1 opacity-70"
+                      title={`Alvo da estrutura: ${targetWordCount.toLocaleString("pt-BR")} ±3%`}
+                    >
+                      / {targetWordCount.toLocaleString("pt-BR")}
+                    </span>
+                  )}
                   {showDeclared && (
                     <span
                       className="ml-1 text-amber-700"

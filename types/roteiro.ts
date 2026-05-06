@@ -104,6 +104,19 @@ export interface EscritaSynopsis {
   synopsis: string;
 }
 
+/**
+ * Aviso de batch da Escrita em que o agente Opus não emitiu todos os
+ * cabeçalhos `## Capítulo N` esperados pelo plano 2-em-2. Detecta o caso
+ * em que o agente "engole" um cap silenciosamente — sem isso, o usuário
+ * só descobriria no Revisor depois de gastar 30+ minutos do pipeline.
+ */
+export interface BatchMissingChapters {
+  batchIndex: number;
+  part: "Parte 1" | "Parte 2";
+  expected: number[];
+  missing: number[];
+}
+
 export interface StepOutputMetadata {
   /** [Legacy all-at-once] Relatório de auto-revisão. */
   report?: string;
@@ -126,6 +139,12 @@ export interface StepOutputMetadata {
   escritaSnapshotHash?: string;
   /** Sinopses por capítulo do fluxo 2-em-2 (continuidade entre batches). */
   synopses?: EscritaSynopsis[];
+  /**
+   * Batches em que o agente Escrita pulou capítulos esperados. Renderizado
+   * como banner amarelo na UI da Escrita pra o usuário regerar. Limpo na
+   * próxima geração bem-sucedida.
+   */
+  batchWarnings?: BatchMissingChapters[];
   /**
    * Aviso pra UI quando a Escrita pós-correção pontual não conseguiu ser
    * quebrada em capítulos (parser legado falhou). O content fica salvo cru
